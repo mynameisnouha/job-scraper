@@ -122,6 +122,18 @@ def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> O
     Based **only** on the information provided, **return exactly one integer between 0 and 100** (inclusive) that represents the candidate’s suitability for the role.  
     Do **not** return any words, punctuation, or explanation—only the integer.
 
+    SCORING RULES:
+    - 0–20 → No match
+    - 21–40 → Weak
+    - 41–60 → Moderate
+    - 61–80 → Strong
+    - 81–100 → Excellent
+
+    STRICT RULES:
+    - Penalize senior roles if candidate is junior
+    - Penalize missing key skills heavily
+    - Do NOT inflate scores
+
     --- RESUME ---
     {resume_text}
     --- END RESUME ---
