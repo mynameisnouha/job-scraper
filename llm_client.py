@@ -187,9 +187,18 @@ class LLMClient:
         if self.api_key:
             base_kwargs["api_key"] = self.api_key
 
-        # Add structured output (Pydantic model)
+        # Add structured output (Pydantic model) changed this
         if response_format is not None:
-            base_kwargs["response_format"] = response_format
+            schema = response_format.model_json_schema()
+            base_kwargs["tools"] = [{
+                "type": "function",
+                "function": {
+                    "name": "structured_output",
+                    "description": "Return the structured response",
+                    "parameters": schema,
+                }
+            }]
+            base_kwargs["tool_choice"] = {"type": "function", "function": {"name": "structured_output"}}
 
         last_exception = None
 
@@ -225,7 +234,11 @@ class LLMClient:
                 self._daily_count += 1
 
                 # Extract text from response
-                content = response.choices[0].message.content
+                message = response.choices[0].message
+                if hasattr(message, 'tool_calls') and message.tool_calls:
+                    content = message.tool_calls[0].function.arguments
+                else:
+                    content = message.content
                 if content:
                     return content.strip()
                 else:
