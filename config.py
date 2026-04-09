@@ -27,15 +27,15 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GEMINI_API_KEY") 
 # --- LLM Settings ---
 # Use any model supported by LiteLLM (gemini, openai/gpt-4o-mini, groq/llama-3.3-70b-versatile)
 # Full list of supported models & naming: https://docs.litellm.ai/docs/providers
-LLM_MODEL = "gemini"
+LLM_MODEL = "opus-4-1"
 
 # --- Search Configuration ---
 LINKEDIN_SEARCH_QUERIES = ["maths lecturer", "statistics lecturer", "maths teacher", "Maths assistant professor", "Maths professor"]
-LINKEDIN_LOCATION = "Singapore"
-LINKEDIN_GEO_ID = 102454443      # Singapore: 102454443, Dubai: 100205264
+LINKEDIN_LOCATION = "Germany"
+LINKEDIN_GEO_ID = 101282230      # Singapore: 102454443, Dubai: 100205264
 LINKEDIN_JOB_TYPE = "F" # F=Full-time, C=Contract, P=Part-time, T=Temporary, I=Internship
 LINKEDIN_JOB_POSTING_DATE = "r86400" # r86400=Past 24h, r604800=Past week
-LINKEDIN_F_WT = 1 # 1=Onsite, 2=Remote, 3=Hybrid
+LINKEDIN_F_WT = 3 # 1=Onsite, 2=Remote, 3=Hybrid
 
 CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Application Support", "Cybersecurity Analyst", "fresher developer"]
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
