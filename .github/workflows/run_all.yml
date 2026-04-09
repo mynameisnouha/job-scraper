@@ -1,0 +1,66 @@
+name: Run All (Scrape → Score → Manage → Customize)
+
+on:
+  workflow_dispatch: # Manual trigger from the Actions tab
+  # Optional: uncomment to also run on a schedule
+  # schedule:
+  #   - cron: "0 10 * * *"  # Every day at 10:00 UTC (same as scraper)
+
+jobs:
+  run-all:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "requirements.txt not found."
+            exit 1
+          fi
+
+      # ── Step 1: Scrape Jobs ──────────────────────────────────────────
+      - name: "1 — Scrape Jobs"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scraper.py
+
+      # ── Step 2: Score Jobs ───────────────────────────────────────────
+      - name: "2 — Score Jobs"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_FIRST_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python score_jobs.py
+
+      # ── Step 3: Manage Jobs (expire / check activity / delete old) ───
+      - name: "3 — Manage Jobs"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python job_manager.py
+
+      # ── Step 4: Generate Custom Resumes ─────────────────────────────
+      - name: "4 — Generate Custom Resumes"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_FIRST_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python custom_resume_generator.py
