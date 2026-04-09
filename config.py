@@ -30,7 +30,16 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GEMINI_API_KEY") 
 LLM_MODEL = "anthropic/claude-sonnet-4-6"
 
 # --- Search Configuration ---
-LINKEDIN_SEARCH_QUERIES = ["maths lecturer", "statistics lecturer", "maths teacher", "Maths assistant professor", "Maths professor"]
+LINKEDIN_SEARCH_QUERIES = [
+    "Data Scientist",
+    "Machine Learning Engineer",
+    "AI Engineer",
+    "NLP Engineer",
+    "MLOps Engineer",
+    "Data Scientist PySpark",
+    "Big Data Scientist",
+    "Applied Scientist",
+]
 LINKEDIN_LOCATION = "Germany"
 LINKEDIN_GEO_ID = 101282230      # Singapore: 102454443, Dubai: 100205264
 LINKEDIN_JOB_TYPE = "F" # F=Full-time, C=Contract, P=Part-time, T=Temporary, I=Internship
