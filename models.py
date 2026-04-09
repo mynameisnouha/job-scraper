@@ -1,72 +1,43 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List
 
+# --- Flattened nested models to reduce optional parameters ---
 class Education(BaseModel):
     degree: str = ""
-    field_of_study: str = ""
     institution: str = ""
-    start_year: str = ""
-    end_year: str = ""
 
 class Experience(BaseModel):
     job_title: str = ""
     company: str = ""
-    location: str = ""
     start_date: str = ""
     end_date: str = ""
-    description: str = ""
-
-class Project(BaseModel):
-    name: str = ""
-    description: str = ""
-    technologies: List[str] = Field(default_factory=list)
-
-class Certification(BaseModel):
-    name: str = ""
-    issuer: str = ""
-    year: str = ""
-
-class Links(BaseModel):
-    linkedin: str = ""
-    github: str = ""
-    portfolio: str = ""
 
 class Resume(BaseModel):
+    # Essential personal info
     name: str = ""
     email: str = ""
     phone: str = ""
     location: str = ""
     summary: str = ""
+
+    # Essential structured fields (limit the number of optional params)
     skills: List[str] = Field(default_factory=list)
-    education: List[Education] = Field(default_factory=list)
     experience: List[Experience] = Field(default_factory=list)
-    projects: List[Project] = Field(default_factory=list)
-    certifications: List[Certification] = Field(default_factory=list)
-    languages: List[str] = Field(default_factory=list)
-    links: Links = Field(default_factory=Links)
+    education: List[Education] = Field(default_factory=list)
 
-# --- Pydantic models for LLM structured output ---
-class SummaryOutput(BaseModel):
+    # Optional fields removed or moved out of AI parsing
+    # projects, certifications, languages, links -> handle outside LLM
+
+# --- Example output schema for LiteLLM / Anthropic ---
+class ResumeOutput(BaseModel):
+    name: str
+    email: str
+    phone: str
+    location: str
     summary: str
-
-class SkillsOutput(BaseModel):
     skills: List[str]
-
-class ExperienceListOutput(BaseModel):
     experience: List[Experience]
-
-class SingleExperienceOutput(BaseModel):
-    experience: Experience
-
-class ProjectListOutput(BaseModel):
-    projects: List[Project]
-
-class SingleProjectOutput(BaseModel):
-    project: Project
-
-class ValidationResponse(BaseModel):
-    is_valid: bool
-    reason: str
+    education: List[Education]
 
 class Config:
-    extra = 'allow'
+    extra = "allow"
