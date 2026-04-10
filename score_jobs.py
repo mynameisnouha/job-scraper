@@ -132,7 +132,11 @@ def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> O
     STRICT RULES:
     - Penalize senior roles if candidate is junior
     - Penalize missing key skills heavily
+    - Penalize lack of experience in the industry
+    - Do Not show internships and Master thesis if candidate is searching for full-time junior role
     - Do NOT inflate scores
+    - Penalize language mismatchs
+    - Do Not return anything other than the integer score (no explanations, no punctuation, no words)
 
     --- RESUME ---
     {resume_text}
