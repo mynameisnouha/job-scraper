@@ -136,7 +136,7 @@ def get_jobs_to_score(limit: int) -> list:
                            .execute()
 
         if response.data:
-            logging.info(f"Successfully fetched {len(response.data)} jobs to score.")
+                logging.info(f"Successfully fetched {len(response.data)} jobs to score.")
             return response.data
         else:
             logging.info("No jobs found needing scoring at this time.")
@@ -145,6 +145,39 @@ def get_jobs_to_score(limit: int) -> list:
     except Exception as e:
         logging.error(f"Error fetching jobs to score from Supabase: {e}")
         return []
+
+
+def get_jobs_needing_backfill(limit: int) -> list:
+    """
+    Fetches jobs that need job_url backfill OR have old-style scores (rescore).
+    Returns jobs where job_url IS NULL OR (resume_score IS NOT NULL AND resume_score_stage IS NULL).
+    Orders by scraped_at ascending.
+    """
+    if limit <= 0:
+        logging.warning("Limit for backfill must be positive.")
+        return []
+
+    try:
+        logging.info(f"Fetching up to {limit} jobs needing backfill or rescore...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select("job_id, job_title, company, description, level, provider, job_url, resume_score, resume_score_stage")\
+                           .eq("is_active", True)\
+                           .or_("job_url.is.null,resume_score_stage.is.null")\
+                           .order("scraped_at", desc=False)\
+                           .limit(limit)\
+                           .execute()
+
+        if response.data:
+            logging.info(f"Successfully fetched {len(response.data)} jobs needing backfill.")
+            return response.data
+        else:
+            logging.info("No jobs found needing backfill at this time.")
+            return []
+
+    except Exception as e:
+        logging.error(f"Error fetching jobs for backfill from Supabase: {e}")
+        return []
+
 
 def get_top_scored_jobs_to_apply(limit: int) -> list:
     """
@@ -293,6 +326,38 @@ def update_job_score(job_id: str, score: int, resume_score_stage: str = "initial
     except Exception as e:
         logging.error(f"Error updating score for job_id {job_id} in Supabase: {e}")
         return False
+
+
+def update_job_url(job_id: str, job_url: str) -> bool:
+    """Updates the job_url for a specific job in the Supabase 'jobs' table."""
+    if not job_id or not job_url:
+        logging.error(f"Invalid input for updating job_url: job_id={job_id}, job_url={job_url}")
+        return False
+
+    try:
+        logging.info(f"Updating job_url for job_id {job_id}...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({"job_url": job_url})\
+                           .eq("job_id", job_id)\
+                           .execute()
+
+        if hasattr(response, 'data') and response.data:
+            logging.info(f"Successfully updated job_url for job_id {job_id}.")
+            return True
+        elif hasattr(response, 'count') and response.count is not None and response.count > 0:
+            logging.info(f"Successfully updated job_url for job_id {job_id} (count={response.count}).")
+            return True
+        elif not hasattr(response, 'data') and not hasattr(response, 'count'):
+            logging.warning(f"Update job_url for job_id {job_id} executed, but response structure unclear: {response}")
+            return True
+        else:
+            logging.warning(f"Update job_url for job_id {job_id} might have failed. Response: {response}")
+            return False
+
+    except Exception as e:
+        logging.error(f"Error updating job_url for job_id {job_id} in Supabase: {e}")
+        return False
+
 
 def get_job_by_id(job_id: str) -> dict | None:
     """
