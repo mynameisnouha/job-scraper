@@ -237,6 +237,22 @@ async def delete_jobs_older_than_days(days: int = 14):
     cutoff_str = cutoff.isoformat()
 
     try:
+        # Step 1 — count what would be deleted
+        count_response = supabase.table(config.SUPABASE_TABLE_NAME)\
+            .select("job_id", count="exact")\
+            .lt("scraped_at", cutoff_str)\
+            .execute()
+
+        total_in_db = getattr(count_response, 'count', 0) or 0
+        if total_in_db == 0 and (not hasattr(count_response, 'data') or not count_response.data):
+            logging.info(f"Supabase table has 0 rows older than {days} days. Nothing to delete.")
+            logging.info(f"--- Finished Task: Delete Jobs Older Than {days} Days ---")
+            return
+
+        total_count = total_in_db or len(count_response.data) if hasattr(count_response, 'data') and count_response.data else 0
+        logging.info(f"Found {total_count} job(s) in the 'jobs' table older than {days} days — these will be purged.")
+
+        # Step 2 — delete
         delete_response = supabase.table(config.SUPABASE_TABLE_NAME)\
             .delete()\
             .lt("scraped_at", cutoff_str)\
@@ -251,7 +267,7 @@ async def delete_jobs_older_than_days(days: int = 14):
         if deleted_count > 0:
             logging.info(f"Successfully deleted {deleted_count} jobs older than {days} days.")
         else:
-            logging.info(f"No jobs older than {days} days found to delete.")
+            logging.info(f"No jobs older than {days} days found to delete (they may have been removed already).")
 
     except Exception as e:
         logging.error(f"Error deleting jobs older than {days} days: {e}")
