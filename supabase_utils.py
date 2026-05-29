@@ -69,11 +69,21 @@ def save_jobs_to_supabase(jobs_data: list):
         logging.warning("No job data provided to save/update.")
         return
 
+    # Columns that exist in the Supabase 'jobs' table schema
+    known_columns = {
+        "job_id", "company", "job_title", "level", "location", "description",
+        "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
+        "is_active", "status", "job_state", "scraped_at", "last_checked",
+        "customized_resume_id", "resume_link",
+    }
+
     processed_jobs_data = []
     for job in jobs_data:
         if 'job_id' in job and job['job_id'] is not None:
              job['job_id'] = str(job['job_id'])
-             processed_jobs_data.append(job)
+             # Strip any keys that aren't in the schema to avoid PGRST204 errors
+             clean_job = {k: v for k, v in job.items() if k in known_columns}
+             processed_jobs_data.append(clean_job)
         else:
             logging.warning(f"Job data missing job_id. Skipping: {job}")
 
