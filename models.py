@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 class Education(BaseModel):
     degree: str = ""
@@ -67,6 +68,17 @@ class SingleProjectOutput(BaseModel):
 class ValidationResponse(BaseModel):
     is_valid: bool
     reason: str
+
+class ScoreBreakdown(BaseModel):
+    overall_score: int = Field(..., ge=0, le=100, description="Overall suitability score 0-100")
+    skills_match_score: int = Field(..., ge=0, le=100, description="How well the candidate's skills match the job requirements")
+    experience_score: int = Field(..., ge=0, le=100, description="Relevance of the candidate's experience level and domain")
+    education_score: int = Field(..., ge=0, le=100, description="How well the candidate's education matches")
+    language_fit: str = Field(..., description="Language assessment: e.g. 'Full match', 'Partial - B1 German may suffice', 'Mismatch - job requires fluent German'")
+    key_matching_skills: List[str] = Field(default_factory=list, description="Top skills from resume that match the job")
+    key_gaps: List[str] = Field(default_factory=list, description="Important skills/requirements the candidate lacks")
+    recommendation: str = Field(..., description="One of: 'strong_apply', 'apply', 'consider', 'skip'")
+    reasoning: str = Field(..., description="2-3 sentence explanation of the score")
 
 class Config:
     extra = 'allow'

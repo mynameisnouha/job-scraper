@@ -1,7 +1,8 @@
+import json
 from models import (
     Resume, Education, Experience, Project, Certification, Links,
     SummaryOutput, SkillsOutput, ExperienceListOutput, SingleExperienceOutput,
-    ProjectListOutput, SingleProjectOutput, ValidationResponse
+    ProjectListOutput, SingleProjectOutput, ValidationResponse, ScoreBreakdown
 )
 
 
@@ -70,3 +71,52 @@ class TestModels:
         v = ValidationResponse(is_valid=True, reason="OK")
         assert v.is_valid is True
         assert v.reason == "OK"
+
+    def test_score_breakdown_defaults(self):
+        s = ScoreBreakdown(
+            overall_score=75,
+            skills_match_score=80,
+            experience_score=70,
+            education_score=85,
+            language_fit="Full match",
+            recommendation="apply",
+            reasoning="Strong skills match with some experience gaps."
+        )
+        assert s.overall_score == 75
+        assert s.skills_match_score == 80
+        assert s.experience_score == 70
+        assert s.key_matching_skills == []
+        assert s.key_gaps == []
+        assert s.recommendation == "apply"
+
+    def test_score_breakdown_full(self):
+        s = ScoreBreakdown(
+            overall_score=90,
+            skills_match_score=95,
+            experience_score=80,
+            education_score=90,
+            language_fit="Full match",
+            key_matching_skills=["Python", "ML", "SQL"],
+            key_gaps=["Kubernetes"],
+            recommendation="strong_apply",
+            reasoning="Excellent fit for data science role."
+        )
+        assert len(s.key_matching_skills) == 3
+        assert s.recommendation == "strong_apply"
+
+    def test_score_breakdown_serialization(self):
+        s = ScoreBreakdown(
+            overall_score=60,
+            skills_match_score=50,
+            experience_score=60,
+            education_score=70,
+            language_fit="Partial - B1 German may suffice",
+            key_matching_skills=["Python"],
+            key_gaps=["Deep Learning"],
+            recommendation="consider",
+            reasoning="Some relevant skills but missing key DL experience."
+        )
+        data = json.loads(s.model_dump_json())
+        assert data["overall_score"] == 60
+        assert data["recommendation"] == "consider"
+        assert "Python" in data["key_matching_skills"]

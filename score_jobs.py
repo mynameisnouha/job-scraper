@@ -10,6 +10,7 @@ import os
 import config
 import supabase_utils
 from llm_client import primary_client
+from models import ScoreBreakdown
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -103,8 +104,9 @@ def format_resume_to_text(resume_data: Dict[str, Any]) -> str:
 
 def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> Optional[int]:
     """
-    Sends resume and job details to Gemini to get a suitability score.
-    Returns the score as an integer (0-100) or None if scoring fails.
+    Scores a job against the resume using structured LLM output.
+    Returns the overall score (0-100) or None if scoring fails.
+    The full breakdown is logged for transparency.
     """
     if not resume_text or not job_details or not job_details.get('description'):
         logging.warning(f"Missing resume text or job description for job_id {job_details.get('job_id')}. Skipping scoring.")
@@ -114,64 +116,84 @@ def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> O
     job_title = job_details.get('job_title', 'N/A')
     job_description = job_details.get('description', 'N/A')
     job_level = job_details.get('level', 'N/A')
+    job_id = job_details.get('job_id', 'N/A')
 
-    logging.info(f"Scoring job_id: {job_details.get('job_id')} with job_title: {job_title} and job_level: {job_level}")
+    logging.info(f"Scoring job_id: {job_id} | {job_title} @ {job_company} | Level: {job_level}")
 
     prompt = f"""
-    You are a scoring assistant. You will be given a resume and a job description.  
-    Based **only** on the information provided, **return exactly one integer between 0 and 100** (inclusive) that represents the candidate’s suitability for the role.  
-    Do **not** return any words, punctuation, or explanation—only the integer.
+You are a precise job fit assessor for the German tech job market. Your task is to evaluate how well a candidate's resume matches a job description.
 
-    SCORING RULES:
-    - 0–20 → No match
-    - 21–40 → Weak
-    - 41–60 → Moderate
-    - 61–80 → Strong
-    - 81–100 → Excellent
+## CANDIDATE PROFILE CONTEXT
+- Education: AI Engineering Master's from University of Passau (in progress/completed)
+- Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
+- Languages: English (fluent), German (B1 - learning)
+- Career stage: Early-career, seeking first full-time Data Science / AI role
+- Note: Working student experience at a major automotive OEM (Daimler) is REAL industry experience and should be weighted accordingly
 
-    STRICT RULES:
-    - Penalize senior roles if candidate is junior
-    - Penalize missing key skills heavily
-    - Penalize lack of experience in the industry
-    - Do Not show internships and Master thesis if candidate is searching for full-time junior role
-    - Do NOT inflate scores
-    - Penalize language mismatchs
-    - Do Not return anything other than the integer score (no explanations, no punctuation, no words)
+## SCORING DIMENSIONS (score each 0-100)
 
-    --- RESUME ---
-    {resume_text}
-    --- END RESUME ---
+1. **Skills Match**: What % of key skills in the JD does the candidate have? Consider Python, ML/DL frameworks, SQL, cloud, MLOps, NLP, etc.
+2. **Experience Match**: How relevant is the candidate's experience (Daimler working student + projects) to this role? Working student experience counts as real experience.
+3. **Education Match**: Does the candidate's AI Engineering background fit the role's requirements?
+4. **Language Fit**: 
+   - If the job description is in English or doesn't explicitly require German → no penalty, candidates English is fluent
+   - If the job mentions "German required" or "Deutsch" → partial penalty (B1 may be enough for some roles)
+   - Many German tech companies operate in English — do NOT penalize if the JD is in English
 
-    --- JOB DESCRIPTION ---
-    Job Title: {job_title}
-    Company: {job_company}
-    Level: {job_level}
+## CALIBRATION GUIDELINES
+- **85-100**: Nearly perfect match across all dimensions
+- **70-84**: Strong match — the candidate is a great fit, apply confidently
+- **50-69**: Moderate match — has some key skills but gaps exist, worth applying
+- **30-49**: Weak match — significant gaps, only apply if desperate
+- **0-29**: No match — missing core requirements
 
-    {job_description}
-    --- END JOB DESCRIPTION ---
+## CRITICAL RULES
+- Working student experience at Daimler Buses IS real experience — count it as 1-2 years of relevant experience
+- Do NOT penalize for "junior" labels — the candidate is entry-level and that's fine for many roles
+- Do NOT penalize language if the JD is in English or doesn't mention German
+- Be HONEST about skill gaps — don't inflate
+- Consider the full resume context, not just individual keywords
 
-    Score (0–100):
-    """
+--- RESUME ---
+{resume_text}
+--- END RESUME ---
+
+--- JOB DESCRIPTION ---
+Job Title: {job_title}
+Company: {job_company}
+Level: {job_level}
+
+{job_description}
+--- END JOB DESCRIPTION ---
+
+Think step by step, then return your assessment.
+"""
 
     try:
-        logging.info(f"Requesting score for job_id: {job_details.get('job_id')}")
+        logging.info(f"Requesting structured score for job_id: {job_id}")
         score_text = primary_client.generate_content(
             prompt=prompt,
+            response_format=ScoreBreakdown,
+            temperature=0.3,
         )
 
-        # Attempt to parse the score
-        score = int(score_text.strip())
-        if 0 <= score <= 100:
-            logging.info(f"Received score {score} for job_id: {job_details.get('job_id')}")
-            return score
-        else:
-            logging.warning(f"Received score out of range ({score}) for job_id: {job_details.get('job_id')}. Raw response: '{score_text}'")
-            return None
-    except ValueError:
-        logging.error(f"Could not parse integer score from LLM response for job_id: {job_details.get('job_id')}. Raw response: '{score_text}'")
-        return None
+        breakdown = ScoreBreakdown.model_validate_json(score_text)
+
+        logging.info(f"=== SCORE BREAKDOWN for {job_id} ===")
+        logging.info(f"  Overall:        {breakdown.overall_score}/100")
+        logging.info(f"  Skills Match:   {breakdown.skills_match_score}/100")
+        logging.info(f"  Experience:     {breakdown.experience_score}/100")
+        logging.info(f"  Education:      {breakdown.education_score}/100")
+        logging.info(f"  Language:       {breakdown.language_fit}")
+        logging.info(f"  Matching:       {breakdown.key_matching_skills}")
+        logging.info(f"  Gaps:           {breakdown.key_gaps}")
+        logging.info(f"  Recommendation: {breakdown.recommendation}")
+        logging.info(f"  Reasoning:      {breakdown.reasoning}")
+
+        return breakdown.overall_score
+
     except Exception as e:
-        logging.error(f"Error calling LLM API for job_id {job_details.get('job_id')}: {e}")
+        logging.error(f"Error scoring job_id {job_id}: {e}")
         return None
 
 
