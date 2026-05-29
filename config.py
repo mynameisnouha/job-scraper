@@ -50,15 +50,27 @@ CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Appl
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
+# --- Indeed Configuration ---
+INDEED_SEARCH_QUERIES = [
+    "Data Scientist",
+    "Machine Learning Engineer",
+    "AI Engineer",
+    "Data Engineer",
+    "NLP Engineer",
+    "Python Developer",
+]
+INDEED_LOCATION = "Germany"
+
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin"] # "linkedin", "careers_future"
+SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
 JOBS_TO_SCORE_PER_RUN = 25
 JOBS_TO_CUSTOMIZE_PER_RUN = 1
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
+    "indeed": 5,
     "careers_future": 10,
 }
 

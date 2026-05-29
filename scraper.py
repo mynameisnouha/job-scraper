@@ -709,6 +709,144 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
     logging.info(f"--- Finished Phase 4: Successfully fetched details for {processed_count} new job(s) ---")
     return detailed_new_jobs
 
+# ═══════════════════════════════════════════════════════════════
+# INDEED SCRAPER
+# ═══════════════════════════════════════════════════════════════
+
+def _fetch_indeed_job_keys(search_query: str, location: str, limit: int = 10) -> list:
+    """Fetch job keys from Indeed search results."""
+    keys = []
+    query_encoded = search_query.replace(" ", "+")
+    loc_encoded = location.replace(" ", "+")
+    start = 0
+
+    while len(keys) < limit and start < limit:
+        url = f"https://de.indeed.com/jobs?q={query_encoded}&l={loc_encoded}&start={start}"
+        if start > 0:
+            time.sleep(random.uniform(5.0, 12.0))
+
+        headers = {"User-Agent": random.choice(user_agents.USER_AGENTS)}
+        logging.info(f"Indeed search: {url}")
+
+        try:
+            res = requests.get(url, headers=headers, timeout=config.REQUEST_TIMEOUT)
+            res.raise_for_status()
+        except requests.RequestException as e:
+            logging.error(f"Indeed search failed: {e}")
+            break
+
+        soup = BeautifulSoup(res.text, "html.parser")
+        cards = soup.select("[data-jk]")
+        if not cards:
+            cards = soup.select("a[data-jk]")
+        if not cards:
+            logging.info("No Indeed job cards found on this page.")
+            break
+
+        for card in cards:
+            jk = card.get("data-jk")
+            if jk and jk not in keys:
+                keys.append(jk)
+                if len(keys) >= limit:
+                    break
+
+        logging.info(f"Found {len(cards)} cards, total keys so far: {len(keys)}")
+        if len(cards) < 10:
+            break
+        start += 10
+
+    logging.info(f"Indeed: collected {len(keys)} job keys.")
+    return keys
+
+
+def _fetch_indeed_job_details(job_key: str) -> dict | None:
+    """Fetch details for a single Indeed job from its view page."""
+    url = f"https://de.indeed.com/viewjob?jk={job_key}"
+    headers = {"User-Agent": random.choice(user_agents.USER_AGENTS)}
+    time.sleep(random.uniform(3.0, 8.0))
+
+    try:
+        res = requests.get(url, headers=headers, timeout=config.REQUEST_TIMEOUT)
+        res.raise_for_status()
+    except requests.RequestException as e:
+        logging.error(f"Indeed detail failed for jk={job_key}: {e}")
+        return None
+
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    # Title
+    title_tag = soup.select_one("h1[class*=title]") or soup.select_one(".jobsearch-JobInfoHeader-title") or soup.find("h1")
+    title = title_tag.get_text(strip=True) if title_tag else "N/A"
+
+    # Company
+    company_tag = (soup.select_one("[data-company-name]") or
+                   soup.select_one(".jobsearch-InlineCompanyRating div") or
+                   soup.select_one("[class*=company]"))
+    company = company_tag.get_text(strip=True) if company_tag else "N/A"
+
+    # Description
+    desc_div = soup.select_one("#jobDescriptionText") or soup.select_one(".jobsearch-JobComponent-description")
+    description = ""
+    if desc_div:
+        description = convert_html_to_markdown(str(desc_div))
+    if not description or not description.strip():
+        logging.warning(f"Indeed jk={job_key}: empty description, skipping.")
+        return None
+
+    # Location
+    loc_tag = (soup.select_one("[data-testid=jobLocation]") or
+               soup.select_one(".jobsearch-JobInfoHeader-subtitle") or
+               soup.find("div", class_=lambda c: c and "location" in c.lower()))
+    location = loc_tag.get_text(strip=True) if loc_tag else config.LINKEDIN_LOCATION
+
+    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "student employee", "student assistant"]
+    title_lower = title.lower()
+    if any(kw in title_lower for kw in internship_keywords):
+        logging.info(f"Indeed: skipping internship/thesis: {title}")
+        return None
+
+    return {
+        "job_id": f"indeed_{job_key}",
+        "job_title": title,
+        "company": company,
+        "description": description,
+        "level": "N/A",
+        "location": location,
+        "provider": "indeed",
+        "job_url": url,
+    }
+
+
+def process_indeed_query(search_query: str, location: str, limit: int = None) -> list:
+    """Search Indeed for jobs and return scored-ready dicts."""
+    limit = limit or config.MAX_JOBS_PER_SEARCH.get("indeed", 10)
+
+    try:
+        existing_ids, _ = supabase_utils.get_existing_jobs_from_supabase()
+    except Exception:
+        existing_ids = set()
+
+    keys = _fetch_indeed_job_keys(search_query, location, limit)
+    if not keys:
+        return []
+
+    jobs = []
+    for k in keys:
+        job_id = f"indeed_{k}"
+        if job_id in existing_ids:
+            logging.debug(f"Indeed jk={k} already in DB, skipping.")
+            continue
+
+        details = _fetch_indeed_job_details(k)
+        if details:
+            jobs.append(details)
+        if len(jobs) >= limit:
+            break
+
+    logging.info(f"Indeed: {len(jobs)} new jobs from query '{search_query}'.")
+    return jobs
+
+
 # --- Main Execution ---
 if __name__ == "__main__":
 
@@ -732,6 +870,24 @@ if __name__ == "__main__":
     else:
         logging.info("\n--- Skipping LinkedIn Job Scraping per config ---")
 
+    # Get jobs from Indeed
+    if "indeed" in config.SCRAPING_SOURCES:
+        logging.info("\n--- Starting Indeed Job Scraping ---")
+        max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("indeed", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+        for query in config.INDEED_SEARCH_QUERIES:
+            logging.info(f"Processing Indeed Search Query: '{query}'")
+
+            new_indeed_job_details = process_indeed_query(query, config.INDEED_LOCATION, limit=max_jobs_per_search)
+
+            if new_indeed_job_details:
+                logging.info(f"Saving {len(new_indeed_job_details)} new job(s) for query '{query}'")
+                supabase_utils.save_jobs_to_supabase(new_indeed_job_details)
+                total_new_jobs_saved += len(new_indeed_job_details)
+            else:
+                logging.info(f"No new job details were fetched or processed for query '{query}'.")
+    else:
+        logging.info("\n--- Skipping Indeed Job Scraping per config ---")
+
     # Get jobs from Careers Future
     if "careers_future" in config.SCRAPING_SOURCES:
         logging.info(f"\n--- Starting Careers Future Job Scraping ---")
@@ -739,10 +895,8 @@ if __name__ == "__main__":
         for query in config.CAREERS_FUTURE_SEARCH_QUERIES:
             logging.info(f"\n{'='*20} Processing Careers Future Search Query: '{query}' {'='*20}")
 
-            # 1. Process the query: Scrape IDs, filter, fetch new details
             new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search)
 
-            # 2. Save the NEW scraped data to Supabase
             if new_careers_future_job_details:
                 logging.info(f"\n--- Saving {len(new_careers_future_job_details)} new job(s) for query '{query}' ---")
                 supabase_utils.save_jobs_to_supabase(new_careers_future_job_details)

@@ -54,4 +54,11 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python job_manager.py
 
+      # ── Step 4: Generate Dashboard ────────────────────────────────────
+      - name: "4 — Generate Dashboard"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python dashboard.py
+
      
