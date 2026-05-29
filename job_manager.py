@@ -230,6 +230,35 @@ async def check_linkedin_job_activity():
     logging.info("--- Finished Task: Check Job Activity ---")
 
 
+async def delete_jobs_older_than_days(days: int = 14):
+    """Permanently deletes any job older than the given number of days regardless of state."""
+    logging.info(f"--- Starting Task: Delete Jobs Older Than {days} Days ---")
+    cutoff = get_past_date(days)
+    cutoff_str = cutoff.isoformat()
+
+    try:
+        delete_response = supabase.table(config.SUPABASE_TABLE_NAME)\
+            .delete()\
+            .lt("scraped_at", cutoff_str)\
+            .execute()
+
+        deleted_count = 0
+        if hasattr(delete_response, 'data') and delete_response.data:
+            deleted_count = len(delete_response.data)
+        elif hasattr(delete_response, 'count') and delete_response.count is not None:
+            deleted_count = delete_response.count
+
+        if deleted_count > 0:
+            logging.info(f"Successfully deleted {deleted_count} jobs older than {days} days.")
+        else:
+            logging.info(f"No jobs older than {days} days found to delete.")
+
+    except Exception as e:
+        logging.error(f"Error deleting jobs older than {days} days: {e}")
+
+    logging.info(f"--- Finished Task: Delete Jobs Older Than {days} Days ---")
+
+
 async def delete_old_inactive_jobs():
     """Permanently deletes very old inactive jobs."""
     logging.info("--- Starting Task: Delete Old Inactive Jobs ---")
@@ -277,6 +306,7 @@ async def main():
     await mark_expired_jobs()
     await check_linkedin_job_activity()
     await delete_old_inactive_jobs()
+    await delete_jobs_older_than_days(14)
 
     end_time = time.time()
     logging.info(f"Job Management Script finished in {end_time - start_time:.2f} seconds.")
