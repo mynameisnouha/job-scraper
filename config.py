@@ -51,8 +51,12 @@ CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
 # --- Notification Settings ---
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+EMAIL_FROM = os.environ.get("EMAIL_FROM", "")
+EMAIL_TO = os.environ.get("EMAIL_TO", "")
 DIGEST_TOP_N = 10  # Number of top scored jobs to include in daily digest
 
 # --- Manual Jobs (any source) ---
@@ -89,5 +93,3 @@ ACTIVE_CHECK_TIMEOUT = 20
 ACTIVE_CHECK_MAX_RETRIES = 2
 ACTIVE_CHECK_RETRY_DELAY = 10
 
-# Telegram
-TELEGRAM_API_URL = "https://api.telegram.org/bot"
