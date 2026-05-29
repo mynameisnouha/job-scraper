@@ -11,6 +11,8 @@ import config
 import supabase_utils
 from llm_client import primary_client
 from models import ScoreBreakdown
+import notifier
+import manual_jobs
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -382,6 +384,15 @@ def main():
 
     # # --- Phase 2: Re-scoring with Custom Resumes ---
     rescore_jobs_with_custom_resume() 
+
+    # --- Phase 3: Manual Jobs (any source) ---
+    if default_resume_text:
+        manual_success, manual_failed = manual_jobs.process_manual_jobs(default_resume_text)
+        if manual_success + manual_failed > 0:
+            logging.info(f"Manual jobs: {manual_success} scored, {manual_failed} failed.")
+
+    # --- Phase 4: Daily Digest (Telegram) ---
+    notifier.send_daily_digest()
 
     overall_end_time = time.time()
     logging.info("--- Job Scoring Script Finished (All Phases) ---")

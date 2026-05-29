@@ -1,0 +1,11 @@
+[
+  {
+    "job_title": "Data Scientist",
+    "company": "Example GmbH",
+    "description": "Full job description text here...",
+    "job_url": "https://example.com/jobs/123",
+    "level": "Junior",
+    "location": "Berlin, Germany",
+    "provider": "manual"
+  }
+]

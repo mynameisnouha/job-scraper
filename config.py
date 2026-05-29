@@ -50,12 +50,20 @@ CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Appl
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
+# --- Notification Settings ---
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+DIGEST_TOP_N = 10  # Number of top scored jobs to include in daily digest
+
+# --- Manual Jobs (any source) ---
+MANUAL_JOBS_PATH = "manual_jobs.json"
+
 # --- Processing Limits ---
 SCRAPING_SOURCES = ["linkedin"] # "linkedin", "careers_future"
-JOBS_TO_SCORE_PER_RUN = 5
+JOBS_TO_SCORE_PER_RUN = 25
 JOBS_TO_CUSTOMIZE_PER_RUN = 1
 MAX_JOBS_PER_SEARCH = {
-    "linkedin": 2,
+    "linkedin": 5,
     "careers_future": 10,
 }
 
@@ -80,3 +88,6 @@ JOB_CHECK_LIMIT = 50
 ACTIVE_CHECK_TIMEOUT = 20
 ACTIVE_CHECK_MAX_RETRIES = 2
 ACTIVE_CHECK_RETRY_DELAY = 10
+
+# Telegram
+TELEGRAM_API_URL = "https://api.telegram.org/bot"

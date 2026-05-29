@@ -193,7 +193,7 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
     try:
         logging.info(f"Fetching up to {limit} top-scored jobs to apply for...")
         response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select("job_id, job_title, company, resume_score")\
+                           .select("job_id, job_title, company, resume_score, job_url")\
                            .eq("is_active", True)\
                            .eq("status", "new")\
                            .not_.is_("resume_score", None)\
