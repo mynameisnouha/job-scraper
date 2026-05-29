@@ -53,10 +53,10 @@ def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
 
             offset += batch_size
 
-        print(f"Fetched {len(existing_ids)} job IDs and {len(existing_company_title_keys)} company-title pairs.")
+        logging.info(f"Fetched {len(existing_ids)} job IDs and {len(existing_company_title_keys)} company-title pairs.")
 
     except Exception as e:
-        print(f"Error fetching existing jobs from Supabase: {e}")
+        logging.error(f"Error fetching existing jobs from Supabase: {e}")
 
     return existing_ids, existing_company_title_keys
 
@@ -66,32 +66,23 @@ def save_jobs_to_supabase(jobs_data: list):
     This avoids duplicate key errors by updating existing records based on job_id.
     """
     if not jobs_data:
-        print("No job data provided to save/update.")
+        logging.warning("No job data provided to save/update.")
         return
 
-    # Ensure job_id is present and potentially convert to the correct type if needed
-    # (Assuming job_id in jobs_data is already the correct string type for your 'text' column)
     processed_jobs_data = []
     for job in jobs_data:
         if 'job_id' in job and job['job_id'] is not None:
-             # If your Supabase job_id column was numeric, you'd convert here:
-             # try:
-             #     job['job_id'] = int(job['job_id'])
-             #     processed_jobs_data.append(job)
-             # except (ValueError, TypeError):
-             #     print(f"Warning: Invalid job_id format found: {job.get('job_id')}. Skipping.")
-             # Since it's text, just ensure it's a string (it likely already is)
              job['job_id'] = str(job['job_id'])
              processed_jobs_data.append(job)
         else:
-            print(f"Warning: Job data missing job_id. Skipping: {job}")
+            logging.warning(f"Job data missing job_id. Skipping: {job}")
 
 
     if not processed_jobs_data:
-        print("No valid job data remaining after processing.")
+        logging.warning("No valid job data remaining after processing.")
         return
 
-    print(f"Attempting to upsert {len(processed_jobs_data)} jobs to Supabase...")
+    logging.info(f"Attempting to upsert {len(processed_jobs_data)} jobs to Supabase...")
 
     try:
         # Use table name from config
@@ -104,19 +95,12 @@ def save_jobs_to_supabase(jobs_data: list):
         # Check the actual response structure from your Supabase client version for upsert
         # It might differ slightly from insert's response structure
         if data and isinstance(data, tuple) and len(data) > 1:
-             # The actual data returned might be in data[1] for upsert
-             actual_data = data[1]
-             print(f"Successfully upserted/updated {len(processed_jobs_data)} jobs. Supabase response count: {count}")
-             # You might want to log the actual response data for debugging:
-             # print(f"Supabase response data: {actual_data}")
+             logging.info(f"Successfully upserted/updated {len(processed_jobs_data)} jobs. Supabase response count: {count}")
         else:
-             # Log raw response if structure is unexpected or for debugging
-             print(f"Attempted to upsert {len(processed_jobs_data)} jobs. Supabase response: {data}")
+             logging.info(f"Attempted to upsert {len(processed_jobs_data)} jobs. Supabase response: {data}")
 
     except Exception as e:
-        print(f"Error upserting data to Supabase: {e}")
-        # Consider logging the data that failed to upsert for debugging
-        # print(f"Failed data: {processed_jobs_data}")
+        logging.error(f"Error upserting data to Supabase: {e}")
 
 
 def get_jobs_to_score(limit: int) -> list:
@@ -524,6 +508,34 @@ def get_customized_resume(resume_id: str) -> Optional[Dict[str, Any]]:
         return None
     except Exception as e:
         logging.error(f"Error fetching customized resume {resume_id}: {e}")
+        return None
+
+
+def get_existing_customized_resume_for_company(company: str, exclude_job_id: str = None) -> Optional[Any]:
+    """
+    Checks if any job from the same company already has a customized resume.
+    Returns the customized_resume_id if found, None otherwise.
+    """
+    if not company:
+        return None
+
+    try:
+        query = supabase.table(config.SUPABASE_TABLE_NAME)\
+            .select("customized_resume_id")\
+            .eq("company", company)\
+            .not_.is_("customized_resume_id", None)
+        if exclude_job_id:
+            query = query.neq("job_id", exclude_job_id)
+        response = query.limit(1).execute()
+
+        if response.data and len(response.data) > 0:
+            resume_id = response.data[0].get("customized_resume_id")
+            if resume_id:
+                logging.info(f"Found existing customized resume for company '{company}': {resume_id}")
+                return resume_id
+        return None
+    except Exception as e:
+        logging.error(f"Error checking existing customized resume for company '{company}': {e}")
         return None
 
 

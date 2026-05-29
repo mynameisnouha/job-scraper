@@ -339,11 +339,23 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
     Processes a single job: personalizes resume, generates PDF, uploads, updates status.
     """
     job_id = job_details.get("job_id")
+    company = job_details.get("company", "unknown")
     if not job_id:
         logging.error("Job details missing job_id.")
         return
 
-    logging.info(f"--- Starting processing for job_id: {job_id} ---")
+    logging.info(f"--- Starting processing for job_id: {job_id} (Company: {company}) ---")
+
+    # Check if this company already has a customized resume
+    existing_resume_id = supabase_utils.get_existing_customized_resume_for_company(company, job_id)
+    if existing_resume_id:
+        logging.info(f"Found existing customized resume for company '{company}' (ID: {existing_resume_id}). Reusing.")
+        update_success = supabase_utils.update_job_with_resume_link(job_id, existing_resume_id, new_status="resume_generated")
+        if update_success:
+            logging.info(f"Linked job {job_id} to existing resume for company '{company}'.")
+        else:
+            logging.error(f"Failed to link job {job_id} to existing resume for company '{company}'.")
+        return
 
     try:
         # 1. Personalize Resume Sections
@@ -420,8 +432,9 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
             return # Stop processing this job
 
         # 3. Upload PDF to Supabase Storage
-        # Construct a unique path, e.g., using job_id
-        destination_path = f"resume_{job_id}.pdf"
+        # Construct a unique path with company name for organization
+        safe_company = re.sub(r'[^\w\- ]', '', company).strip().replace(' ', '_')[:50]
+        destination_path = f"{safe_company}_{job_id}.pdf"
         logging.info(f"Uploading PDF to {destination_path} for job_id: {job_id}")
         resume_path = supabase_utils.upload_customized_resume_to_storage(pdf_bytes, destination_path)
 
@@ -518,6 +531,6 @@ if __name__ == "__main__":
     logging.info("Script started.")
     try:
         asyncio.run(run_job_processing_cycle())
-        logging.info("Rresume processing completed successfully.")
+        logging.info("Resume processing completed successfully.")
     except Exception as e:
         logging.error(f"Error during task execution: {e}", exc_info=True)

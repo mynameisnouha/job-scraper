@@ -255,9 +255,9 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
 
             if not job_details.get("company"):
                  job_details["company"] = None
-                 print(f"Warning: Could not extract company for job ID {job_id}")
+                 logging.warning(f"Could not extract company for job ID {job_id}")
         except Exception as e:
-            print(f"Error extracting company for job ID {job_id}: {e}")
+            logging.error(f"Error extracting company for job ID {job_id}: {e}")
             job_details["company"] = None
 
         # --- Extract Job Title ---
@@ -269,7 +269,7 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
                  if title_h1:
                       job_details["job_title"] = title_h1.text.strip()
         except Exception as e: 
-            print(f"Error extracting job title for job ID {job_id}: {e}")
+            logging.error(f"Error extracting job title for job ID {job_id}: {e}")
             job_details["job_title"] = None
 
         # --- Extract Seniority Level ---
@@ -285,7 +285,7 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
                         job_details["level"] = level_text.text.strip()
                         break 
         except Exception as e: 
-            print(f"Error extracting seniority level for job ID {job_id}: {e}")
+            logging.error(f"Error extracting seniority level for job ID {job_id}: {e}")
             job_details["level"] = None
 
         # --- Extract Location ---
@@ -304,9 +304,9 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
 
             if not job_details.get("location"): 
                  job_details["location"] = None
-                 print(f"Warning: Could not extract location for job ID {job_id}")
+                 logging.warning(f"Could not extract location for job ID {job_id}")
         except Exception as e:
-            print(f"Error extracting location for job ID {job_id}: {e}")
+            logging.error(f"Error extracting location for job ID {job_id}: {e}")
             job_details["location"] = None
 
         # --- Extract Description ---
@@ -327,8 +327,9 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
             job_details["description"] = None 
             logging.warning(f"Description HTML was empty for job ID {job_id}. Skipping conversion.") 
 
-        # --- Set Provider ---
+        # --- Set Provider & URL ---
         job_details["provider"] = "linkedin"
+        job_details["job_url"] = f"https://www.linkedin.com/jobs/view/{job_id}/"
         
         return job_details
 
@@ -358,10 +359,14 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None) 
     logging.info("\n--- Starting Filtering Step: Checking against Supabase ---")
     job_ids_set, company_title_set = supabase_utils.get_existing_jobs_from_supabase()
 
-    new_job_ids_to_process = [
-        str(job_id) for job_id in unique_linkedin_job_ids 
-        if str(job_id) not in job_ids_set
-    ]
+    # Filter out internship and thesis-level jobs
+    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project"]
+
+    new_job_ids_to_process = []
+    for job_id in unique_linkedin_job_ids:
+        if str(job_id) in job_ids_set:
+            continue
+        new_job_ids_to_process.append(str(job_id))
 
 
     logging.info(f"Found {len(unique_linkedin_job_ids)} unique scraped IDs.")
@@ -385,22 +390,26 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None) 
 
     ids_to_fetch = new_job_ids_to_process
 
+    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project", "student employee", "student assistant"]
+
     for job_id in ids_to_fetch:
         details = _fetch_linkedin_job_details(job_id)
         if details:
+            title = (details.get('job_title') or '').lower()
+            level = (details.get('level') or '').lower()
+            if any(kw in title or kw in level for kw in internship_keywords):
+                logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
+                continue
             description = details.get('description')
             if description and description.strip(): 
                 if 'job_id' in details and details['job_id'] is not None:
                     detailed_new_jobs.append(details)
                     processed_count += 1
                 else:
-                    
                     logging.warning(f"Fetched details for {job_id} but missing 'job_id' key. Skipping.")
             else:
-                
                 logging.warning(f"Skipping job ID {job_id} due to missing or empty description.") 
         else:
-            
             logging.warning(f"Skipping job ID {job_id} as detail fetching failed or returned no data.") 
 
 
@@ -486,7 +495,7 @@ def _fetch_careers_future_jobs(search_query: str) -> list:
             total_api_calls_for_search += 1
             logging.info(f"Job search API call {total_api_calls_for_search}: POST to {current_search_url}")
         
-            search_response = requests.post(current_search_url, json=search_payload)
+            search_response = requests.post(current_search_url, json=search_payload, timeout=config.REQUEST_TIMEOUT)
             search_response.raise_for_status()
             search_results_data  = search_response.json()
 
@@ -573,6 +582,7 @@ def _fetch_careers_future_job_details(job_id: str) -> dict | None:
             'provider': 'careers_future',
             'description': markdown_description, 
             'posted_at': job_data.get('metadata', {}).get('createdAt', ''),
+            'job_url': f"https://www.mycareersfuture.gov.sg/job/{job_id}",
         }
 
         return job_details
@@ -604,7 +614,7 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
     # 1. Fetch all potential job items from CareersFuture search
     careers_future_jobs = _fetch_careers_future_jobs(search_query)
     if not careers_future_jobs:
-        print("No job items found in Phase 1. Skipping detail fetching.")
+        logging.info("No job items found in Phase 1. Skipping detail fetching.")
         return []
 
     # 2. Fetch existing job identifiers from Supabase
@@ -668,27 +678,30 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
         logging.info(f"Truncating new_job_ids_to_process from {len(new_job_ids_to_process)} to {limit} to stay within source limit.")
         new_job_ids_to_process = new_job_ids_to_process[:limit]
 
-    print(f"\n--- Phase 4: Fetching Job Details for {len(new_job_ids_to_process)} New Jobs ---")
+    logging.info(f"Phase 4: Fetching Job Details for {len(new_job_ids_to_process)} New Jobs ---")
     detailed_new_jobs = []
     processed_count = 0
+
+    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project", "student employee", "student assistant"]
 
     for job_id in new_job_ids_to_process:
         details = _fetch_careers_future_job_details(job_id)
         if details:
-            # --- NEW: Check for description before adding ---
+            title = (details.get('job_title') or '').lower()
+            level = (details.get('level') or '').lower()
+            if any(kw in title or kw in level for kw in internship_keywords):
+                logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
+                continue
             description = details.get('description')
-            if description and description.strip(): # Ensure it's not None or an empty/whitespace string
+            if description and description.strip():
                 if 'job_id' in details and details['job_id'] is not None:
                     detailed_new_jobs.append(details)
                     processed_count += 1
                 else:
-                    
                     logging.warning(f"Fetched details for {job_id} but missing 'job_id' key. Skipping.")
             else:
-                
                 logging.warning(f"Skipping job ID {job_id} due to missing or empty description.") 
         else:
-            
             logging.warning(f"Skipping job ID {job_id} as detail fetching failed or returned no data.") 
 
 
@@ -706,18 +719,16 @@ if __name__ == "__main__":
         logging.info("\n--- Starting LinkedIn Job Scraping ---")
         max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("linkedin", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
         for query in config.LINKEDIN_SEARCH_QUERIES:
-            print(f"\n{'='*20} Processing Search Query: '{query}' {'='*20}")
+            logging.info(f"Processing Search Query: '{query}'")
 
-            # 1. Process the query: Scrape IDs, filter, fetch new details
             new_linkedin_job_details = process_linkedin_query(query, config.LINKEDIN_LOCATION, limit=max_jobs_per_search)
 
-            # 2. Save the NEW scraped data to Supabase
             if new_linkedin_job_details:
-                print(f"\n--- Saving {len(new_linkedin_job_details)} new job(s) for query '{query}' ---")
+                logging.info(f"Saving {len(new_linkedin_job_details)} new job(s) for query '{query}'")
                 supabase_utils.save_jobs_to_supabase(new_linkedin_job_details)
                 total_new_jobs_saved += len(new_linkedin_job_details)
             else:
-                print(f"\nNo new job details were fetched or processed for query '{query}'.")
+                logging.info(f"No new job details were fetched or processed for query '{query}'.")
     else:
         logging.info("\n--- Skipping LinkedIn Job Scraping per config ---")
 
