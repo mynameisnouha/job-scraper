@@ -61,4 +61,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python dashboard.py
 
-     
+      # ── Step 5: Upload Dashboard as Artifact ──────────────────────────
+      - name: "5 — Upload Dashboard"
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: dashboard.html
+          retention-days: 7
