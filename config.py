@@ -50,15 +50,6 @@ CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Appl
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
-# --- Notification Settings ---
-SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-EMAIL_FROM = os.environ.get("EMAIL_FROM", "")
-EMAIL_TO = os.environ.get("EMAIL_TO", "")
-DIGEST_TOP_N = 10  # Number of top scored jobs to include in daily digest
-
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
