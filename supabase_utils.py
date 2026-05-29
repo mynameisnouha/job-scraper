@@ -359,6 +359,34 @@ def update_job_url(job_id: str, job_url: str) -> bool:
         return False
 
 
+def verify_job_score_update(job_id: str, expected_score: int, expected_stage: str) -> bool:
+    """Fetches a job and verifies resume_score and resume_score_stage were persisted correctly."""
+    if not job_id:
+        return False
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select("job_id, resume_score, resume_score_stage")\
+                           .eq("job_id", job_id)\
+                           .limit(1)\
+                           .execute()
+        if response.data:
+            actual = response.data[0]
+            got_score = actual.get("resume_score")
+            got_stage = actual.get("resume_score_stage")
+            if got_score == expected_score and got_stage == expected_stage:
+                logging.info(f"✓ Verified: job_id={job_id} resume_score={got_score} resume_score_stage={got_stage}")
+                return True
+            else:
+                logging.warning(f"✗ Mismatch for job_id={job_id}: expected score={expected_score}, got={got_score}; expected stage={expected_stage}, got={got_stage}")
+                return False
+        else:
+            logging.warning(f"Job {job_id} not found during verification read-back.")
+            return False
+    except Exception as e:
+        logging.error(f"Error verifying score for job_id {job_id}: {e}")
+        return False
+
+
 def get_job_by_id(job_id: str) -> dict | None:
     """
     Fetches a single job record from the Supabase 'jobs' table based on job_id.

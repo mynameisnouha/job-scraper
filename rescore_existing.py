@@ -94,6 +94,9 @@ def process_backfill():
             if score is not None:
                 ok = supabase_utils.update_job_score(job_id, score, resume_score_stage="initial")
                 if ok:
+                    verified = supabase_utils.verify_job_score_update(job_id, score, "initial")
+                    if not verified:
+                        logging.warning(f"  Score write for job_id {job_id} appeared to succeed but read-back mismatch!")
                     rescored += 1
                 else:
                     rescore_skipped += 1
