@@ -713,23 +713,48 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
 # INDEED SCRAPER
 # ═══════════════════════════════════════════════════════════════
 
-def _fetch_indeed_job_keys(search_query: str, location: str, limit: int = 10) -> list:
-    """Fetch job keys from Indeed search results."""
+def _make_indeed_session() -> requests.Session:
+    """Create a requests Session with Indeed-friendly headers."""
+    session = requests.Session()
+    ua = random.choice(user_agents.USER_AGENTS)
+    session.headers.update({
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-GB,en;q=0.9,de;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+    })
+    # Warm up session with homepage to get cookies
+    try:
+        session.get("https://de.indeed.com", timeout=config.REQUEST_TIMEOUT)
+    except requests.RequestException:
+        pass
+    return session
+
+
+def _fetch_indeed_job_keys(session: requests.Session, search_query: str, location: str, limit: int = 10) -> list:
+    """Fetch job keys from Indeed search results using an existing session."""
     keys = []
     query_encoded = search_query.replace(" ", "+")
     loc_encoded = location.replace(" ", "+")
     start = 0
 
-    while len(keys) < limit and start < limit:
+    max_start = config.INDEED_MAX_START * 10
+    while len(keys) < limit and start <= max_start:
         url = f"https://de.indeed.com/jobs?q={query_encoded}&l={loc_encoded}&start={start}"
         if start > 0:
-            time.sleep(random.uniform(5.0, 12.0))
+            time.sleep(random.uniform(config.INDEED_SEARCH_DELAY, config.INDEED_SEARCH_DELAY + 5))
+            session.headers["User-Agent"] = random.choice(user_agents.USER_AGENTS)
 
-        headers = {"User-Agent": random.choice(user_agents.USER_AGENTS)}
         logging.info(f"Indeed search: {url}")
 
         try:
-            res = requests.get(url, headers=headers, timeout=config.REQUEST_TIMEOUT)
+            res = session.get(url, timeout=config.REQUEST_TIMEOUT)
             res.raise_for_status()
         except requests.RequestException as e:
             logging.error(f"Indeed search failed: {e}")
@@ -759,14 +784,14 @@ def _fetch_indeed_job_keys(search_query: str, location: str, limit: int = 10) ->
     return keys
 
 
-def _fetch_indeed_job_details(job_key: str) -> dict | None:
+def _fetch_indeed_job_details(session: requests.Session, job_key: str) -> dict | None:
     """Fetch details for a single Indeed job from its view page."""
     url = f"https://de.indeed.com/viewjob?jk={job_key}"
-    headers = {"User-Agent": random.choice(user_agents.USER_AGENTS)}
-    time.sleep(random.uniform(3.0, 8.0))
+    session.headers["User-Agent"] = random.choice(user_agents.USER_AGENTS)
+    time.sleep(random.uniform(config.INDEED_DETAIL_DELAY, config.INDEED_DETAIL_DELAY + 3))
 
     try:
-        res = requests.get(url, headers=headers, timeout=config.REQUEST_TIMEOUT)
+        res = session.get(url, timeout=config.REQUEST_TIMEOUT)
         res.raise_for_status()
     except requests.RequestException as e:
         logging.error(f"Indeed detail failed for jk={job_key}: {e}")
@@ -774,17 +799,14 @@ def _fetch_indeed_job_details(job_key: str) -> dict | None:
 
     soup = BeautifulSoup(res.text, "html.parser")
 
-    # Title
     title_tag = soup.select_one("h1[class*=title]") or soup.select_one(".jobsearch-JobInfoHeader-title") or soup.find("h1")
     title = title_tag.get_text(strip=True) if title_tag else "N/A"
 
-    # Company
     company_tag = (soup.select_one("[data-company-name]") or
                    soup.select_one(".jobsearch-InlineCompanyRating div") or
                    soup.select_one("[class*=company]"))
     company = company_tag.get_text(strip=True) if company_tag else "N/A"
 
-    # Description
     desc_div = soup.select_one("#jobDescriptionText") or soup.select_one(".jobsearch-JobComponent-description")
     description = ""
     if desc_div:
@@ -793,7 +815,6 @@ def _fetch_indeed_job_details(job_key: str) -> dict | None:
         logging.warning(f"Indeed jk={job_key}: empty description, skipping.")
         return None
 
-    # Location
     loc_tag = (soup.select_one("[data-testid=jobLocation]") or
                soup.select_one(".jobsearch-JobInfoHeader-subtitle") or
                soup.find("div", class_=lambda c: c and "location" in c.lower()))
@@ -826,7 +847,8 @@ def process_indeed_query(search_query: str, location: str, limit: int = None) ->
     except Exception:
         existing_ids = set()
 
-    keys = _fetch_indeed_job_keys(search_query, location, limit)
+    session = _make_indeed_session()
+    keys = _fetch_indeed_job_keys(session, search_query, location, limit)
     if not keys:
         return []
 
@@ -837,7 +859,7 @@ def process_indeed_query(search_query: str, location: str, limit: int = None) ->
             logging.debug(f"Indeed jk={k} already in DB, skipping.")
             continue
 
-        details = _fetch_indeed_job_details(k)
+        details = _fetch_indeed_job_details(session, k)
         if details:
             jobs.append(details)
         if len(jobs) >= limit:
