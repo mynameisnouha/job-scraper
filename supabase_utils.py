@@ -136,7 +136,7 @@ def get_jobs_to_score(limit: int) -> list:
                            .execute()
 
         if response.data:
-                logging.info(f"Successfully fetched {len(response.data)} jobs to score.")
+            logging.info(f"Successfully fetched {len(response.data)} jobs to score.")
             return response.data
         else:
             logging.info("No jobs found needing scoring at this time.")
