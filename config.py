@@ -31,6 +31,7 @@ LLM_MODEL = "anthropic/claude-sonnet-4-6"
 
 # --- Search Configuration ---
 LINKEDIN_SEARCH_QUERIES = [
+    "Graduate Program",
     "Data Scientist",
     "Machine Learning Engineer",
     "AI Engineer",
@@ -60,6 +61,7 @@ CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
 # --- Indeed Configuration ---
 INDEED_SEARCH_QUERIES = [
+    "Graduate Program",
     "Data Scientist",
     "Machine Learning Engineer",
     "AI Engineer",
