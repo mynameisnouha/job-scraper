@@ -338,6 +338,7 @@ def main():
     else:
         logging.error(f"Base resume not found in Supabase or at '{resume_path}'. Please run the 'Parse Resume' workflow first.")
 
+    default_resume_text = None
     if default_resume_data:
         # 2. Format Resume to Text
         default_resume_text = format_resume_to_text(default_resume_data)
