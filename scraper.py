@@ -35,6 +35,25 @@ def is_internship_role(title: str | None, level: str | None = None) -> bool:
     """True if the job title or seniority level indicates an internship/student/thesis role."""
     return bool(_INTERNSHIP_RE.search(title or "")) or bool(_INTERNSHIP_RE.search(level or ""))
 
+# --- Freelance / contract role filter ---
+# We want permanent employment (or working-student) roles only, not gig/contract work.
+_FREELANCE_RE = re.compile(
+    r"\bfreelance"
+    r"|\bfreelancer"
+    r"|\bcontractor\b"
+    r"|\(contract\)"
+    r"|\bcontract[- ]based\b"
+    r"|\bself[- ]employed\b"
+    r"|\bselbst(st)?(ä|ae)ndig"
+    r"|\bfreiberufl"
+    r"|\bauftragnehmer",
+    re.IGNORECASE,
+)
+
+def is_freelance_role(title: str | None, level: str | None = None) -> bool:
+    """True if the job title or seniority level indicates a freelance/contractor/self-employed role."""
+    return bool(_FREELANCE_RE.search(title or "")) or bool(_FREELANCE_RE.search(level or ""))
+
 _RELATIVE_TIME_RE = re.compile(
     r"(\d+)\+?\s*(minute|hour|day|week|month|minuten?|stunden?|tag(?:en)?|wochen?|monat(?:en)?)",
     re.IGNORECASE,
@@ -458,6 +477,9 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None) 
             if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
                 continue
+            if is_freelance_role(details.get('job_title'), details.get('level')):
+                logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
+                continue
             company_title_key = ((details.get('company') or '').strip().lower(), (details.get('job_title') or '').strip().lower())
             if all(company_title_key) and company_title_key in company_title_set:
                 logging.info(f"Skipping repost (company/title already in DB): {details.get('job_title')} @ {details.get('company')} (ID: {job_id})")
@@ -752,6 +774,9 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
             if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
                 continue
+            if is_freelance_role(details.get('job_title'), details.get('level')):
+                logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
+                continue
             description = details.get('description')
             if description and description.strip():
                 if 'job_id' in details and details['job_id'] is not None:
@@ -888,6 +913,10 @@ def _fetch_indeed_job_details(session: requests.Session, job_key: str) -> dict |
 
     if is_internship_role(title):
         logging.info(f"Indeed: skipping internship/thesis: {title}")
+        return None
+
+    if is_freelance_role(title):
+        logging.info(f"Indeed: skipping freelance/contract: {title}")
         return None
 
     return {
