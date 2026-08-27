@@ -123,7 +123,7 @@ def build_dashboard():
         rows_html = "<tr><td colspan='7' style='text-align:center;color:#888;padding:30px;'>No jobs found in Supabase yet.</td></tr>"
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    html = f"""<!DOCTYPE html>
+    page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Job Dashboard</title><style>{STYLES}</style></head>
@@ -142,7 +142,7 @@ def build_dashboard():
 </body></html>"""
 
     with open(DASHBOARD_HTML_PATH, "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(page_html)
     logging.info(f"Dashboard written to {DASHBOARD_HTML_PATH} ({total} jobs)")
 
 
