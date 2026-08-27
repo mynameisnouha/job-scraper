@@ -74,7 +74,7 @@ def save_jobs_to_supabase(jobs_data: list):
         "job_id", "company", "job_title", "level", "location", "description",
         "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
         "is_active", "status", "job_state", "scraped_at", "last_checked",
-        "customized_resume_id", "resume_link",
+        "customized_resume_id", "resume_link", "score_breakdown",
     }
 
     processed_jobs_data = []
@@ -192,14 +192,28 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
 
     try:
         logging.info(f"Fetching up to {limit} top-scored jobs to apply for...")
-        response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select("job_id, job_title, company, resume_score, job_url")\
+
+        def _query(columns: str):
+            return supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select(columns)\
                            .eq("is_active", True)\
                            .eq("status", "new")\
                            .not_.is_("resume_score", None)\
                            .order("resume_score", desc=True)\
                            .limit(limit)\
                            .execute()
+
+        base_cols = "job_id, job_title, company, resume_score, job_url, provider, posted_at, scraped_at"
+        try:
+            response = _query(base_cols + ", score_breakdown, why_me_pitch")
+        except Exception as inner_e:
+            err = str(inner_e)
+            if "score_breakdown" in err or "why_me_pitch" in err:
+                logging.warning("Optional column(s) missing (run supabase_setup/add_score_breakdown.sql "
+                                "and add_why_me_pitch.sql). Fetching without them.")
+                response = _query(base_cols)
+            else:
+                raise
 
         if response.data:
             logging.info(f"Successfully fetched {len(response.data)} top-scored jobs to apply for.")
@@ -282,9 +296,10 @@ def get_jobs_to_rescore(limit: int) -> list:
         logging.error(f"Exception calling RPC get_jobs_for_rescore: {e}", exc_info=True)
         return []
 
-def update_job_score(job_id: str, score: int, resume_score_stage: str = "initial") -> bool:
+def update_job_score(job_id: str, score: int, resume_score_stage: str = "initial", score_breakdown: Optional[dict] = None) -> bool:
     """
-    Updates the 'resume_score' and 'resume_score_stage' for a specific job_id in the Supabase 'jobs' table.
+    Updates the 'resume_score', 'resume_score_stage', and optionally 'score_breakdown'
+    for a specific job_id in the Supabase 'jobs' table.
     Returns True on success, False on failure.
     """
     if not job_id or score is None:
@@ -301,10 +316,26 @@ def update_job_score(job_id: str, score: int, resume_score_stage: str = "initial
             "resume_score": score,
             "resume_score_stage": resume_score_stage
         }
-        response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .update(update_payload)\
-                           .eq("job_id", job_id)\
-                           .execute()
+        if score_breakdown:
+            update_payload["score_breakdown"] = score_breakdown
+        try:
+            response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                               .update(update_payload)\
+                               .eq("job_id", job_id)\
+                               .execute()
+        except Exception as inner_e:
+            # Column may not exist yet (run supabase_setup/add_score_breakdown.sql).
+            # Retry without the breakdown so the score itself is never lost.
+            if score_breakdown and "score_breakdown" in str(inner_e):
+                logging.warning("score_breakdown column missing in Supabase — saving score without breakdown. "
+                                "Run supabase_setup/add_score_breakdown.sql to enable it.")
+                update_payload.pop("score_breakdown", None)
+                response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                                   .update(update_payload)\
+                                   .eq("job_id", job_id)\
+                                   .execute()
+            else:
+                raise
 
         # Check if the update was successful (response structure might vary)
         # A common pattern is checking if data is returned or count is non-zero
@@ -325,6 +356,25 @@ def update_job_score(job_id: str, score: int, resume_score_stage: str = "initial
 
     except Exception as e:
         logging.error(f"Error updating score for job_id {job_id} in Supabase: {e}")
+        return False
+
+
+def update_job_pitch(job_id: str, pitch: str) -> bool:
+    """Saves the generated 'why me' pitch for a job. Non-fatal if the column doesn't exist yet."""
+    if not job_id or not pitch:
+        return False
+    try:
+        supabase.table(config.SUPABASE_TABLE_NAME)\
+                .update({"why_me_pitch": pitch})\
+                .eq("job_id", job_id)\
+                .execute()
+        logging.info(f"Saved why-me pitch for job_id {job_id}.")
+        return True
+    except Exception as e:
+        if "why_me_pitch" in str(e):
+            logging.warning("why_me_pitch column missing — run supabase_setup/add_why_me_pitch.sql to enable pitches.")
+        else:
+            logging.error(f"Error saving pitch for job_id {job_id}: {e}")
         return False
 
 

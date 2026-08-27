@@ -125,7 +125,28 @@ class LLMClient:
         }
         env_var = env_var_map.get(provider)
         if env_var and not os.environ.get(env_var):
-            os.environ[env_var] = api_key
+            if self._key_matches_provider(self.model):
+                os.environ[env_var] = api_key
+            else:
+                logging.getLogger(__name__).warning(
+                    f"LLM_API_KEY does not look like a {provider} key; not setting {env_var}. "
+                    f"Set {env_var} directly for model '{self.model}'."
+                )
+
+    def _key_matches_provider(self, model: str) -> bool:
+        """Heuristic: trust the explicit key only if its format matches the model's provider."""
+        provider = model.split("/")[0].lower() if "/" in model else ""
+        key = self.api_key or ""
+        if provider == "anthropic":
+            return key.startswith("sk-ant-")
+        if provider == "openai":
+            return key.startswith("sk-") and not key.startswith("sk-ant-")
+        if provider in ("gemini", "google"):
+            return key.startswith("AIza")
+        if provider == "groq":
+            return key.startswith("gsk_")
+        # Unknown provider/key format: don't override env vars
+        return False
 
     def _check_daily_budget(self):
         """Check if daily request budget is exceeded. Resets at midnight."""
@@ -183,8 +204,11 @@ class LLMClient:
             "temperature": temperature,
         }
 
-        # Add API key if set
-        if self.api_key:
+        # Only pass the key explicitly if it targets THIS model's provider.
+        # Passing it unconditionally overrides provider env vars (e.g. ANTHROPIC_API_KEY)
+        # with whatever LLM_API_KEY holds — if that's a Gemini key and the model is
+        # Anthropic, every call fails auth and scores silently stay null.
+        if self.api_key and self._key_matches_provider(model):
             base_kwargs["api_key"] = self.api_key
 
         # Add structured output (Pydantic model) changed this
@@ -305,4 +329,16 @@ def _create_client(
 primary_client = _create_client(
     model=config.LLM_MODEL,
     api_key=config.LLM_API_KEY,
+)
+
+# Screening client: cheap fast model, higher RPM, minimal inter-request delay.
+# Used only for the yes/no pre-scoring screen in score_jobs.
+screen_client = LLMClient(
+    model=getattr(config, "LLM_SCREEN_MODEL", config.LLM_MODEL),
+    api_key=config.LLM_API_KEY,
+    max_rpm=getattr(config, "LLM_SCREEN_MAX_RPM", config.LLM_MAX_RPM),
+    max_retries=config.LLM_MAX_RETRIES,
+    retry_base_delay=config.LLM_RETRY_BASE_DELAY,
+    daily_budget=config.LLM_DAILY_REQUEST_BUDGET,
+    request_delay=getattr(config, "LLM_SCREEN_REQUEST_DELAY", 1),
 )

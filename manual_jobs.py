@@ -61,15 +61,17 @@ def process_manual_jobs(resume_text: str) -> tuple[int, int]:
         job_id = job["job_id"]
         logger.info(f"[{i+1}/{len(jobs)}] Scoring manual job: {job.get('job_title')} @ {job.get('company')}")
 
-        score = get_resume_score_from_ai(resume_text, job)
-        if score is not None:
-            job["resume_score"] = score
+        breakdown = get_resume_score_from_ai(resume_text, job)
+        if breakdown is not None:
+            job["resume_score"] = breakdown.overall_score
             job["resume_score_stage"] = "initial"
+            job["score_breakdown"] = breakdown.model_dump()
 
         supabase_utils.save_jobs_to_supabase([job])
 
-        if score is not None:
-            ok = supabase_utils.update_job_score(job_id, score, resume_score_stage="initial")
+        if breakdown is not None:
+            ok = supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="initial",
+                                                 score_breakdown=breakdown.model_dump())
             if ok:
                 success += 1
             else:

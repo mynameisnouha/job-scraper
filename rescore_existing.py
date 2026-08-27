@@ -90,9 +90,11 @@ def process_backfill():
         has_old_score = job.get("resume_score") is not None and job.get("resume_score_stage") is None
 
         if have_llm and has_old_score:
-            score = get_resume_score_from_ai(resume_text, job)
-            if score is not None:
-                ok = supabase_utils.update_job_score(job_id, score, resume_score_stage="initial")
+            breakdown = get_resume_score_from_ai(resume_text, job)
+            if breakdown is not None:
+                score = breakdown.overall_score
+                ok = supabase_utils.update_job_score(job_id, score, resume_score_stage="initial",
+                                                     score_breakdown=breakdown.model_dump())
                 if ok:
                     verified = supabase_utils.verify_job_score_update(job_id, score, "initial")
                     if not verified:

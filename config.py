@@ -29,6 +29,14 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GEMINI_API_KEY") 
 # Full list of supported models & naming: https://docs.litellm.ai/docs/providers
 LLM_MODEL = "anthropic/claude-sonnet-4-6"
 
+# Cheap fast model for the pre-scoring screen pass (hard gates + rough band).
+# Only jobs that pass the screen get the full (expensive) scoring call.
+SCREENING_ENABLED = True
+LLM_SCREEN_MODEL = "anthropic/claude-haiku-4-5"
+JOBS_TO_SCREEN_PER_RUN = 150
+LLM_SCREEN_MAX_RPM = 30
+LLM_SCREEN_REQUEST_DELAY = 1
+
 # --- Search Configuration ---
 LINKEDIN_SEARCH_QUERIES = [
     "Graduate Program",
@@ -53,7 +61,8 @@ LINKEDIN_LOCATION = "Germany"
 LINKEDIN_GEO_ID = 101282230      # Singapore: 102454443, Dubai: 100205264
 LINKEDIN_JOB_TYPE = "F" # F=Full-time, C=Contract, P=Part-time, T=Temporary, I=Internship
 LINKEDIN_JOB_POSTING_DATE = "r86400" # r86400=Past 24h, r604800=Past week
-LINKEDIN_F_WT = 3 # 1=Onsite, 2=Remote, 3=Hybrid
+LINKEDIN_F_WT = "1%2C2%2C3" # 1=Onsite, 2=Remote, 3=Hybrid (URL-encoded comma list; single value like "3" also works)
+LINKEDIN_F_E = "2%2C3" # Experience level: 1=Internship, 2=Entry level, 3=Associate, 4=Mid-Senior, 5=Director
 
 CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Application Support", "Cybersecurity Analyst", "fresher developer"]
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
@@ -85,8 +94,9 @@ MANUAL_JOBS_PATH = "manual_jobs.json"
 
 # --- Processing Limits ---
 SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
-JOBS_TO_SCORE_PER_RUN = 25
+JOBS_TO_SCORE_PER_RUN = 60
 JOBS_TO_CUSTOMIZE_PER_RUN = 1
+RESUME_CUSTOMIZATION_MIN_SCORE = 70  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
     "indeed": 5,
@@ -103,7 +113,7 @@ LLM_DAILY_REQUEST_BUDGET = 0
 LLM_REQUEST_DELAY_SECONDS = 8
 
 LINKEDIN_MAX_START = 1 
-INDEED_MAX_START = 0   # Indeed pages to paginate (0 = first page only)
+INDEED_MAX_START = 2   # Indeed pages to paginate beyond the first (needed so dedup can look past page 1)
 INDEED_SEARCH_DELAY = 10
 INDEED_DETAIL_DELAY = 8
 REQUEST_TIMEOUT = 30

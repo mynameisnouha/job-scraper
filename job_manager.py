@@ -231,16 +231,18 @@ async def check_linkedin_job_activity():
 
 
 async def delete_jobs_older_than_days(days: int = 14):
-    """Permanently deletes any job older than the given number of days regardless of state."""
+    """Permanently deletes old jobs, except ones the user has acted on (applied/interviewing/offer)."""
     logging.info(f"--- Starting Task: Delete Jobs Older Than {days} Days ---")
     cutoff = get_past_date(days)
     cutoff_str = cutoff.isoformat()
+    protected_statuses = ['applied', 'offer', 'interviewing']
 
     try:
         # Step 1 — count what would be deleted
         count_response = supabase.table(config.SUPABASE_TABLE_NAME)\
             .select("job_id", count="exact")\
             .lt("scraped_at", cutoff_str)\
+            .not_.in_("status", protected_statuses)\
             .execute()
 
         total_in_db = getattr(count_response, 'count', 0) or 0
@@ -256,6 +258,7 @@ async def delete_jobs_older_than_days(days: int = 14):
         delete_response = supabase.table(config.SUPABASE_TABLE_NAME)\
             .delete()\
             .lt("scraped_at", cutoff_str)\
+            .not_.in_("status", protected_statuses)\
             .execute()
 
         deleted_count = 0

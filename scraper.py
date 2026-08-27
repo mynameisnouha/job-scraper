@@ -9,9 +9,65 @@ import user_agents
 import supabase_utils
 from markdownify import markdownify as md
 import json
+import re
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# --- Internship / student-role filter ---
+# Word-boundary patterns so "intern" does NOT match "international"/"internal".
+# German prefixes (werkstudent, praktikum, ...) are left open-ended to catch compounds.
+_INTERNSHIP_RE = re.compile(
+    r"\bintern(ship)?s?\b"
+    r"|\bworking student\b"
+    r"|\bstudent (employee|assistant)\b"
+    r"|\bwerkstudent"
+    r"|\bpraktik(um|ant)"
+    r"|\bthesis\b"
+    r"|\babschlussarbeit"
+    r"|\bmasterarbeit"
+    r"|\bbachelorarbeit"
+    r"|\bfinal (year )?project\b",
+    re.IGNORECASE,
+)
+
+def is_internship_role(title: str | None, level: str | None = None) -> bool:
+    """True if the job title or seniority level indicates an internship/student/thesis role."""
+    return bool(_INTERNSHIP_RE.search(title or "")) or bool(_INTERNSHIP_RE.search(level or ""))
+
+_RELATIVE_TIME_RE = re.compile(
+    r"(\d+)\+?\s*(minute|hour|day|week|month|minuten?|stunden?|tag(?:en)?|wochen?|monat(?:en)?)",
+    re.IGNORECASE,
+)
+_TIME_UNIT_DAYS = {
+    "minute": 0, "minuten": 0, "stunde": 0, "stunden": 0, "hour": 0,
+    "day": 1, "tag": 1, "tagen": 1,
+    "week": 7, "woche": 7, "wochen": 7,
+    "month": 30, "monat": 30, "monaten": 30,
+}
+
+def parse_relative_posted_time(text: str | None) -> str | None:
+    """
+    Converts LinkedIn's relative posting time ('3 days ago', 'vor 2 Wochen', '30+ days ago')
+    to an absolute ISO-8601 UTC timestamp. Returns None if it can't be parsed.
+    """
+    if not text:
+        return None
+    match = _RELATIVE_TIME_RE.search(text)
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2).lower().rstrip("s")
+    days_per_unit = _TIME_UNIT_DAYS.get(unit, _TIME_UNIT_DAYS.get(unit + "s"))
+    if days_per_unit is None:
+        return None
+    from datetime import timezone
+    if days_per_unit == 0:
+        # minutes/hours ago → posted today
+        posted = datetime.now(timezone.utc)
+    else:
+        posted = datetime.now(timezone.utc) - timedelta(days=amount * days_per_unit)
+    return posted.isoformat()
 
 # Convert HTML description to Markdown
 def convert_html_to_markdown(html: str) -> str | None:
@@ -86,7 +142,7 @@ def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
 
     logging.info(f"--- Starting Phase 1: Scraping Job IDs (Max Start: {max_start}) ---")
     while start <= max_start:
-        target_url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={search_query.replace(' ', '%20')}&location={location}&geoId={config.LINKEDIN_GEO_ID}&f_TPR={config.LINKEDIN_JOB_POSTING_DATE}&f_JT={config.LINKEDIN_JOB_TYPE}&f_WT={config.LINKEDIN_F_WT}&start={start}"
+        target_url = f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords={search_query.replace(' ', '%20')}&location={location}&geoId={config.LINKEDIN_GEO_ID}&f_TPR={config.LINKEDIN_JOB_POSTING_DATE}&f_JT={config.LINKEDIN_JOB_TYPE}&f_WT={config.LINKEDIN_F_WT}&f_E={config.LINKEDIN_F_E}&start={start}"
 
         if start > 0:
             sleep_time = random.uniform(5.0, 15.0)
@@ -327,10 +383,19 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
             job_details["description"] = None 
             logging.warning(f"Description HTML was empty for job ID {job_id}. Skipping conversion.") 
 
+        # --- Extract Posted Date (relative text like '3 days ago' / 'vor 2 Wochen') ---
+        try:
+            time_span = soup.find("span", {"class": "posted-time-ago__text"})
+            posted_at = parse_relative_posted_time(time_span.text.strip() if time_span else None)
+            if posted_at:
+                job_details["posted_at"] = posted_at
+        except Exception as e:
+            logging.debug(f"Could not extract posted date for job ID {job_id}: {e}")
+
         # --- Set Provider & URL ---
         job_details["provider"] = "linkedin"
         job_details["job_url"] = f"https://www.linkedin.com/jobs/view/{job_id}/"
-        
+
         return job_details
 
     except Exception as e:
@@ -358,9 +423,6 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None) 
 
     logging.info("\n--- Starting Filtering Step: Checking against Supabase ---")
     job_ids_set, company_title_set = supabase_utils.get_existing_jobs_from_supabase()
-
-    # Filter out internship and thesis-level jobs
-    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project"]
 
     new_job_ids_to_process = []
     for job_id in unique_linkedin_job_ids:
@@ -390,16 +452,18 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None) 
 
     ids_to_fetch = new_job_ids_to_process
 
-    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project", "student employee", "student assistant"]
-
     for job_id in ids_to_fetch:
         details = _fetch_linkedin_job_details(job_id)
         if details:
-            title = (details.get('job_title') or '').lower()
-            level = (details.get('level') or '').lower()
-            if any(kw in title or kw in level for kw in internship_keywords):
+            if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
                 continue
+            company_title_key = ((details.get('company') or '').strip().lower(), (details.get('job_title') or '').strip().lower())
+            if all(company_title_key) and company_title_key in company_title_set:
+                logging.info(f"Skipping repost (company/title already in DB): {details.get('job_title')} @ {details.get('company')} (ID: {job_id})")
+                continue
+            if all(company_title_key):
+                company_title_set.add(company_title_key)
             description = details.get('description')
             if description and description.strip(): 
                 if 'job_id' in details and details['job_id'] is not None:
@@ -682,14 +746,10 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
     detailed_new_jobs = []
     processed_count = 0
 
-    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "final project", "student employee", "student assistant"]
-
     for job_id in new_job_ids_to_process:
         details = _fetch_careers_future_job_details(job_id)
         if details:
-            title = (details.get('job_title') or '').lower()
-            level = (details.get('level') or '').lower()
-            if any(kw in title or kw in level for kw in internship_keywords):
+            if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
                 continue
             description = details.get('description')
@@ -737,9 +797,15 @@ def _make_indeed_session() -> requests.Session:
     return session
 
 
-def _fetch_indeed_job_keys(session: requests.Session, search_query: str, location: str, limit: int = 10) -> list:
-    """Fetch job keys from Indeed search results using an existing session."""
+def _fetch_indeed_job_keys(session: requests.Session, search_query: str, location: str, limit: int = 10,
+                           existing_ids: set = None) -> list:
+    """
+    Fetch job keys from Indeed search results using an existing session.
+    Keys already present in the DB (existing_ids, as 'indeed_<jk>') are skipped BEFORE
+    counting toward the limit, so mature queries still surface new postings deeper in the results.
+    """
     keys = []
+    existing_ids = existing_ids or set()
     query_encoded = search_query.replace(" ", "+")
     loc_encoded = location.replace(" ", "+")
     start = 0
@@ -770,7 +836,7 @@ def _fetch_indeed_job_keys(session: requests.Session, search_query: str, locatio
 
         for card in cards:
             jk = card.get("data-jk")
-            if jk and jk not in keys:
+            if jk and jk not in keys and f"indeed_{jk}" not in existing_ids:
                 keys.append(jk)
                 if len(keys) >= limit:
                     break
@@ -820,9 +886,7 @@ def _fetch_indeed_job_details(session: requests.Session, job_key: str) -> dict |
                soup.find("div", class_=lambda c: c and "location" in c.lower()))
     location = loc_tag.get_text(strip=True) if loc_tag else config.LINKEDIN_LOCATION
 
-    internship_keywords = ["intern", "internship", "working student", "werkstudent", "thesis", "master thesis", "bachelor thesis", "student employee", "student assistant"]
-    title_lower = title.lower()
-    if any(kw in title_lower for kw in internship_keywords):
+    if is_internship_role(title):
         logging.info(f"Indeed: skipping internship/thesis: {title}")
         return None
 
@@ -848,17 +912,12 @@ def process_indeed_query(search_query: str, location: str, limit: int = None) ->
         existing_ids = set()
 
     session = _make_indeed_session()
-    keys = _fetch_indeed_job_keys(session, search_query, location, limit)
+    keys = _fetch_indeed_job_keys(session, search_query, location, limit, existing_ids=existing_ids)
     if not keys:
         return []
 
     jobs = []
     for k in keys:
-        job_id = f"indeed_{k}"
-        if job_id in existing_ids:
-            logging.debug(f"Indeed jk={k} already in DB, skipping.")
-            continue
-
         details = _fetch_indeed_job_details(session, k)
         if details:
             jobs.append(details)

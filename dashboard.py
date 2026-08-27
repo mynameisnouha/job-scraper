@@ -1,3 +1,4 @@
+import html
 import logging
 from datetime import datetime
 
@@ -25,10 +26,38 @@ tr:hover td { background: #f0f0ff; }
 .score-low { color: #dc2626; font-weight: 700; }
 .score-none { color: #999; }
 .badge { display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 99px; background: #e0e7ff; color: #3730a3; margin-right: 6px; }
+.rec { display: inline-block; font-size: .75rem; padding: 2px 8px; border-radius: 6px; background: #eee; color: #444; }
+.rec-strong_apply { background: #dcfce7; color: #166534; }
+.rec-apply { background: #e0f2fe; color: #075985; }
+.rec-consider { background: #fef9c3; color: #854d0e; }
+.rec-skip { background: #fee2e2; color: #991b1b; }
+.why { font-size: .75rem; color: #777; margin-top: 4px; max-width: 260px; }
+.posted { font-size: .8rem; color: #666; white-space: nowrap; }
+.posted.fresh { color: #16a34a; font-weight: 700; }
+details.pitch { margin-top: 6px; }
+details.pitch summary { font-size: .75rem; color: #4f46e5; cursor: pointer; }
+details.pitch p { font-size: .8rem; color: #444; background: #f8f8ff; border-left: 3px solid #4f46e5; padding: 8px 10px; margin: 6px 0 0; max-width: 420px; }
 a { color: #4f46e5; text-decoration: none; }
 a:hover { text-decoration: underline; }
 .footer { margin-top: 24px; font-size: .8rem; color: #888; text-align: center; }
 """
+
+
+def days_ago_label(job):
+    """Human-readable age of the posting, from posted_at (preferred) or scraped_at."""
+    ts = job.get("posted_at") or job.get("scraped_at")
+    if not ts:
+        return "—"
+    try:
+        posted = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        days = (datetime.now(posted.tzinfo) - posted).days
+    except (ValueError, TypeError):
+        return "—"
+    if days <= 0:
+        return "today"
+    if days == 1:
+        return "1 day ago"
+    return f"{days} days ago"
 
 
 def score_class(score):
@@ -51,23 +80,47 @@ def build_dashboard():
     mid = sum(1 for j in top_scored if 50 <= (j.get("resume_score") or 0) < 75)
     low = sum(1 for j in top_scored if 0 <= (j.get("resume_score") or 0) < 50)
 
+    # Ranking: recommendation first (strong_apply on top), then freshness (newest posting first),
+    # then score. Applying within the first 1-3 days of a posting matters more than a few score points,
+    # so an older high scorer must not bury this week's strong matches.
+    _REC_ORDER = {"strong_apply": 0, "apply": 1, "consider": 2, None: 3, "skip": 4}
     all_jobs = sorted(top_scored, key=lambda j: j.get("resume_score") or 0, reverse=True)
+    all_jobs = sorted(all_jobs, key=lambda j: (j.get("posted_at") or j.get("scraped_at") or ""), reverse=True)
+    all_jobs = sorted(all_jobs, key=lambda j: _REC_ORDER.get((j.get("score_breakdown") or {}).get("recommendation"), 3))
 
     rows_html = ""
     for job in all_jobs:
         score = job.get("resume_score")
-        title = job.get("job_title", "N/A")
-        company = job.get("company", "N/A")
-        provider = job.get("provider", "")
+        title = html.escape(job.get("job_title") or "N/A")
+        company = html.escape(job.get("company") or "N/A")
+        provider = html.escape(job.get("provider") or "")
         job_url = job.get("job_url", "")
-        link = f'<a href="{job_url}" target="_blank">Open</a>' if job_url else "—"
+        link = f'<a href="{html.escape(job_url, quote=True)}" target="_blank">Open</a>' if job_url else "—"
         badge = f'<span class="badge">{provider}</span>' if provider else ""
         cls = score_class(score)
         score_display = f'<span class="{cls}">{score}/100</span>' if score is not None else '<span class="score-none">unscored</span>'
-        rows_html += f"<tr><td>{badge}{title}</td><td>{company}</td><td>{score_display}</td><td>{link}</td></tr>"
+
+        breakdown = job.get("score_breakdown") or {}
+        rec = html.escape(str(breakdown.get("recommendation") or "—"))
+        gaps = breakdown.get("key_gaps") or []
+        gaps_display = html.escape(", ".join(str(g) for g in gaps[:4])) if gaps else "—"
+        lang_fit = html.escape(str(breakdown.get("language_fit") or ""))
+        why = f'<div class="why">{gaps_display}</div>' if gaps else ""
+        lang = f'<div class="why">{lang_fit}</div>' if lang_fit else ""
+
+        posted = html.escape(days_ago_label(job))
+        fresh_cls = "fresh" if posted in ("today", "1 day ago", "2 days ago") else ""
+
+        pitch = job.get("why_me_pitch")
+        pitch_html = (f'<details class="pitch"><summary>Why-me pitch</summary>'
+                      f'<p>{html.escape(pitch)}</p></details>') if pitch else ""
+
+        rows_html += (f"<tr><td>{badge}{title}{pitch_html}</td><td>{company}</td><td>{score_display}</td>"
+                      f"<td><span class='rec rec-{rec}'>{rec}</span>{lang}</td><td>{why}</td>"
+                      f"<td><span class='posted {fresh_cls}'>{posted}</span></td><td>{link}</td></tr>")
 
     if not rows_html:
-        rows_html = "<tr><td colspan='4' style='text-align:center;color:#888;padding:30px;'>No jobs found in Supabase yet.</td></tr>"
+        rows_html = "<tr><td colspan='7' style='text-align:center;color:#888;padding:30px;'>No jobs found in Supabase yet.</td></tr>"
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     html = f"""<!DOCTYPE html>
@@ -83,7 +136,7 @@ def build_dashboard():
   <div class="stat-card"><div class="num">{low}</div><div class="label">Weak (&lt;50)</div></div>
   <div class="stat-card"><div class="num">{len(unscored)}</div><div class="label">Unscored</div></div>
 </div>
-<table><thead><tr><th>Job</th><th>Company</th><th>Score</th><th>Link</th></tr></thead>
+<table><thead><tr><th>Job</th><th>Company</th><th>Score</th><th>Recommendation</th><th>Key Gaps</th><th>Posted</th><th>Link</th></tr></thead>
 <tbody>{rows_html}</tbody></table>
 <div class="footer">Generated {now} &mdash; <a href="https://github.com/mynameisnouha/job-scraper">job-scraper</a></div>
 </body></html>"""

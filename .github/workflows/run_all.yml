@@ -2,9 +2,8 @@ name: Run All (Scrape → Score → Manage → Customize)
 
 on:
   workflow_dispatch: # Manual trigger from the Actions tab
-  # Optional: uncomment to also run on a schedule
-  # schedule:
-  #   - cron: "0 10 * * *"  # Every day at 10:00 UTC (same as scraper)
+  schedule:
+    - cron: "0 10 * * *"  # Every day at 10:00 UTC — must run daily since LinkedIn search uses the past-24h filter
 
 jobs:
   run-all:

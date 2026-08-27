@@ -9,9 +9,8 @@ import os
 
 import config
 import supabase_utils
-from llm_client import primary_client
-from models import ScoreBreakdown
-import manual_jobs
+from llm_client import primary_client, screen_client
+from models import ScoreBreakdown, ScreenResult, PitchOutput
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -103,11 +102,150 @@ def format_resume_to_text(resume_data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> Optional[int]:
+CANDIDATE_PROFILE = """- Education: AI Engineering Master's from University of Passau (in progress/completed)
+- Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
+- Languages: English (fluent), German (B1 - learning)
+- Career stage: Early-career, seeking first full-time Data Science / AI role"""
+
+
+def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
+    """
+    Cheap fast-model screen: does this job clear the hard gates at all?
+    Returns a ScreenResult, or None if the call failed (job stays unscored and is retried next run).
+    """
+    description = (job_details.get('description') or '')[:3000]
+    if not description.strip():
+        return None
+
+    prompt = f"""You are a fast job-screening filter for an early-career AI/Data Science candidate in Germany.
+
+## CANDIDATE
+{CANDIDATE_PROFILE}
+
+## RULES — set passes=false if ANY of these apply:
+1. The JD explicitly requires fluent/native German (fließend/verhandlungssicher/muttersprachlich). A JD merely written in German with no stated level does NOT fail.
+2. The JD explicitly requires 4+ years of professional experience.
+3. The role is NOT in data science / machine learning / AI / data or software engineering (e.g. sales, finance, accounting, mechanical engineering, marketing, nursing).
+4. The role is explicitly Senior / Staff / Principal / Lead / Head of.
+
+Otherwise passes=true. rough_score is a quick 0-100 fit estimate; reason is one short sentence.
+
+## JOB
+Title: {job_details.get('job_title', 'N/A')}
+Company: {job_details.get('company', 'N/A')}
+Level: {job_details.get('level', 'N/A')}
+
+{description}
+"""
+    try:
+        result_text = screen_client.generate_content(
+            prompt=prompt,
+            response_format=ScreenResult,
+            temperature=0.0,
+        )
+        return ScreenResult.model_validate_json(result_text)
+    except Exception as e:
+        logging.error(f"Screening failed for job_id {job_details.get('job_id')}: {e}")
+        return None
+
+
+def run_screening_phase() -> list:
+    """
+    Screens up to JOBS_TO_SCREEN_PER_RUN unscored jobs with the cheap model.
+    Screen failures are written to the DB immediately with a capped score and a 'skip'
+    breakdown, so they never consume a full scoring call. Returns the passers
+    (at most JOBS_TO_SCORE_PER_RUN) for full scoring.
+    """
+    screen_limit = getattr(config, 'JOBS_TO_SCREEN_PER_RUN', config.JOBS_TO_SCORE_PER_RUN)
+    jobs = supabase_utils.get_jobs_to_score(screen_limit)
+    if not jobs:
+        return []
+
+    logging.info(f"--- Screening Phase: {len(jobs)} jobs with {getattr(config, 'LLM_SCREEN_MODEL', config.LLM_MODEL)} ---")
+    passers = []
+    screened_out = 0
+    consecutive_errors = 0
+
+    for job in jobs:
+        job_id = job.get('job_id')
+        if not job_id:
+            continue
+
+        result = screen_job_with_ai(job)
+        if result is None:
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                logging.error("3 consecutive screening failures — likely an LLM auth/config problem with the screen model. "
+                              "Falling back to full scoring without screening.")
+                return supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+            continue
+        consecutive_errors = 0
+
+        if result.passes:
+            passers.append(job)
+            logging.info(f"  SCREEN PASS  ({result.rough_score:3d}) {job.get('job_title')} — {result.reason}")
+        else:
+            screened_out += 1
+            capped = min(result.rough_score, 49)
+            breakdown_lite = {
+                "overall_score": capped,
+                "recommendation": "skip",
+                "reasoning": f"Screened out: {result.reason}",
+                "key_gaps": [result.reason],
+                "screen_only": True,
+            }
+            logging.info(f"  SCREEN FAIL  ({capped:3d}) {job.get('job_title')} — {result.reason}")
+            supabase_utils.update_job_score(job_id, capped, resume_score_stage="initial",
+                                            score_breakdown=breakdown_lite)
+
+    logging.info(f"--- Screening done: {len(passers)} passed, {screened_out} screened out, "
+                 f"{len(jobs) - len(passers) - screened_out} errored (will retry next run) ---")
+    return passers[:config.JOBS_TO_SCORE_PER_RUN]
+
+
+def generate_why_me_pitch(resume_text: str, job_details: Dict[str, Any], breakdown: ScoreBreakdown) -> Optional[str]:
+    """
+    For strong matches: 3-4 first-person sentences mapping the candidate's strongest
+    evidence to the job's top requirements. Used as an Easy-Apply message / email intro
+    and as the skeleton of a cover letter (Anschreiben).
+    """
+    prompt = f"""Write a first-person "why me" pitch (3-4 sentences, no greeting, no sign-off) for this application.
+
+Rules:
+- Map the candidate's STRONGEST concrete evidence (Daimler Buses working student role, specific projects, specific skills) to the job's top 2-3 requirements.
+- Only use facts present in the resume below. No fabrication, no generic filler ("I am a motivated team player").
+- Confident but factual tone. Write in the language of the job description ({breakdown.jd_language}).
+- These skills were identified as the candidate's best matches for this job: {', '.join(breakdown.key_matching_skills[:5]) or 'see resume'}.
+
+--- RESUME ---
+{resume_text}
+--- END RESUME ---
+
+--- JOB ---
+Title: {job_details.get('job_title', 'N/A')}
+Company: {job_details.get('company', 'N/A')}
+
+{(job_details.get('description') or '')[:4000]}
+--- END JOB ---
+"""
+    try:
+        result_text = primary_client.generate_content(
+            prompt=prompt,
+            response_format=PitchOutput,
+            temperature=0.4,
+        )
+        pitch = PitchOutput.model_validate_json(result_text).pitch.strip()
+        logging.info(f"  Pitch for {job_details.get('job_id')}: {pitch[:120]}...")
+        return pitch or None
+    except Exception as e:
+        logging.error(f"Pitch generation failed for job_id {job_details.get('job_id')}: {e}")
+        return None
+
+
+def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> Optional[ScoreBreakdown]:
     """
     Scores a job against the resume using structured LLM output.
-    Returns the overall score (0-100) or None if scoring fails.
-    The full breakdown is logged for transparency.
+    Returns the full ScoreBreakdown (use .overall_score for the number) or None if scoring fails.
     """
     if not resume_text or not job_details or not job_details.get('description'):
         logging.warning(f"Missing resume text or job description for job_id {job_details.get('job_id')}. Skipping scoring.")
@@ -148,6 +286,13 @@ You are a precise job fit assessor for the German tech job market. Your task is 
 - **30-49**: Weak match — significant gaps, only apply if desperate
 - **0-29**: No match — missing core requirements
 
+## HARD REQUIREMENT EXTRACTION (report facts, not vibes)
+Extract these EXACTLY as stated in the JD — do not infer or soften:
+- **german_required**: 'C1-fluent' ONLY if the JD explicitly demands fluent/native/verhandlungssicheres/fließendes Deutsch as a requirement. 'B2' if an intermediate level is named. 'nice-to-have' if German is listed as a plus. 'none' if German is not mentioned or English is stated as the working language. 'unclear' otherwise. A JD merely being written in German does NOT alone mean 'C1-fluent'.
+- **years_experience_required**: the minimum years the JD explicitly requires (e.g. "3+ years" → 3). Use 0 if not stated, or if the role is explicitly entry-level/graduate.
+- **jd_language**: 'en', 'de', or 'mixed' — the language the description is written in.
+- **visa_sponsorship_mentioned**: 'yes' / 'no' / 'unclear'.
+
 ## CRITICAL RULES
 - Working student experience at Daimler Buses IS real experience — count it as 1-2 years of relevant experience
 - Do NOT penalize for "junior" labels — the candidate is entry-level and that's fine for many roles
@@ -180,18 +325,33 @@ Think step by step, then return your assessment.
 
         breakdown = ScoreBreakdown.model_validate_json(score_text)
 
+        # --- Hard gates: requirements the candidate cannot clear today. ---
+        # Enforced in code (not left to the LLM's judgement) so a great skills match
+        # can't float an unwinnable job into the apply queue.
+        gate_reasons = []
+        if breakdown.german_required == "C1-fluent":
+            gate_reasons.append("JD requires fluent German (candidate is B1)")
+        if breakdown.years_experience_required >= 4:
+            gate_reasons.append(f"JD requires {breakdown.years_experience_required}+ years of experience")
+        if gate_reasons:
+            logging.info(f"  HARD GATE for {job_id}: {'; '.join(gate_reasons)} — capping score, marking skip.")
+            breakdown.overall_score = min(breakdown.overall_score, 29)
+            breakdown.recommendation = "skip"
+            breakdown.reasoning = f"HARD GATE: {'; '.join(gate_reasons)}. {breakdown.reasoning}"
+
         logging.info(f"=== SCORE BREAKDOWN for {job_id} ===")
         logging.info(f"  Overall:        {breakdown.overall_score}/100")
         logging.info(f"  Skills Match:   {breakdown.skills_match_score}/100")
         logging.info(f"  Experience:     {breakdown.experience_score}/100")
         logging.info(f"  Education:      {breakdown.education_score}/100")
         logging.info(f"  Language:       {breakdown.language_fit}")
+        logging.info(f"  German req:     {breakdown.german_required} | Years req: {breakdown.years_experience_required} | JD lang: {breakdown.jd_language} | Visa: {breakdown.visa_sponsorship_mentioned}")
         logging.info(f"  Matching:       {breakdown.key_matching_skills}")
         logging.info(f"  Gaps:           {breakdown.key_gaps}")
         logging.info(f"  Recommendation: {breakdown.recommendation}")
         logging.info(f"  Reasoning:      {breakdown.reasoning}")
 
-        return breakdown.overall_score
+        return breakdown
 
     except Exception as e:
         logging.error(f"Error scoring job_id {job_id}: {e}")
@@ -289,10 +449,11 @@ def rescore_jobs_with_custom_resume():
             continue
         
         logging.debug(f"Custom resume text for job {job_id} (first 200 chars): {custom_resume_text[:200]}")
-        score = get_resume_score_from_ai(custom_resume_text, job)
+        breakdown = get_resume_score_from_ai(custom_resume_text, job)
 
-        if score is not None:
-            if supabase_utils.update_job_score(job_id, score, resume_score_stage="custom"):
+        if breakdown is not None:
+            if supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="custom",
+                                               score_breakdown=breakdown.model_dump()):
                 successful_rescores += 1
             else:
                 failed_rescores += 1 
@@ -344,8 +505,12 @@ def main():
         default_resume_text = format_resume_to_text(default_resume_data)
         logging.info("Default resume data formatted to text.")
 
-        # 3. Fetch Jobs to Score
-        jobs_to_score_initially = supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+        # 3. Fetch Jobs to Score — via the cheap screening pass when enabled,
+        #    so the expensive scorer only sees jobs that clear the hard gates.
+        if getattr(config, 'SCREENING_ENABLED', False):
+            jobs_to_score_initially = run_screening_phase()
+        else:
+            jobs_to_score_initially = supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
         if not jobs_to_score_initially:
             logging.info("No jobs require initial scoring at this time.")
         else:
@@ -362,11 +527,17 @@ def main():
                     continue
 
                 logging.info(f"--- Initial Scoring Job {i+1}/{len(jobs_to_score_initially)} (ID: {job_id}) ---")
-                score = get_resume_score_from_ai(default_resume_text, job)
+                breakdown = get_resume_score_from_ai(default_resume_text, job)
 
-                if score is not None:
-                    if supabase_utils.update_job_score(job_id, score, resume_score_stage="initial"):
+                if breakdown is not None:
+                    if supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="initial",
+                                                       score_breakdown=breakdown.model_dump()):
                         successful_initial_scores += 1
+                        # Strong matches get a "why me" pitch for the application message / Anschreiben
+                        if breakdown.overall_score >= 70 and breakdown.recommendation in ("strong_apply", "apply"):
+                            pitch = generate_why_me_pitch(default_resume_text, job, breakdown)
+                            if pitch:
+                                supabase_utils.update_job_pitch(job_id, pitch)
                     else:
                         failed_initial_scores += 1
                 else:
@@ -376,6 +547,13 @@ def main():
                     logging.debug(f"Waiting {config.LLM_REQUEST_DELAY_SECONDS} seconds before next API call...")
                     time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
             
+            if successful_initial_scores == 0 and failed_initial_scores > 0:
+                logging.error(
+                    "ALL initial scoring attempts failed. This usually means an LLM auth/config problem "
+                    f"(model='{config.LLM_MODEL}'). Check that the API key secret matches the model's provider "
+                    "(e.g. ANTHROPIC_API_KEY for anthropic/* models)."
+                )
+
             initial_score_end_time = time.time()
             logging.info("--- Initial Scoring Phase Finished ---")
             logging.info(f"Successfully initially scored: {successful_initial_scores}")
@@ -386,6 +564,8 @@ def main():
     rescore_jobs_with_custom_resume() 
 
     # --- Phase 3: Manual Jobs from JSON file ---
+    # Imported here (not at module top) to avoid a circular import with manual_jobs.
+    import manual_jobs
     if default_resume_text:
         manual_success, manual_failed = manual_jobs.process_manual_jobs(default_resume_text)
         if manual_success + manual_failed > 0:

@@ -521,7 +521,13 @@ async def run_job_processing_cycle():
     logging.info(f"Found {len(jobs_to_process)} jobs to process.")
 
     # 3. Process Each Job Sequentially (to avoid overwhelming Gemini/resources)
+    min_score = getattr(config, 'RESUME_CUSTOMIZATION_MIN_SCORE', 70)
     for job_details in jobs_to_process:
+        score = job_details.get("resume_score")
+        if score is not None and score < min_score:
+            logging.info(f"Skipping resume customization for job {job_details.get('job_id')} "
+                         f"(score {score} < threshold {min_score}).")
+            continue
         await process_job(job_details, base_resume_details) # Pass base resume
 
     logging.info("Finished job processing cycle.")
