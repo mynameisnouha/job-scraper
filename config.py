@@ -95,7 +95,7 @@ MANUAL_JOBS_PATH = "manual_jobs.json"
 # --- Processing Limits ---
 SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
 JOBS_TO_SCORE_PER_RUN = 60
-JOBS_TO_CUSTOMIZE_PER_RUN = 1
+JOBS_TO_CUSTOMIZE_PER_RUN = 3
 RESUME_CUSTOMIZATION_MIN_SCORE = 70  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
