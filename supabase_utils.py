@@ -513,6 +513,34 @@ def upload_customized_resume_to_storage(file_content: bytes, destination_path: s
         #     logging.warning(f"Could not clean up potentially failed upload at {destination_path}")
         return None
 
+def upload_text_to_storage(text_content: str, destination_path: str) -> Optional[str]:
+    """
+    Uploads a plain-text file (e.g. a compact resume export) to Supabase Storage.
+    Mirrors upload_customized_resume_to_storage but for text/plain content instead of PDF bytes —
+    used while the ReportLab PDF layout isn't producing the intended design, so a token-minimal
+    text export can be pasted into another tool to build the CV manually.
+    """
+    if not text_content or not text_content.strip():
+        logging.error("Cannot upload empty text content.")
+        return None
+    if not config.SUPABASE_STORAGE_BUCKET:
+        logging.error("Supabase storage bucket name not configured.")
+        return None
+
+    try:
+        logging.info(f"Uploading text file to Supabase Storage at path: {destination_path}")
+        supabase.storage.from_(config.SUPABASE_STORAGE_BUCKET).upload(
+            path=destination_path,
+            file=text_content.encode("utf-8"),
+            file_options={"content-type": "text/plain; charset=utf-8", "upsert": "true"}
+        )
+        logging.info(f"Successfully uploaded text file to path: {destination_path}")
+        return destination_path
+    except Exception as e:
+        logging.error(f"Error uploading text file to Supabase Storage: {e}")
+        return None
+
+
 def update_job_with_resume_link(job_id: str, customized_resume_id: str,  new_status: Optional[str] = "resume_generated") -> bool:
     """
     Updates the job record in the Supabase table with the resume link and optionally a new status.

@@ -117,15 +117,17 @@ async def personalize_section_with_llm(
     **CORE RESUME WRITING PRINCIPLES:**
     1.  **Adhere to Instructions:** Meticulously follow all specific instructions provided in the user prompt for the given section.
     2.  **No Fabrication:** NEVER invent new information, skills, projects, job titles, or responsibilities not explicitly found in the original resume materials. Rephrasing and emphasizing existing facts is allowed; fabrication is strictly forbidden. This includes numbers: NEVER invent or alter a metric/percentage/quantity that isn't already stated in the original content — you may rephrase how an existing number is presented, never add a new one.
-    3.  **Relevance:** Focus on aligning the candidate's existing experience and skills with the target job.
-    4.  **Fact-Based:** All enhancements must be grounded in the provided "Full Resume Context" or "Original Content of This Section."
+    3.  **No Scope Inflation:** Do not add process detail, methodology steps, or capability claims that aren't directly stated in the source material — e.g. do not say a pipeline "covers ingestion, transformation, and output stages" unless those specific stages are named somewhere in the original content. Do not synthesize an umbrella claim (e.g. "full data lifecycle," "quality checks," "monitoring and deployment") by combining separate bullets into a broader narrative unless EACH named capability is individually evidenced by an existing bullet. When unsure, describe only what is literally there — a narrower, fully-true claim beats a broader, partly-inferred one.
+    4.  **Cross-Section Consistency:** Never name a specific tool, technology, or platform (e.g. a specific cloud provider) that does not appear anywhere in the "Full Resume Context" provided below — that context already reflects any earlier tailoring done this run (e.g. a trimmed skills list), so treat it as the current source of truth, not the candidate's full original history.
+    5.  **Relevance:** Focus on aligning the candidate's existing experience and skills with the target job.
+    6.  **Fact-Based:** All enhancements must be grounded in the provided "Full Resume Context" or "Original Content of This Section."
 
     **VOICE & AUTHENTICITY (this is what separates a human-written resume from an obviously AI-tailored one — read carefully):**
-    5.  **Match the candidate's existing voice.** Look at how the original content is already written — short, concrete, verb-first sentences ("Built...", "Reduced...", "Designed...", "Integrated..."). Write the enhancement in that same register. Do not switch into generic corporate resume-speak.
-    6.  **Never copy phrasing from the Job Description verbatim.** Paraphrase any relevant terminology into the candidate's own words. If you place 3+ consecutive words from the JD into the output, you have failed this instruction. A recruiter comparing the JD and the resume side-by-side should not spot lifted phrases.
-    7.  **Do not turn a bullet into a checklist of keywords stitched together.** Every sentence must describe something the candidate concretely did. Relevance to the JD should come through naturally in word choice and emphasis — not by cramming in every matching term you can find.
-    8.  **Ban these clichés outright, in any language:** "leveraged", "spearheaded", "utilized", "synergies", "dynamic", "results-driven", "passionate about", "proven track record", "cutting-edge", "seamlessly", "robust solution", "team player", "detail-oriented". If a phrase sounds like it came from a resume template, do not use it.
-    9.  **Vary sentence length and structure** across bullets/sections. Uniform, list-like phrasing is a tell that AI wrote it.
+    7.  **Match the candidate's existing voice.** Look at how the original content is already written — short, concrete, verb-first sentences ("Built...", "Reduced...", "Designed...", "Integrated..."). Write the enhancement in that same register. Do not switch into generic corporate resume-speak.
+    8.  **Never copy phrasing from the Job Description verbatim.** Paraphrase any relevant terminology into the candidate's own words. If you place 3+ consecutive words from the JD into the output, you have failed this instruction. A recruiter comparing the JD and the resume side-by-side should not spot lifted phrases.
+    9.  **Do not turn a bullet into a checklist of keywords stitched together.** Every sentence must describe something the candidate concretely did. Relevance to the JD should come through naturally in word choice and emphasis — not by cramming in every matching term you can find.
+    10. **Ban these clichés outright, in any language:** "leveraged", "spearheaded", "utilized", "synergies", "dynamic", "results-driven", "passionate about", "proven track record", "cutting-edge", "seamlessly", "robust solution", "team player", "detail-oriented". If a phrase sounds like it came from a resume template, do not use it.
+    11. **Vary sentence length and structure** across bullets/sections. Uniform, list-like phrasing is a tell that AI wrote it.
 
     You will receive the target job details, full resume context (excluding the section being edited), the specific section name to enhance, its original content, and section-specific instructions. Follow the output format example provided in the user prompt for the structure of the JSON.
     """
@@ -146,6 +148,8 @@ async def personalize_section_with_llm(
         - **ABSOLUTELY DO NOT INVENT new information, skills, projects, job titles, or responsibilities not explicitly found in the original resume materials.** Rephrasing and emphasizing existing facts is allowed; fabrication is not.
         - For example, if the original summary says "IT Support Specialist who developed a tool using React," do NOT change this to "Experienced Frontend Engineer." Instead, you might say "IT Support Specialist with experience developing user-facing tools using React, such as Click4IT..."
         - Write it the way the candidate would say it about themself in conversation — specific and plain, not like a template. Do not open with a throat-clearing adjective stack ("dynamic and results-oriented ___ with X years of experience").
+        - **Consistency check:** if you name a specific technology/platform/tool (e.g. a cloud provider, a framework), it MUST appear in the "Skills" list within the "Full Resume Context" above. Do not name one that isn't there — that context already reflects this run's finalized, trimmed skills list.
+        - Do not synthesize a broader capability narrative (e.g. "full data/ML lifecycle", "quality assurance", "monitoring and deployment") unless every piece of it is individually backed by a specific bullet already in the resume materials.
         ---
         **Expected JSON Output Structure:** {{"summary": "IT Support Specialist with 4 years building internal tools and resolving infrastructure issues; recently shipped a React-based ticketing dashboard used by..."}}
         """
@@ -362,6 +366,104 @@ async def validate_customization(
     return True, f"Validation passed (no strict checks for {section_name})."
 
 
+def format_resume_compact(resume: Resume) -> str:
+    """
+    Serializes a personalized Resume into a compact, token-minimal plain-text export —
+    no JSON punctuation, no per-field labels, no repeated indentation. Intended to be
+    pasted into another AI tool to design the actual CV layout by hand, while
+    pdf_generator's ReportLab output isn't producing the intended design.
+    """
+    lines = []
+
+    header = [p for p in [resume.name, resume.email, resume.phone, resume.location] if p and p != "NA"]
+    if resume.links:
+        for url in [resume.links.linkedin, resume.links.github, resume.links.portfolio]:
+            if url and url != "NA":
+                header.append(url)
+    if header:
+        lines.append(" | ".join(header))
+
+    if resume.summary and resume.summary != "NA":
+        lines.append("")
+        lines.append(f"SUMMARY: {resume.summary}")
+
+    if resume.skills:
+        skills = [s for s in resume.skills if s and s != "NA"]
+        if skills:
+            lines.append("")
+            lines.append(f"SKILLS: {', '.join(skills)}")
+
+    if resume.experience:
+        lines.append("")
+        lines.append("EXPERIENCE:")
+        for exp in resume.experience:
+            title = exp.job_title if exp.job_title and exp.job_title != "NA" else ""
+            company = exp.company if exp.company and exp.company != "NA" else ""
+            dates = f"{exp.start_date}–{exp.end_date}" if exp.start_date and exp.start_date != "NA" else ""
+            header_line = " — ".join(p for p in [title, company] if p)
+            if dates:
+                header_line += f" ({dates})"
+            if header_line:
+                lines.append(header_line)
+            if exp.description and exp.description != "NA":
+                for bullet in exp.description.split("\n"):
+                    bullet = bullet.strip().lstrip("-•").strip()
+                    if bullet:
+                        lines.append(f"- {bullet}")
+
+    if resume.projects:
+        lines.append("")
+        lines.append("PROJECTS:")
+        for proj in resume.projects:
+            if proj.name and proj.name != "NA":
+                lines.append(proj.name)
+            if proj.description and proj.description != "NA":
+                for bullet in proj.description.split("\n"):
+                    bullet = bullet.strip().lstrip("-•").strip()
+                    if bullet:
+                        lines.append(f"- {bullet}")
+            if proj.technologies:
+                techs = [t for t in proj.technologies if t and t != "NA"]
+                if techs:
+                    lines.append(f"Tech: {', '.join(techs)}")
+
+    if resume.education:
+        lines.append("")
+        lines.append("EDUCATION:")
+        for edu in resume.education:
+            degree = edu.degree if edu.degree and edu.degree != "NA" else ""
+            field = f", {edu.field_of_study}" if edu.field_of_study and edu.field_of_study != "NA" else ""
+            inst = edu.institution if edu.institution and edu.institution != "NA" else ""
+            years = f"{edu.start_year}–{edu.end_year}" if edu.start_year and edu.start_year != "NA" else ""
+            line = " — ".join(p for p in [f"{degree}{field}", inst] if p)
+            if years:
+                line += f" ({years})"
+            if line:
+                lines.append(line)
+
+    if resume.certifications:
+        certs = [c for c in resume.certifications if c.name and c.name != "NA"]
+        if certs:
+            lines.append("")
+            cert_strs = []
+            for c in certs:
+                s = c.name
+                if c.issuer and c.issuer != "NA":
+                    s += f" ({c.issuer})"
+                if c.year and c.year != "NA":
+                    s += f" {c.year}"
+                cert_strs.append(s)
+            lines.append("CERTIFICATIONS: " + "; ".join(cert_strs))
+
+    if resume.languages:
+        langs = [l for l in resume.languages if l and l != "NA"]
+        if langs:
+            lines.append("")
+            lines.append(f"LANGUAGES: {', '.join(langs)}")
+
+    return "\n".join(lines).strip()
+
+
 # --- Main Processing Logic ---
 async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
     """
@@ -391,11 +493,15 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
         personalized_resume_data = base_resume_details.model_copy(deep=True) # Create a copy for this job
         any_validation_failed = False
 
+        # Order matters: skills/experience/projects run BEFORE summary, and each call is
+        # given the running `personalized_resume_data` (not the static original) as context.
+        # This way the summary — generated last — sees the already-tailored, trimmed skills
+        # list and can't reference a technology (e.g. a cloud provider) that got cut from it.
         sections_to_personalize = {
-            "summary": base_resume_details.summary,
+            "skills": base_resume_details.skills,
             "experience": base_resume_details.experience,
             "projects": base_resume_details.projects,
-            "skills": base_resume_details.skills,
+            "summary": base_resume_details.summary,
         }
 
         sleep_time = config.LLM_REQUEST_DELAY_SECONDS
@@ -413,7 +519,7 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
                 personalized_content = await personalize_section_with_llm(
                     section_name,
                     section_content,
-                    base_resume_details, # Pass the original full resume for context
+                    personalized_resume_data,  # running copy: later sections see already-tailored earlier ones
                     job_details # Pass the specific job details
                 )
 
@@ -449,34 +555,32 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
 
         # --- Check if any validation failed before proceeding ---
         if any_validation_failed:
-            logging.info(f"--- Aborting PDF generation and further processing for job_id: {job_id} due to validation failure. ---")
-            return 
+            logging.info(f"--- Aborting resume export and further processing for job_id: {job_id} due to validation failure. ---")
+            return
 
-        # 2. Generate PDF
-        logging.info(f"Generating PDF for job_id: {job_id}")
-        try:
-            pdf_bytes = pdf_generator.create_resume_pdf(personalized_resume_data)
-            if not pdf_bytes:
-                 raise ValueError("PDF generation returned empty bytes.")
-            logging.info(f"PDF generation complete for job_id: {job_id}")
-        except Exception as e:
-            logging.error(f"Failed to generate PDF for job_id {job_id}: {e}")
-            # Skip to the next job if PDF generation fails
-            return # Stop processing this job
+        # 2. Serialize to a compact, token-minimal text export (NOT a PDF).
+        # pdf_generator's ReportLab layout isn't producing the intended design yet, so instead
+        # of shipping a broken-looking PDF, save plain text that can be pasted into another AI
+        # tool to build the actual CV layout manually. (pdf_generator.py is left as-is for when
+        # the layout gets revisited — this path just doesn't call it for now.)
+        logging.info(f"Serializing compact resume text for job_id: {job_id}")
+        compact_text = format_resume_compact(personalized_resume_data)
+        if not compact_text.strip():
+            logging.error(f"Compact resume text was empty for job_id {job_id}.")
+            return
 
-        # 3. Upload PDF to Supabase Storage
-        # Construct a unique path with company name for organization
+        # 3. Upload compact text to Supabase Storage
         safe_company = re.sub(r'[^\w\- ]', '', company).strip().replace(' ', '_')[:50]
-        destination_path = f"{safe_company}_{job_id}.pdf"
-        logging.info(f"Uploading PDF to {destination_path} for job_id: {job_id}")
-        resume_path = supabase_utils.upload_customized_resume_to_storage(pdf_bytes, destination_path)
+        destination_path = f"{safe_company}_{job_id}.txt"
+        logging.info(f"Uploading compact resume text to {destination_path} for job_id: {job_id}")
+        resume_path = supabase_utils.upload_text_to_storage(compact_text, destination_path)
 
         if not resume_path:
-            logging.error(f"Failed to upload resume PDF for job_id: {job_id}")
+            logging.error(f"Failed to upload compact resume text for job_id: {job_id}")
             # Skip updating the job record if upload fails
             return # Stop processing this job
 
-        logging.info(f"Successfully uploaded PDF for job_id: {job_id}. Path: {resume_path}")
+        logging.info(f"Successfully uploaded compact resume text for job_id: {job_id}. Path: {resume_path}")
 
         # 4. Add Customized Resume to Supabase
         logging.info("Adding customized resume to Supabase")

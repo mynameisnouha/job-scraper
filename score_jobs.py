@@ -366,9 +366,19 @@ def extract_text_from_pdf_url(pdf_url: str) -> Optional[str]:
         logging.warning("No PDF URL provided for text extraction.")
         return None
     try:
-        logging.info(f"Downloading PDF from URL: {pdf_url}")
-        response = requests.get(pdf_url, timeout=30) 
+        logging.info(f"Downloading resume from URL: {pdf_url}")
+        response = requests.get(pdf_url, timeout=30)
         response.raise_for_status()  # Raise an exception for bad status codes
+
+        # Resume exports can be plain text now (see custom_resume_generator.format_resume_compact)
+        # instead of PDF — handle that directly rather than feeding text into pdfplumber.
+        if pdf_url.lower().endswith(".txt"):
+            text = response.text.strip()
+            if not text:
+                logging.warning(f"Downloaded text resume at {pdf_url} was empty.")
+                return None
+            logging.info(f"Successfully extracted text resume from URL: {pdf_url[:70]}...")
+            return text
 
         logging.info(f"Successfully downloaded PDF. Extracting text...")
         text = ""
