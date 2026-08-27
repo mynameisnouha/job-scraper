@@ -53,15 +53,26 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python job_manager.py
 
-      # ── Step 4: Generate Dashboard ────────────────────────────────────
-      - name: "4 — Generate Dashboard"
+      # ── Step 4: Customize Resumes (only jobs scoring >= RESUME_CUSTOMIZATION_MIN_SCORE) ──
+      - name: "4 — Customize Resumes"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_FIRST_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python custom_resume_generator.py
+
+      # ── Step 5: Generate Dashboard ────────────────────────────────────
+      - name: "5 — Generate Dashboard"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python dashboard.py
 
-      # ── Step 5: Upload Dashboard as Artifact ──────────────────────────
-      - name: "5 — Upload Dashboard"
+      # ── Step 6: Upload Dashboard as Artifact ──────────────────────────
+      - name: "6 — Upload Dashboard"
         uses: actions/upload-artifact@v4
         with:
           name: dashboard

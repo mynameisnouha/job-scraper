@@ -316,6 +316,13 @@ async def delete_old_inactive_jobs():
     logging.info("--- Finished Task: Delete Old Inactive Jobs ---")
 
 
+async def cleanup_orphaned_resumes():
+    """Deletes customized resumes (DB row + storage PDF) whose job was already purged from 'jobs'."""
+    logging.info("--- Starting Task: Cleanup Orphaned Customized Resumes ---")
+    supabase_utils.cleanup_orphaned_customized_resumes()
+    logging.info("--- Finished Task: Cleanup Orphaned Customized Resumes ---")
+
+
 # --- Main Execution ---
 async def main():
     """Runs the job management tasks."""
@@ -326,6 +333,7 @@ async def main():
     await check_linkedin_job_activity()
     await delete_old_inactive_jobs()
     await delete_jobs_older_than_days(14)
+    await cleanup_orphaned_resumes()  # must run after the purges above, which are what create orphans
 
     end_time = time.time()
     logging.info(f"Job Management Script finished in {end_time - start_time:.2f} seconds.")

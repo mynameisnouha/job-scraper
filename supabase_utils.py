@@ -766,6 +766,75 @@ def save_base_resume(resume_data: dict) -> bool:
         return False
 
 
+def cleanup_orphaned_customized_resumes(batch_size: int = 1000) -> int:
+    """
+    Deletes customized_resumes rows (and their storage PDFs) that no job references any more.
+    The jobs.customized_resume_id FK is ON DELETE SET NULL, so purging an old job (job_manager's
+    14-day cleanup) does NOT delete the customized_resumes row or its uploaded PDF — they'd
+    otherwise accumulate forever. This finds and removes those orphans.
+    Returns the number of orphaned resumes deleted.
+    """
+    try:
+        # 1. Collect every customized_resume_id still referenced by a job.
+        referenced_ids = set()
+        offset = 0
+        while True:
+            response = (
+                supabase.table(config.SUPABASE_TABLE_NAME)
+                .select("customized_resume_id")
+                .not_.is_("customized_resume_id", None)
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            if not response.data:
+                break
+            referenced_ids.update(row["customized_resume_id"] for row in response.data if row.get("customized_resume_id"))
+            offset += batch_size
+
+        # 2. Collect every customized_resumes row.
+        all_resumes = []
+        offset = 0
+        while True:
+            response = (
+                supabase.table(config.SUPABASE_CUSTOMIZED_RESUMES_TABLE_NAME)
+                .select("id, resume_link")
+                .range(offset, offset + batch_size - 1)
+                .execute()
+            )
+            if not response.data:
+                break
+            all_resumes.extend(response.data)
+            offset += batch_size
+
+        orphaned = [row for row in all_resumes if row["id"] not in referenced_ids]
+        if not orphaned:
+            logging.info("No orphaned customized resumes found.")
+            return 0
+
+        # 3. Delete the storage PDFs first (best-effort — don't block the DB cleanup on storage errors).
+        orphaned_paths = [row["resume_link"] for row in orphaned if row.get("resume_link")]
+        if orphaned_paths and config.SUPABASE_STORAGE_BUCKET:
+            try:
+                supabase.storage.from_(config.SUPABASE_STORAGE_BUCKET).remove(orphaned_paths)
+                logging.info(f"Removed {len(orphaned_paths)} orphaned resume PDF(s) from storage.")
+            except Exception as e:
+                logging.warning(f"Could not remove some orphaned resume PDFs from storage: {e}")
+
+        # 4. Delete the orphaned rows.
+        orphaned_ids = [row["id"] for row in orphaned]
+        supabase.table(config.SUPABASE_CUSTOMIZED_RESUMES_TABLE_NAME)\
+                .delete()\
+                .in_("id", orphaned_ids)\
+                .execute()
+
+        logging.info(f"Deleted {len(orphaned_ids)} orphaned customized resume(s) whose job no longer exists.")
+        return len(orphaned_ids)
+
+    except Exception as e:
+        logging.error(f"Error cleaning up orphaned customized resumes: {e}", exc_info=True)
+        return 0
+
+
 def get_base_resume() -> Optional[dict]:
     """
     Fetches the base resume JSON data from the 'base_resume' table.

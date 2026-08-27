@@ -116,9 +116,16 @@ async def personalize_section_with_llm(
 
     **CORE RESUME WRITING PRINCIPLES:**
     1.  **Adhere to Instructions:** Meticulously follow all specific instructions provided in the user prompt for the given section.
-    2.  **No Fabrication:** NEVER invent new information, skills, projects, job titles, or responsibilities not explicitly found in the original resume materials. Rephrasing and emphasizing existing facts is allowed; fabrication is strictly forbidden.
+    2.  **No Fabrication:** NEVER invent new information, skills, projects, job titles, or responsibilities not explicitly found in the original resume materials. Rephrasing and emphasizing existing facts is allowed; fabrication is strictly forbidden. This includes numbers: NEVER invent or alter a metric/percentage/quantity that isn't already stated in the original content — you may rephrase how an existing number is presented, never add a new one.
     3.  **Relevance:** Focus on aligning the candidate's existing experience and skills with the target job.
     4.  **Fact-Based:** All enhancements must be grounded in the provided "Full Resume Context" or "Original Content of This Section."
+
+    **VOICE & AUTHENTICITY (this is what separates a human-written resume from an obviously AI-tailored one — read carefully):**
+    5.  **Match the candidate's existing voice.** Look at how the original content is already written — short, concrete, verb-first sentences ("Built...", "Reduced...", "Designed...", "Integrated..."). Write the enhancement in that same register. Do not switch into generic corporate resume-speak.
+    6.  **Never copy phrasing from the Job Description verbatim.** Paraphrase any relevant terminology into the candidate's own words. If you place 3+ consecutive words from the JD into the output, you have failed this instruction. A recruiter comparing the JD and the resume side-by-side should not spot lifted phrases.
+    7.  **Do not turn a bullet into a checklist of keywords stitched together.** Every sentence must describe something the candidate concretely did. Relevance to the JD should come through naturally in word choice and emphasis — not by cramming in every matching term you can find.
+    8.  **Ban these clichés outright, in any language:** "leveraged", "spearheaded", "utilized", "synergies", "dynamic", "results-driven", "passionate about", "proven track record", "cutting-edge", "seamlessly", "robust solution", "team player", "detail-oriented". If a phrase sounds like it came from a resume template, do not use it.
+    9.  **Vary sentence length and structure** across bullets/sections. Uniform, list-like phrasing is a tell that AI wrote it.
 
     You will receive the target job details, full resume context (excluding the section being edited), the specific section name to enhance, its original content, and section-specific instructions. Follow the output format example provided in the user prompt for the structure of the JSON.
     """
@@ -135,11 +142,12 @@ async def personalize_section_with_llm(
         - Rewrite **only** the summary to be concise, impactful, and highly relevant to the Target Job.
         - **CRITICAL: The core professional identity and experience level (e.g., "IT Support and Cybersecurity Specialist with 4+ years") from the "Original Content of This Section" MUST be preserved.** Do NOT change the candidate's stated primary role or invent a new one like "Frontend Engineer" if it wasn't their original title. The goal is to make their *existing* role and experience sound relevant, not to misrepresent their primary job function.
         - Highlight 2-3 key qualifications or experiences from the "Full Resume Context" or "Original Content of This Section" that ALIGN with the "Job Description." These highlighted aspects should be FACTUALLY based on the provided resume materials.
-        - Use strong action verbs and keywords from the "Job Description" where appropriate, but ONLY when describing actual experiences or skills present in the resume.
+        - Use strong, concrete verbs describing what the candidate actually did — do NOT lift phrasing directly from the "Job Description," even when it happens to match.
         - **ABSOLUTELY DO NOT INVENT new information, skills, projects, job titles, or responsibilities not explicitly found in the original resume materials.** Rephrasing and emphasizing existing facts is allowed; fabrication is not.
         - For example, if the original summary says "IT Support Specialist who developed a tool using React," do NOT change this to "Experienced Frontend Engineer." Instead, you might say "IT Support Specialist with experience developing user-facing tools using React, such as Click4IT..."
+        - Write it the way the candidate would say it about themself in conversation — specific and plain, not like a template. Do not open with a throat-clearing adjective stack ("dynamic and results-oriented ___ with X years of experience").
         ---
-        **Expected JSON Output Structure:** {{"summary": "A dynamic and results-oriented Software Engineer with X years of experience..."}}
+        **Expected JSON Output Structure:** {{"summary": "IT Support Specialist with 4 years building internal tools and resolving infrastructure issues; recently shipped a React-based ticketing dashboard used by..."}}
         """
         prompt = prompt_intro + specific_instructions
 
@@ -154,9 +162,10 @@ async def personalize_section_with_llm(
             ---
             **Instructions for this experience item:**
             - Enhance the 'description' field ONLY. All other fields (job_title, company, dates, etc.) MUST remain UNCHANGED within this specific experience item.
-            - Integrate relevant skills from the "Full Resume Context" (especially any explicit skills list) and keywords from the "Target Job Description" naturally into the description.
-            - Show HOW these skills were applied and what the IMPACT or achievement was. Quantify achievements if possible, based on the original content.
-            - Example: Instead of "Used Python for scripting," try "Automated data processing tasks using Python scripts, reducing manual effort by 20%."
+            - Re-emphasize whichever of the candidate's ALREADY-STATED achievements are most relevant to this job — shift emphasis and ordering, don't inject JD vocabulary that wasn't earned by the original content.
+            - If the original content already has a number (%, time saved, scale, etc.), you may keep or rephrase it — never invent a new one or change its value.
+            - Example of a GOOD edit: original "Used Python for scripting to process data" tailored for a data-pipeline-heavy JD → "Wrote Python scripts to automate the data processing pipeline" (same facts, re-ordered emphasis, no new claims, no JD phrases lifted).
+            - Example of a BAD edit (do not do this): inserting an unearned metric ("...reducing manual effort by 20%") or restating JD requirements as if they were the candidate's accomplishments.
             - Do NOT invent skills or experiences. Stick to the candidate's actual background as reflected in the provided materials.
             ---
             **Expected JSON Output Structure:** {{"experience": {{"job_title": "Original Job Title", "company": "Original Company", "dates": "Original Dates", "description": "Enhanced description...", "location": "Original Location (if present)"}}}}
@@ -173,10 +182,8 @@ async def personalize_section_with_llm(
             ---
             **Instructions for this project item:**
             - Enhance the 'description' field ONLY. All other fields (name, technologies, link, etc.) MUST remain UNCHANGED within this specific project item.
-            - Integrate relevant skills from the "Full Resume Context" and keywords from the "Target Job Description" naturally into the description.
-            - Show HOW these skills were applied.
-            - Example: Instead of "Project using React," try "Developed a responsive UI for [Project Purpose] using React and Redux, improving user engagement."
-            - Do NOT invent skills or experiences.
+            - Re-emphasize whichever ALREADY-STATED aspects of this project are most relevant to the target job. Do not lift phrasing from the Job Description.
+            - Do NOT invent skills, outcomes, or metrics that aren't already in the original content.
             ---
             **Expected JSON Output Structure (for this single project item):** {{"project": {{"name": "Original Project Name", "technologies": ["Tech1", "Tech2"], "description": "Enhanced description...", "link": "Original Link (if present)"}}}}
             """
@@ -226,7 +233,7 @@ async def personalize_section_with_llm(
             llm_output = primary_client.generate_content(
                 prompt=prompt,
                 system_prompt=system_prompt,
-                temperature=1,
+                temperature=0.6,  # lower than default: less flowery/generic drift, stays closer to the candidate's actual voice
                 response_format=OutputModel,
             )
             
@@ -269,6 +276,28 @@ async def personalize_section_with_llm(
         for response in responses:
             project_list.append(getattr(response, output_key))
         return project_list
+
+_RESUME_CLICHES = [
+    "leverag", "spearhead", "utiliz", "synerg", "dynamic and", "results-driven",
+    "results driven", "passionate about", "proven track record", "cutting-edge",
+    "cutting edge", "seamlessly", "robust solution", "team player", "detail-oriented",
+    "detail oriented",
+]
+
+
+def scan_for_cliches(text: Any) -> list[str]:
+    """
+    Free, non-blocking check for generic AI-resume phrasing that the prompt explicitly bans.
+    Logs findings so you can spot-check quality without reading every generated resume by hand;
+    does not fail validation (a stray cliché isn't a factual-integrity problem like a fabricated
+    number or changed job title would be).
+    """
+    if isinstance(text, list):
+        haystack = " ".join(str(t) for t in text).lower()
+    else:
+        haystack = str(text or "").lower()
+    return [phrase for phrase in _RESUME_CLICHES if phrase in haystack]
+
 
 async def validate_customization(
     section_name: str, 
@@ -398,6 +427,10 @@ async def process_job(job_details: Dict[str, Any], base_resume_details: Resume):
 
                 if is_valid:
                     logging.info(f"Customization for section {section_name} is valid. Reason: {reason}")
+                    cliches_found = scan_for_cliches(personalized_content)
+                    if cliches_found:
+                        logging.warning(f"Cliche/AI-sounding phrase(s) in {section_name} for job_id {job_id}: {cliches_found} "
+                                        f"— prompt says avoid these; consider spot-checking this resume.")
                     # Set the personalized content
                     setattr(personalized_resume_data, section_name, personalized_content)
                     # Update the copied resume data
