@@ -8,7 +8,7 @@ import logging
 # Import shared modules
 import config
 import user_agents
-from supabase_utils import supabase # Use the initialized Supabase client
+from supabase_utils import supabase, cleanup_orphaned_customized_resumes as _cleanup_orphaned_customized_resumes # Use the initialized Supabase client
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -319,7 +319,7 @@ async def delete_old_inactive_jobs():
 async def cleanup_orphaned_resumes():
     """Deletes customized resumes (DB row + storage PDF) whose job was already purged from 'jobs'."""
     logging.info("--- Starting Task: Cleanup Orphaned Customized Resumes ---")
-    supabase_utils.cleanup_orphaned_customized_resumes()
+    _cleanup_orphaned_customized_resumes()
     logging.info("--- Finished Task: Cleanup Orphaned Customized Resumes ---")
 
 
