@@ -32,6 +32,7 @@ tr:hover td { background: #f0f0ff; }
 .rec-consider { background: #fef9c3; color: #854d0e; }
 .rec-skip { background: #fee2e2; color: #991b1b; }
 .why { font-size: .75rem; color: #777; margin-top: 4px; max-width: 260px; }
+.job-id { font-size: .7rem; color: #aaa; margin-top: 4px; font-family: monospace; user-select: all; }
 .posted { font-size: .8rem; color: #666; white-space: nowrap; }
 .posted.fresh { color: #16a34a; font-weight: 700; }
 details.pitch { margin-top: 6px; }
@@ -91,6 +92,7 @@ def build_dashboard():
     rows_html = ""
     for job in all_jobs:
         score = job.get("resume_score")
+        job_id = html.escape(str(job.get("job_id") or ""))
         title = html.escape(job.get("job_title") or "N/A")
         company = html.escape(job.get("company") or "N/A")
         provider = html.escape(job.get("provider") or "")
@@ -115,7 +117,9 @@ def build_dashboard():
         pitch_html = (f'<details class="pitch"><summary>Why-me pitch</summary>'
                       f'<p>{html.escape(pitch)}</p></details>') if pitch else ""
 
-        rows_html += (f"<tr><td>{badge}{title}{pitch_html}</td><td>{company}</td><td>{score_display}</td>"
+        job_id_html = f'<div class="job-id" title="Job ID — use with mark_applied.py">{job_id}</div>' if job_id else ""
+
+        rows_html += (f"<tr><td>{badge}{title}{pitch_html}{job_id_html}</td><td>{company}</td><td>{score_display}</td>"
                       f"<td><span class='rec rec-{rec}'>{rec}</span>{lang}</td><td>{why}</td>"
                       f"<td><span class='posted {fresh_cls}'>{posted}</span></td><td>{link}</td></tr>")
 

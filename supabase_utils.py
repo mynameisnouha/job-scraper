@@ -409,6 +409,34 @@ def update_job_url(job_id: str, job_url: str) -> bool:
         return False
 
 
+def mark_job_applied(job_id: str) -> bool:
+    """Marks a job as applied: sets status='applied' and application_date to now."""
+    if not job_id:
+        logging.error("No job_id provided to mark as applied.")
+        return False
+
+    try:
+        logging.info(f"Marking job {job_id} as applied...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({
+                               "status": "applied",
+                               "application_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                           })\
+                           .eq("job_id", job_id)\
+                           .execute()
+
+        if response.data:
+            logging.info(f"Successfully marked job {job_id} as applied.")
+            return True
+        else:
+            logging.warning(f"Mark-applied for job_id {job_id} executed, but no rows seemed to be affected.")
+            return False
+
+    except Exception as e:
+        logging.error(f"Error marking job {job_id} as applied in Supabase: {e}")
+        return False
+
+
 def verify_job_score_update(job_id: str, expected_score: int, expected_stage: str) -> bool:
     """Fetches a job and verifies resume_score and resume_score_stage were persisted correctly."""
     if not job_id:
