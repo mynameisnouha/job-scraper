@@ -104,8 +104,72 @@ def format_resume_to_text(resume_data: Dict[str, Any]) -> str:
 
 CANDIDATE_PROFILE = """- Education: AI Engineering Master's from University of Passau (in progress/completed)
 - Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
-- Languages: English (fluent), German (B1 - learning)
+- Languages: English (C1), German (A2, improving toward B1)
 - Career stage: Early-career, seeking first full-time Data Science / AI role"""
+
+# --- v2 candidate profile: the full structured input the v2 rating spec expects. ---
+# effective FTE-years = full_time + 0.5*(working_student + internship + thesis), per the
+# ledger note that recruiters discount part-time/intern time by roughly half.
+EXPERIENCE_LEDGER = {
+    "full_time_professional_months": 0,
+    "working_student_months": 24,
+    "internship_months": 14,
+    "thesis_or_research_months": 6,
+}
+EFFECTIVE_FTE_YEARS = round((
+    EXPERIENCE_LEDGER["full_time_professional_months"]
+    + 0.5 * EXPERIENCE_LEDGER["working_student_months"]
+    + 0.5 * EXPERIENCE_LEDGER["internship_months"]
+    + 0.5 * EXPERIENCE_LEDGER["thesis_or_research_months"]
+) / 12, 1)
+
+CANDIDATE_PROFILE_V2 = f"""
+### Availability
+- Earliest full-time start: 2027-03-01 (Master's thesis contract, 30h/week, Sept 2026 - Feb 2027)
+- Open to part-time bridge work now
+- Hard deadline to have a signed contract: 2027-02-28
+
+### Work authorization
+- Current status: German student residence permit (Aufenthaltserlaubnis zu Studienzwecken)
+- Needs sponsorship for full-time work: NO — the permit converts to a work-based residence
+  permit upon signing a qualifying employment contract in Germany. This is a standard permit
+  conversion, not an employer-run sponsorship process. Only fails this gate if the JD explicitly
+  requires an EU passport / existing unrestricted EU work permission / security clearance that
+  a converted permit cannot satisfy.
+- EU Blue Card eligibility: unknown (salary-threshold dependent, not confirmed)
+- Authorized without a new application only in: Germany
+
+### Experience ledger (do NOT sum into one "years of experience" figure)
+- Full-time professional: {EXPERIENCE_LEDGER['full_time_professional_months']} months
+- Working student: {EXPERIENCE_LEDGER['working_student_months']} months
+- Internship: {EXPERIENCE_LEDGER['internship_months']} months
+- Thesis / research: {EXPERIENCE_LEDGER['thesis_or_research_months']} months
+- Effective FTE-years for seniority comparison (part-time/intern time discounted ~50%): {EFFECTIVE_FTE_YEARS}
+
+### Languages
+- English: C1
+- French: B2
+- German: A2, improving toward B1
+
+### Location
+- Base: Passau, Germany
+- Willing to relocate to: Munich, Berlin, Hamburg, Stuttgart
+- Remote OK
+
+### Evidence index (what can actually be pointed at, not just plausibly claimed)
+tier_1 = shipped in production with a metric, on the CV | tier_2 = built and working, on the CV, no metric |
+tier_3 = personal project/coursework, linkable | tier_4 = true but not currently written anywhere a reader can see | tier_5 = not done
+- LLM fine-tuning: tier_1
+- Inference optimization: tier_1
+- FastAPI backends: tier_2
+- AWS ECS deployment: tier_2
+- Structured LLM output: tier_2
+- LLM evaluation frameworks: tier_5
+- Automated testing: tier_4 (true, not on CV)
+- Daily use of AI coding tools (Claude Code): tier_4 (true, not on CV)
+- Frontend: tier_5
+- Healthcare domain: tier_5
+"""
 
 
 def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
@@ -260,45 +324,104 @@ def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> O
     logging.info(f"Scoring job_id: {job_id} | {job_title} @ {job_company} | Level: {job_level}")
 
     prompt = f"""
-You are a precise job fit assessor for the German tech job market. Your task is to evaluate how well a candidate's resume matches a job description.
+You are a job-fit rating engine. Score inflation is the primary failure mode: this score decides
+where a candidate with LIMITED time spends application effort. A score that is too high costs
+her hours on an application that was never viable. Optimise for calibration, not encouragement.
+Never round up to make a job look more viable than it is.
 
-## CANDIDATE PROFILE CONTEXT
-- Education: AI Engineering Master's from University of Passau (in progress/completed)
-- Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
-- Languages: English (fluent), German (B1 - learning)
-- Career stage: Early-career, seeking first full-time Data Science / AI role
-- Note: Working student experience at a major automotive OEM (Daimler) is REAL industry experience and should be weighted accordingly
+## CANDIDATE PROFILE
+{CANDIDATE_PROFILE_V2}
 
-## SCORING DIMENSIONS (score each 0-100)
+## HARD GATES — evaluate first, they CAP the score regardless of skills match
+- work_authorization: fails ONLY if the JD explicitly requires an EU passport / existing
+  unrestricted EU work permission / security clearance that a converted student residence permit
+  cannot satisfy. Standard "must be eligible to work in the EU" language does NOT fail this —
+  she will be eligible once she signs. -> cap 25 if failed.
+- availability: her earliest full-time start is 2027-03-01. Judge the employer's likely urgency
+  from company size/tone: startup <~50 people or "ASAP"/"immediate start"/urgency language ->
+  cap 55. Mid-size, no stated urgency -> cap 70. Large company with structured intake, graduate
+  programme, or a stated future start date -> no cap. A stated start date compatible with
+  2027-03 (or a part-time bridge role) -> no cap.
+- location: on-site/hybrid required somewhere outside Passau/Munich/Berlin/Hamburg/Stuttgart and
+  not remote -> cap 30.
+- working_language: if the day-to-day working language, OR the language of the product's users
+  and data, requires German above A2/beginning-B1 level for daily work -> cap 45. A JD merely
+  written in German with English as the stated internal working language does NOT trigger this.
+- seniority_floor: if the JD states a minimum years-of-FTE-experience the effective FTE-years
+  ({EFFECTIVE_FTE_YEARS}) cannot meet -> cap 40.
+- disqualifier_match: for each clear match against an explicit "this role is not for you if" /
+  "you will struggle here if" section in the JD, subtract 8 points.
 
-1. **Skills Match**: What % of key skills in the JD does the candidate have? Consider Python, ML/DL frameworks, SQL, cloud, MLOps, NLP, etc.
-2. **Experience Match**: How relevant is the candidate's experience (Daimler working student + projects) to this role? Working student experience counts as real experience.
-3. **Education Match**: Does the candidate's AI Engineering background fit the role's requirements?
-4. **Language Fit**: 
-   - If the job description is in English or doesn't explicitly require German → no penalty, candidates English is fluent
-   - If the job mentions "German required" or "Deutsch" → partial penalty (B1 may be enough for some roles)
-   - Many German tech companies operate in English — do NOT penalize if the JD is in English
+For each gate report: gate name, result (pass/fail/unknown), the cap it implies, a one-line
+detail, whether it's negotiable, and how (e.g. "offer part-time bridge from now until March").
 
-## CALIBRATION GUIDELINES
-- **85-100**: Nearly perfect match across all dimensions
-- **70-84**: Strong match — the candidate is a great fit, apply confidently
-- **50-69**: Moderate match — has some key skills but gaps exist, worth applying
-- **30-49**: Weak match — significant gaps, only apply if desperate
-- **0-29**: No match — missing core requirements
+## REQUIREMENT EXTRACTION
+Parse the JD into a weighted list of requirements. A must_have is worth 4x a nice_to_have.
+A requirement repeated across sections (e.g. Tasks AND Must-have) gets a 1.5x emphasis
+multiplier — employers repeat what they actually screen on. A missing must_have where the
+candidate's evidence tier is 5 (not done) costs the FULL weight — there is no partial credit for
+"learnable," everything is learnable, that is not the question. A must_have at evidence tier 4
+(true but not written on the CV) costs HALF weight and belongs under fixable_before_applying,
+not under structural gaps. Cross-check every claimed match against the evidence index above —
+if you can't point to a specific tier for it, treat it as tier 4 or 5.
 
-## HARD REQUIREMENT EXTRACTION (report facts, not vibes)
-Extract these EXACTLY as stated in the JD — do not infer or soften:
-- **german_required**: 'C1-fluent' ONLY if the JD explicitly demands fluent/native/verhandlungssicheres/fließendes Deutsch as a requirement. 'B2' if an intermediate level is named. 'nice-to-have' if German is listed as a plus. 'none' if German is not mentioned or English is stated as the working language. 'unclear' otherwise. A JD merely being written in German does NOT alone mean 'C1-fluent'.
-- **years_experience_required**: the minimum years the JD explicitly requires (e.g. "3+ years" → 3). Use 0 if not stated, or if the role is explicitly entry-level/graduate.
-- **jd_language**: 'en', 'de', or 'mixed' — the language the description is written in.
-- **visa_sponsorship_mentioned**: 'yes' / 'no' / 'unclear'.
+## DIMENSION SCORES (0-100 each)
+- must_have_coverage (35%): weighted must-haves met, by evidence tier
+- evidence_strength (15%): are matches tier 1-2, or inferred/assumed? Penalise inference
+- nice_to_have_coverage (10%): weighted nice-to-haves met
+- seniority_fit (15%): experience ledger vs the role's real level, part-time discounted
+- environment_fit (10%): company stage/pace/autonomy vs candidate's actual track record
+- domain_fit (5%): industry/regulatory familiarity (note: healthcare domain is tier_5 — not done)
+- differentiation (10%): of the estimated applicant pool, what fraction has her strongest asset
+  (LLM fine-tuning + inference optimization are tier_1, rare in most applicant pools)?
 
-## CRITICAL RULES
-- Working student experience at Daimler Buses IS real experience — count it as 1-2 years of relevant experience
-- Do NOT penalize for "junior" labels — the candidate is entry-level and that's fine for many roles
-- Do NOT penalize language if the JD is in English or doesn't mention German
-- Be HONEST about skill gaps — don't inflate
-- Consider the full resume context, not just individual keywords
+## COMPETITIVE CONTEXT
+Estimate applicant volume (remote EU English-language roles pull the highest volume — 5-20x
+on-site equivalents), the modal competing candidate's profile, her percentile in that pool, and
+a calibrated p_first_round_interview for as_is (CV today) and after_fixes (every
+fixable_before_applying item done). If p_first_round_interview.as_is is below 0.10, the
+recommendation cannot be apply_now or apply_after_fixes regardless of the raw score.
+
+## GAP BUCKETS — every gap goes in exactly one
+- fixable_before_applying: substance exists, CV doesn't show it (tier 4 evidence). One evening
+  of editing. State the exact CV line to add.
+- fixable_in_two_weeks: a weekend project or write-up closes it.
+- structural_gaps: cannot be fixed before this application closes (e.g. availability date,
+  German level, healthcare domain, work authorization).
+
+## CALIBRATION ANCHORS (do not compress everything into 60-85)
+- 90-100: hireable without interview, exceeds must-haves with tier-1 evidence, no gate capped
+- 75-89: clearly interviewable, all must-haves met, only nice-to-haves missing
+- 60-74: plausible interview, one must-have missing/weak, no hard gate capped
+- 45-59: stretch, two-plus must-haves missing OR one hard gate capped
+- 25-44: a hard gate failed; only worth it if the gate is negotiable
+- 0-24: do not apply
+
+## OUTPUT FIELDS (also fill the standard skills/experience/education fields below for compatibility)
+- german_required: 'C1-fluent' ONLY if fluent/native/verhandlungssicher German is explicitly
+  demanded. 'B2' if intermediate named. 'nice-to-have' if listed as a plus. 'none' if not
+  mentioned or English is the stated working language. 'unclear' otherwise.
+- years_experience_required: minimum years explicitly required (0 if not stated / entry-level).
+- jd_language: 'en', 'de', or 'mixed'.
+- visa_sponsorship_mentioned / sponsorship_signal: explicit / implied / absent / explicitly_excluded.
+- company_stage, working_language_of_product (distinct from jd_language — what language are the
+  USERS and DATA in?), remote_scope, regulatory_context, salary_band, posting_age_days,
+  is_agency_or_staffing_firm.
+- application_effort_hours + application_effort_estimate (a 3-essay-question form is a different
+  bet than a CV upload).
+- expected_value = p_first_round_interview.after_fixes / application_effort_hours.
+- calibration_check: must_haves_total, must_haves_met_tier_1_or_2, hard_gates_failed,
+  cap_applied (null or the number/reason), score_before_cap, final_score,
+  would_a_skeptical_recruiter_agree ("yes"/"no" + why), confidence (high/medium/low),
+  confidence_reason (e.g. "remote policy ambiguous; sponsorship not stated"). When a field is
+  genuinely unknown, set confidence low and name the one question that would resolve it —
+  do not resolve it optimistically.
+- one_line_verdict: the honest bottom line in one sentence.
+- key_matching_skills / key_gaps: kept for the dashboard — key_gaps should mirror the most
+  important structural_gaps + must-have misses.
+- recommendation: 'apply_now' (score >=75, no gate capped), 'apply_after_fixes' (score >=60 after
+  the fixable items are notionally applied), 'apply_if_gate_negotiable' (a gate capped the score
+  but it's negotiable), or 'skip'.
 
 --- RESUME ---
 {resume_text}
@@ -312,7 +435,10 @@ Level: {job_level}
 {job_description}
 --- END JOB DESCRIPTION ---
 
-Think step by step, then return your assessment.
+Think step by step: gates first, then requirement extraction, then dimension scores, then
+competitive context, then the final calibrated score. Never describe a missing must-have as
+"learnable" as a way of discounting it — state the gap, then separately state whether it's
+fixable before the deadline.
 """
 
     try:
@@ -326,18 +452,41 @@ Think step by step, then return your assessment.
         breakdown = ScoreBreakdown.model_validate_json(score_text)
 
         # --- Hard gates: requirements the candidate cannot clear today. ---
-        # Enforced in code (not left to the LLM's judgement) so a great skills match
-        # can't float an unwinnable job into the apply queue.
-        gate_reasons = []
+        # Enforced in code (not left entirely to the LLM's judgement) so a great skills
+        # match can't float an unwinnable job into the apply queue. The LLM already applies
+        # its own caps inline; this is a deterministic backstop using facts we trust more
+        # than LLM arithmetic (the experience ledger, the German gate wording).
+        score_before_cap = breakdown.overall_score
+        caps = []
+
         if breakdown.german_required == "C1-fluent":
-            gate_reasons.append("JD requires fluent German (candidate is B1)")
-        if breakdown.years_experience_required >= 4:
-            gate_reasons.append(f"JD requires {breakdown.years_experience_required}+ years of experience")
-        if gate_reasons:
-            logging.info(f"  HARD GATE for {job_id}: {'; '.join(gate_reasons)} — capping score, marking skip.")
-            breakdown.overall_score = min(breakdown.overall_score, 29)
-            breakdown.recommendation = "skip"
+            caps.append((45, "JD requires fluent/native German (candidate is A2-B1)"))
+        if breakdown.years_experience_required and breakdown.years_experience_required > EFFECTIVE_FTE_YEARS:
+            caps.append((40, f"JD requires {breakdown.years_experience_required}+ years; "
+                              f"effective FTE-years is {EFFECTIVE_FTE_YEARS}"))
+        if breakdown.disqualifier_matches:
+            penalty = 8 * len(breakdown.disqualifier_matches)
+            breakdown.overall_score = max(0, breakdown.overall_score - penalty)
+            logging.info(f"  DISQUALIFIER MATCHES for {job_id}: -{penalty} for {breakdown.disqualifier_matches}")
+
+        if caps:
+            hardest_cap, cap_reason = min(caps, key=lambda c: c[0])
+            gate_reasons = [reason for _, reason in caps]
+            logging.info(f"  HARD GATE for {job_id}: {'; '.join(gate_reasons)} — capping at {hardest_cap}.")
+            breakdown.overall_score = min(breakdown.overall_score, hardest_cap)
+            if breakdown.recommendation not in ("apply_if_gate_negotiable",):
+                breakdown.recommendation = "skip"
             breakdown.reasoning = f"HARD GATE: {'; '.join(gate_reasons)}. {breakdown.reasoning}"
+
+        p_as_is = ((breakdown.competitive_context or {}).get("p_first_round_interview") or {}).get("as_is")
+        if p_as_is is not None and p_as_is < 0.10 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
+            logging.info(f"  P(interview) as_is={p_as_is} < 0.10 for {job_id} — downgrading recommendation.")
+            breakdown.recommendation = "apply_if_gate_negotiable" if caps else "skip"
+
+        breakdown.calibration_check.setdefault("score_before_cap", score_before_cap)
+        breakdown.calibration_check["final_score"] = breakdown.overall_score
+        if caps:
+            breakdown.calibration_check["cap_applied"] = min(c[0] for c in caps)
 
         logging.info(f"=== SCORE BREAKDOWN for {job_id} ===")
         logging.info(f"  Overall:        {breakdown.overall_score}/100")
@@ -350,6 +499,22 @@ Think step by step, then return your assessment.
         logging.info(f"  Gaps:           {breakdown.key_gaps}")
         logging.info(f"  Recommendation: {breakdown.recommendation}")
         logging.info(f"  Reasoning:      {breakdown.reasoning}")
+        if breakdown.hard_gates:
+            failed = [g for g in breakdown.hard_gates if g.get("result") == "fail"]
+            if failed:
+                logging.info(f"  Gates failed:   {[g.get('gate') for g in failed]}")
+        if breakdown.dimension_scores:
+            logging.info(f"  Dimensions:     {breakdown.dimension_scores}")
+        if breakdown.competitive_context:
+            p = breakdown.competitive_context.get("p_first_round_interview") or {}
+            logging.info(f"  P(interview):   as_is={p.get('as_is')} after_fixes={p.get('after_fixes')}")
+        if breakdown.one_line_verdict:
+            logging.info(f"  Verdict:        {breakdown.one_line_verdict}")
+
+        # expected_value ranks the apply queue: interview odds per hour of effort spent.
+        p_after_fixes = ((breakdown.competitive_context or {}).get("p_first_round_interview") or {}).get("after_fixes")
+        if p_after_fixes is not None and breakdown.application_effort_hours:
+            breakdown.expected_value = round(p_after_fixes / breakdown.application_effort_hours, 3)
 
         return breakdown
 
@@ -544,7 +709,7 @@ def main():
                                                        score_breakdown=breakdown.model_dump()):
                         successful_initial_scores += 1
                         # Strong matches get a "why me" pitch for the application message / Anschreiben
-                        if breakdown.overall_score >= 70 and breakdown.recommendation in ("strong_apply", "apply"):
+                        if breakdown.overall_score >= 70 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
                             pitch = generate_why_me_pitch(default_resume_text, job, breakdown)
                             if pitch:
                                 supabase_utils.update_job_pitch(job_id, pitch)

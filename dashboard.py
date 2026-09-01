@@ -27,10 +27,11 @@ tr:hover td { background: #f0f0ff; }
 .score-none { color: #999; }
 .badge { display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 99px; background: #e0e7ff; color: #3730a3; margin-right: 6px; }
 .rec { display: inline-block; font-size: .75rem; padding: 2px 8px; border-radius: 6px; background: #eee; color: #444; }
-.rec-strong_apply { background: #dcfce7; color: #166534; }
-.rec-apply { background: #e0f2fe; color: #075985; }
-.rec-consider { background: #fef9c3; color: #854d0e; }
+.rec-strong_apply, .rec-apply_now { background: #dcfce7; color: #166534; }
+.rec-apply, .rec-apply_after_fixes { background: #e0f2fe; color: #075985; }
+.rec-consider, .rec-apply_if_gate_negotiable { background: #fef9c3; color: #854d0e; }
 .rec-skip { background: #fee2e2; color: #991b1b; }
+.verdict { font-size: .75rem; color: #444; font-style: italic; margin-top: 4px; max-width: 260px; }
 .why { font-size: .75rem; color: #777; margin-top: 4px; max-width: 260px; }
 .job-id { font-size: .7rem; color: #aaa; margin-top: 4px; font-family: monospace; user-select: all; }
 .posted { font-size: .8rem; color: #666; white-space: nowrap; }
@@ -117,11 +118,13 @@ def build_dashboard():
 
         breakdown = job.get("score_breakdown") or {}
         rec = html.escape(str(breakdown.get("recommendation") or "—"))
-        gaps = breakdown.get("key_gaps") or []
+        gaps = breakdown.get("structural_gaps") or breakdown.get("key_gaps") or []
         gaps_display = html.escape(", ".join(str(g) for g in gaps[:4])) if gaps else "—"
         lang_fit = html.escape(str(breakdown.get("language_fit") or ""))
         why = f'<div class="why">{gaps_display}</div>' if gaps else ""
         lang = f'<div class="why">{lang_fit}</div>' if lang_fit else ""
+        verdict = html.escape(str(breakdown.get("one_line_verdict") or ""))
+        verdict_html = f'<div class="verdict">{verdict}</div>' if verdict else ""
 
         posted = html.escape(days_ago_label(job))
         fresh_cls = "fresh" if posted in ("today", "1 day ago", "2 days ago") else ""
@@ -134,7 +137,7 @@ def build_dashboard():
                        f'<button class="apply-btn" onclick="copyApplyCmd(this,\'{job_id}\')">Mark applied</button>') if job_id else ""
 
         rows_html += (f"<tr><td>{badge}{title}{pitch_html}{job_id_html}</td><td>{company}</td><td>{score_display}</td>"
-                      f"<td><span class='rec rec-{rec}'>{rec}</span>{lang}</td><td>{why}</td>"
+                      f"<td><span class='rec rec-{rec}'>{rec}</span>{lang}{verdict_html}</td><td>{why}</td>"
                       f"<td><span class='posted {fresh_cls}'>{posted}</span></td><td>{link}</td></tr>")
 
     if not rows_html:

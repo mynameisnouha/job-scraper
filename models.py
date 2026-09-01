@@ -90,8 +90,37 @@ class ScoreBreakdown(BaseModel):
     visa_sponsorship_mentioned: str = Field("unclear", description="Does the JD mention visa/relocation support: 'yes', 'no', or 'unclear'")
     key_matching_skills: List[str] = Field(default_factory=list, description="Top skills from resume that match the job")
     key_gaps: List[str] = Field(default_factory=list, description="Important skills/requirements the candidate lacks")
-    recommendation: str = Field(..., description="One of: 'strong_apply', 'apply', 'consider', 'skip'")
+    recommendation: str = Field(..., description="One of: 'apply_now', 'apply_after_fixes', 'apply_if_gate_negotiable', 'skip'")
     reasoning: str = Field(..., description="2-3 sentence explanation of the score")
+
+    # --- v2 fields: hard gates, weighted dimensions, competitive context, calibration ---
+    hard_gates: List[Dict[str, Any]] = Field(default_factory=list,
+        description="One entry per gate evaluated: {gate, result: pass/fail/unknown, cap_applied, detail, negotiable, how}")
+    dimension_scores: Dict[str, int] = Field(default_factory=dict,
+        description="0-100 per dimension: must_have_coverage, evidence_strength, nice_to_have_coverage, seniority_fit, environment_fit, domain_fit, differentiation")
+    differentiators: List[str] = Field(default_factory=list, description="What the candidate has that the median applicant likely does not")
+    disqualifier_matches: List[str] = Field(default_factory=list, description="Matches against the JD's explicit 'not for you if' section")
+    fixable_before_applying: List[Dict[str, Any]] = Field(default_factory=list,
+        description="Gaps that are true but not shown on the CV: [{gap, fix, effort_minutes}]")
+    fixable_in_two_weeks: List[Dict[str, Any]] = Field(default_factory=list,
+        description="Gaps closeable with a weekend project or write-up: [{gap, fix, effort_minutes}]")
+    structural_gaps: List[str] = Field(default_factory=list, description="Gaps that cannot be fixed before this application closes")
+    competitive_context: Dict[str, Any] = Field(default_factory=dict,
+        description="estimated_applicant_volume, modal_competitor, candidate_percentile, p_first_round_interview: {as_is, after_fixes}")
+    company_stage: str = Field("", description="Inferred company stage/headcount, e.g. 'startup <50', 'mid-size', 'large enterprise'")
+    working_language_of_product: str = Field("", description="Language the product's users/data/internal docs are actually in, distinct from JD language")
+    remote_scope: str = Field("", description="Countries/timezone remote work is actually scoped to, if remote")
+    regulatory_context: str = Field("", description="MDR/GDPR/HIPAA/SOC2/medical-device or other regulatory context, if any")
+    sponsorship_signal: str = Field("unclear", description="explicit / implied / absent / explicitly_excluded")
+    salary_band: str = Field("", description="Stated salary band, or '' if not stated")
+    posting_age_days: Optional[int] = Field(None, description="If stated or inferable")
+    is_agency_or_staffing_firm: bool = Field(False, description="True if this posting is from a recruiting/staffing agency, not the hiring company")
+    application_effort_hours: float = Field(1.0, description="Estimated hours to complete the application")
+    application_effort_estimate: str = Field("", description="e.g. 'CV + cover letter upload' vs '3 essay questions'")
+    expected_value: float = Field(0.0, description="p_first_round_interview.after_fixes / application_effort_hours")
+    calibration_check: Dict[str, Any] = Field(default_factory=dict,
+        description="must_haves_total, must_haves_met_tier_1_or_2, hard_gates_failed, cap_applied, score_before_cap, final_score, would_a_skeptical_recruiter_agree, confidence, confidence_reason")
+    one_line_verdict: str = Field("", description="One sentence: the honest bottom line")
 
 class Config:
     extra = 'allow'
