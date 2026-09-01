@@ -41,6 +41,23 @@ details.pitch p { font-size: .8rem; color: #444; background: #f8f8ff; border-lef
 a { color: #4f46e5; text-decoration: none; }
 a:hover { text-decoration: underline; }
 .footer { margin-top: 24px; font-size: .8rem; color: #888; text-align: center; }
+.applied-badge { display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 99px; background: #dcfce7; color: #166534; margin-right: 6px; }
+.apply-btn { display: inline-block; font-size: .7rem; padding: 3px 10px; border-radius: 6px; border: 1px solid #4f46e5; background: #fff; color: #4f46e5; cursor: pointer; margin-top: 4px; }
+.apply-btn:hover { background: #4f46e5; color: #fff; }
+.apply-btn.copied { background: #16a34a; border-color: #16a34a; color: #fff; }
+h2.section { font-size: 1.15rem; margin-top: 32px; }
+"""
+
+COPY_APPLIED_JS = """
+function copyApplyCmd(btn, jobId) {
+  var cmd = "python mark_applied.py " + jobId;
+  navigator.clipboard.writeText(cmd).then(function() {
+    var original = btn.textContent;
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(function() { btn.textContent = original; btn.classList.remove("copied"); }, 1500);
+  });
+}
 """
 
 
@@ -74,6 +91,7 @@ def score_class(score):
 def build_dashboard():
     top_scored = supabase_utils.get_top_scored_jobs_to_apply(999)
     unscored = supabase_utils.get_jobs_to_score(999)
+    applied = supabase_utils.get_applied_jobs(999)
 
     # Stats
     total = len(top_scored) + len(unscored)
@@ -81,13 +99,8 @@ def build_dashboard():
     mid = sum(1 for j in top_scored if 50 <= (j.get("resume_score") or 0) < 75)
     low = sum(1 for j in top_scored if 0 <= (j.get("resume_score") or 0) < 50)
 
-    # Ranking: recommendation first (strong_apply on top), then freshness (newest posting first),
-    # then score. Applying within the first 1-3 days of a posting matters more than a few score points,
-    # so an older high scorer must not bury this week's strong matches.
-    _REC_ORDER = {"strong_apply": 0, "apply": 1, "consider": 2, None: 3, "skip": 4}
+    # Always ranked by resume_score, highest first.
     all_jobs = sorted(top_scored, key=lambda j: j.get("resume_score") or 0, reverse=True)
-    all_jobs = sorted(all_jobs, key=lambda j: (j.get("posted_at") or j.get("scraped_at") or ""), reverse=True)
-    all_jobs = sorted(all_jobs, key=lambda j: _REC_ORDER.get((j.get("score_breakdown") or {}).get("recommendation"), 3))
 
     rows_html = ""
     for job in all_jobs:
@@ -117,7 +130,8 @@ def build_dashboard():
         pitch_html = (f'<details class="pitch"><summary>Why-me pitch</summary>'
                       f'<p>{html.escape(pitch)}</p></details>') if pitch else ""
 
-        job_id_html = f'<div class="job-id" title="Job ID — use with mark_applied.py">{job_id}</div>' if job_id else ""
+        job_id_html = (f'<div class="job-id" title="Job ID — use with mark_applied.py">{job_id}</div>'
+                       f'<button class="apply-btn" onclick="copyApplyCmd(this,\'{job_id}\')">Mark applied</button>') if job_id else ""
 
         rows_html += (f"<tr><td>{badge}{title}{pitch_html}{job_id_html}</td><td>{company}</td><td>{score_display}</td>"
                       f"<td><span class='rec rec-{rec}'>{rec}</span>{lang}</td><td>{why}</td>"
@@ -125,6 +139,26 @@ def build_dashboard():
 
     if not rows_html:
         rows_html = "<tr><td colspan='7' style='text-align:center;color:#888;padding:30px;'>No jobs found in Supabase yet.</td></tr>"
+
+    applied_rows_html = ""
+    for job in applied:
+        job_id = html.escape(str(job.get("job_id") or ""))
+        title = html.escape(job.get("job_title") or "N/A")
+        company = html.escape(job.get("company") or "N/A")
+        score = job.get("resume_score")
+        score_display = f'<span class="{score_class(score)}">{score}/100</span>' if score is not None else '<span class="score-none">unscored</span>'
+        job_url = job.get("job_url", "")
+        link = f'<a href="{html.escape(job_url, quote=True)}" target="_blank">Open</a>' if job_url else "—"
+        applied_at = job.get("application_date")
+        try:
+            applied_label = datetime.fromisoformat(str(applied_at).replace("Z", "+00:00")).strftime("%Y-%m-%d") if applied_at else "—"
+        except (ValueError, TypeError):
+            applied_label = "—"
+        applied_rows_html += (f"<tr><td><span class='applied-badge'>&#10003; Applied</span>{title}</td>"
+                              f"<td>{company}</td><td>{score_display}</td><td>{applied_label}</td><td>{link}</td></tr>")
+
+    if not applied_rows_html:
+        applied_rows_html = "<tr><td colspan='5' style='text-align:center;color:#888;padding:20px;'>No applied jobs yet.</td></tr>"
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     page_html = f"""<!DOCTYPE html>
@@ -139,10 +173,15 @@ def build_dashboard():
   <div class="stat-card"><div class="num">{mid}</div><div class="label">Moderate (50–74)</div></div>
   <div class="stat-card"><div class="num">{low}</div><div class="label">Weak (&lt;50)</div></div>
   <div class="stat-card"><div class="num">{len(unscored)}</div><div class="label">Unscored</div></div>
+  <div class="stat-card"><div class="num">{len(applied)}</div><div class="label">Applied</div></div>
 </div>
 <table><thead><tr><th>Job</th><th>Company</th><th>Score</th><th>Recommendation</th><th>Key Gaps</th><th>Posted</th><th>Link</th></tr></thead>
 <tbody>{rows_html}</tbody></table>
+<h2 class="section">Applied Jobs</h2>
+<table><thead><tr><th>Job</th><th>Company</th><th>Score</th><th>Applied On</th><th>Link</th></tr></thead>
+<tbody>{applied_rows_html}</tbody></table>
 <div class="footer">Generated {now} &mdash; <a href="https://github.com/mynameisnouha/job-scraper">job-scraper</a></div>
+<script>{COPY_APPLIED_JS}</script>
 </body></html>"""
 
     with open(DASHBOARD_HTML_PATH, "w", encoding="utf-8") as f:

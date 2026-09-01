@@ -226,6 +226,41 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
         logging.error(f"Error fetching top-scored jobs to apply for from Supabase: {e}")
         return []
 
+def get_applied_jobs(limit: int) -> list:
+    """
+    Fetches jobs already marked as applied (status = 'applied'), most recent first.
+    Selects fields needed for display on the dashboard.
+    """
+    if limit <= 0:
+        logging.warning("Limit for applied jobs must be positive.")
+        return []
+
+    try:
+        logging.info(f"Fetching up to {limit} applied jobs...")
+
+        def _query(columns: str):
+            return supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select(columns)\
+                           .eq("status", "applied")\
+                           .order("application_date", desc=True)\
+                           .limit(limit)\
+                           .execute()
+
+        base_cols = "job_id, job_title, company, resume_score, job_url, provider, posted_at, scraped_at, application_date"
+        response = _query(base_cols)
+
+        if response.data:
+            logging.info(f"Successfully fetched {len(response.data)} applied jobs.")
+            return response.data
+        else:
+            logging.info("No applied jobs found.")
+            return []
+
+    except Exception as e:
+        logging.error(f"Error fetching applied jobs from Supabase: {e}")
+        return []
+
+
 def get_top_scored_jobs_for_resume_generation(limit: int) -> list:
     """
     Fetches the top-scored jobs from Supabase using the RPC 'get_top_scored_jobs_custom_sort'.
