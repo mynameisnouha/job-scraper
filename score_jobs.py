@@ -136,7 +136,15 @@ CANDIDATE_PROFILE_V2 = f"""
   conversion, not an employer-run sponsorship process. Only fails this gate if the JD explicitly
   requires an EU passport / existing unrestricted EU work permission / security clearance that
   a converted permit cannot satisfy.
-- EU Blue Card eligibility: unknown (salary-threshold dependent, not confirmed)
+- EU Blue Card: WANTS one, not just eligible. Degree requirement is satisfied (Master's from a
+  German university). The only variable is whether the offered salary clears the Blue Card gross
+  annual salary threshold (roughly €45k for standard occupations / roughly €41k for shortage
+  occupations incl. IT/STEM — figures move yearly, treat as approximate, note when a salary_band
+  is close to the line). A role whose stated salary clears the threshold is a genuine plus, not
+  just nice-to-have: it gets her onto the Blue Card instead of a standard permit, which unlocks
+  faster permanent residency and EU-wide mobility. Reflect this under differentiation/environment_fit
+  or as a fixable/structural note when salary is stated and below threshold — do NOT treat it as
+  a hard gate; she does not need the Blue Card to accept the offer, only wants it.
 - Authorized without a new application only in: Germany
 
 ### Experience ledger (do NOT sum into one "years of experience" figure)
@@ -406,7 +414,10 @@ recommendation cannot be apply_now or apply_after_fixes regardless of the raw sc
 - visa_sponsorship_mentioned / sponsorship_signal: explicit / implied / absent / explicitly_excluded.
 - company_stage, working_language_of_product (distinct from jd_language — what language are the
   USERS and DATA in?), remote_scope, regulatory_context, salary_band, posting_age_days,
-  is_agency_or_staffing_firm.
+  is_agency_or_staffing_firm. If a salary is stated, note in salary_band whether it looks like it
+  clears the EU Blue Card threshold (see candidate profile) — if it clearly does, add it to
+  differentiators as a Blue Card-qualifying offer; if it clearly doesn't and salary is the only
+  thing named, do NOT treat as a gap, just note it factually.
 - application_effort_hours + application_effort_estimate (a 3-essay-question form is a different
   bet than a CV upload).
 - expected_value = p_first_round_interview.after_fixes / application_effort_hours.
