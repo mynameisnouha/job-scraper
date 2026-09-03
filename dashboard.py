@@ -79,6 +79,19 @@ def days_ago_label(job):
     return f"{days} days ago"
 
 
+def found_today(job):
+    """True if the job was scraped (found) today, based on scraped_at."""
+    ts = job.get("scraped_at")
+    if not ts:
+        return False
+    try:
+        scraped = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        now = datetime.now(scraped.tzinfo)
+    except (ValueError, TypeError):
+        return False
+    return scraped.date() == now.date()
+
+
 def score_class(score):
     if score is None:
         return "score-none"
@@ -90,8 +103,8 @@ def score_class(score):
 
 
 def build_dashboard():
-    top_scored = supabase_utils.get_top_scored_jobs_to_apply(999)
-    unscored = supabase_utils.get_jobs_to_score(999)
+    top_scored = [j for j in supabase_utils.get_top_scored_jobs_to_apply(999) if found_today(j)]
+    unscored = [j for j in supabase_utils.get_jobs_to_score(999) if found_today(j)]
     applied = supabase_utils.get_applied_jobs(999)
 
     # Stats
@@ -141,7 +154,7 @@ def build_dashboard():
                       f"<td><span class='posted {fresh_cls}'>{posted}</span></td><td>{link}</td></tr>")
 
     if not rows_html:
-        rows_html = "<tr><td colspan='7' style='text-align:center;color:#888;padding:30px;'>No jobs found in Supabase yet.</td></tr>"
+        rows_html = "<tr><td colspan='7' style='text-align:center;color:#888;padding:30px;'>No jobs found today.</td></tr>"
 
     applied_rows_html = ""
     for job in applied:
@@ -169,7 +182,7 @@ def build_dashboard():
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Job Dashboard</title><style>{STYLES}</style></head>
 <body>
-<h1>Job Dashboard</h1>
+<h1>Job Dashboard &mdash; Today's Jobs</h1>
 <div class="stats">
   <div class="stat-card"><div class="num">{total}</div><div class="label">Total Jobs</div></div>
   <div class="stat-card"><div class="num">{high}</div><div class="label">Strong Match (75+)</div></div>
