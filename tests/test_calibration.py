@@ -27,6 +27,17 @@ class TestOutcomeClassification:
         assert calibration.is_resolved(job("applied")) is False
         assert calibration.is_resolved(job(None)) is False
 
+    def test_spam_is_excluded_not_resolved_or_interview(self):
+        """A pulled/fake posting never produced a verdict — it can't score the scorer."""
+        j = job("spam_or_removed")
+        assert calibration.is_excluded(j) is True
+        assert calibration.is_resolved(j) is False
+        assert calibration.got_interview(j) is False
+
+    def test_real_outcomes_are_not_excluded(self):
+        for stage in ["applied", "rejected", "ghosted", "interview_1", "offer"]:
+            assert calibration.is_excluded(job(stage)) is False
+
 
 class TestPredictedProbability:
     def test_reads_after_fixes_preferentially(self):
@@ -114,6 +125,26 @@ class TestSummarize:
         assert s["pending"] == 1
         assert s["resolved"] == 2
         assert s["interview_rate"] == 0.5
+
+    def test_spam_counted_separately_and_kept_out_of_pending(self):
+        jobs = [
+            job("interview_1", score=80),
+            job("rejected", score=70),
+            job("applied", score=90),
+            job("spam_or_removed", score=95),
+        ]
+        s = calibration.summarize(jobs)
+        assert s["total_applied"] == 4
+        assert s["excluded"] == 1
+        assert s["pending"] == 1      # the spam row must not inflate this
+        assert s["resolved"] == 2
+        assert s["interview_rate"] == 0.5
+
+    def test_spam_does_not_affect_buckets_or_reasons(self):
+        jobs = [job("spam_or_removed", score=80, reason="other")]
+        rows = {r["bucket"]: r for r in calibration.bucket_stats(jobs)}
+        assert rows["75-84"]["n"] == 0
+        assert calibration.rejection_reason_counts(jobs) == {}
 
     def test_not_enough_data_flag(self):
         s = calibration.summarize([job("rejected")] * 3)

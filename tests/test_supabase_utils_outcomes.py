@@ -33,6 +33,26 @@ class TestUpdateApplicationStage:
         assert captured["payload"]["outcome_notes"] == "great call"
         assert "rejection_reason" not in captured["payload"]
 
+    def test_spam_or_removed_is_a_valid_stage(self, monkeypatch):
+        captured = {}
+
+        class FakeQuery:
+            def eq(self, *a, **k):
+                return self
+
+            def execute(self):
+                return MagicMock(data=[{"job_id": "job1"}])
+
+        class FakeTable:
+            def update(self, payload):
+                captured["payload"] = payload
+                return FakeQuery()
+
+        monkeypatch.setattr(supabase_utils.supabase, "table", lambda name: FakeTable())
+
+        assert supabase_utils.update_application_stage("job1", "spam_or_removed") is True
+        assert captured["payload"]["application_stage"] == "spam_or_removed"
+
     def test_missing_columns_fails_soft(self, monkeypatch):
         class FakeTable:
             def update(self, payload):

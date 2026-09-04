@@ -26,6 +26,7 @@ STAGE_LABELS = {
     "offer": "Offer",
     "rejected": "Rejected",
     "ghosted": "Ghosted (no response)",
+    "spam_or_removed": "Offer removed / spam",
 }
 STAGE_ORDER = list(STAGE_LABELS.keys())
 
@@ -237,6 +238,11 @@ def render_calibration_page():
     tiles[2].metric("Resolved", s["resolved"])
     tiles[3].metric("Interview rate", pct(s["interview_rate"]))
     tiles[4].metric("Offers", s["offers"])
+
+    if s["excluded"]:
+        st.caption(f"{s['excluded']} application(s) excluded as removed/spam postings — "
+                   "those never produced a real verdict, so they don't count for or "
+                   "against the scorer.")
 
     if not s["enough_data"]:
         st.warning(

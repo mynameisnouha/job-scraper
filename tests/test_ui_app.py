@@ -227,6 +227,17 @@ class TestCalibrationPage:
         assert values["Resolved"] == "2"
         assert values["Interview rate"] == "50%"
 
+    def test_spam_postings_reported_as_excluded(self, app, monkeypatch):
+        jobs = _resolved(1, stage="interview_1") + _resolved(1, stage="spam_or_removed")
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
+        self._open(app)
+        values = {m.label: m.value for m in app.metric}
+        assert values["Applied"] == "2"
+        assert values["Resolved"] == "1"
+        assert values["Awaiting reply"] == "0"
+        assert values["Interview rate"] == "100%"   # spam must not dilute this
+        assert any("excluded as removed/spam" in c.value for c in app.caption)
+
     def test_overconfidence_is_called_out(self, app, monkeypatch):
         # Scorer predicted 80%, every application was rejected.
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",

@@ -16,6 +16,10 @@ from typing import Any, Dict, List, Optional
 INTERVIEW_STAGES = {"interview_1", "interview_2", "interview_3", "offer"}
 # Stages that mean the outcome is known one way or the other.
 RESOLVED_STAGES = INTERVIEW_STAGES | {"rejected", "ghosted"}
+# Postings that were pulled or turned out to be spam. These are *invalid*, not
+# negative: the scorer never got a real verdict, so they're dropped from every
+# metric — including the pending count — rather than counted against it.
+EXCLUDED_STAGES = {"spam_or_removed"}
 
 # Below this many resolved outcomes, calibration numbers are noise.
 MIN_RESOLVED_FOR_METRICS = 15
@@ -32,6 +36,11 @@ SCORE_BUCKETS = [
 def is_resolved(job: Dict[str, Any]) -> bool:
     """True if we know how this application ended (not still waiting)."""
     return (job.get("application_stage") or "") in RESOLVED_STAGES
+
+
+def is_excluded(job: Dict[str, Any]) -> bool:
+    """True if the posting was spam or withdrawn, so it can't score the scorer."""
+    return (job.get("application_stage") or "") in EXCLUDED_STAGES
 
 
 def got_interview(job: Dict[str, Any]) -> bool:
@@ -128,7 +137,8 @@ def summarize(jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
     the metrics or a "keep logging outcomes" message.
     """
     resolved = [j for j in jobs if is_resolved(j)]
-    pending = [j for j in jobs if not is_resolved(j)]
+    excluded = [j for j in jobs if is_excluded(j)]
+    pending = [j for j in jobs if not is_resolved(j) and not is_excluded(j)]
     interviews = [j for j in resolved if got_interview(j)]
     offers = [j for j in resolved if (j.get("application_stage") or "") == "offer"]
 
@@ -138,6 +148,7 @@ def summarize(jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "total_applied": len(jobs),
         "pending": len(pending),
+        "excluded": len(excluded),
         "resolved": len(resolved),
         "interviews": len(interviews),
         "offers": len(offers),

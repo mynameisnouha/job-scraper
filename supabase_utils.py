@@ -474,6 +474,9 @@ def mark_job_applied(job_id: str) -> bool:
 
 VALID_APPLICATION_STAGES = {
     "applied", "interview_1", "interview_2", "interview_3", "offer", "rejected", "ghosted",
+    # Posting was pulled or turned out to be spam/fake. Not a real outcome — excluded
+    # from calibration entirely rather than counted as a rejection.
+    "spam_or_removed",
 }
 
 
