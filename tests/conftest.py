@@ -21,11 +21,15 @@ for mod_name in _MOCK_MODULES:
     if mod_name not in sys.modules:
         sys.modules[mod_name] = MagicMock()
 
-# Mock submodules
+# Mock submodules. Only stub 'google' if the real namespace package isn't installed —
+# stubbing it unconditionally shadows google.protobuf, which streamlit needs.
 import types
-for mod_name in ["google", "google.genai"]:
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = types.ModuleType(mod_name)
+try:
+    import google  # noqa: F401
+except ImportError:
+    sys.modules["google"] = types.ModuleType("google")
+if "google.genai" not in sys.modules:
+    sys.modules["google.genai"] = types.ModuleType("google.genai")
 
 # Ensure supabase has create_client
 sys.modules["supabase"].create_client = MagicMock()

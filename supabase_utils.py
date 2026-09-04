@@ -472,6 +472,88 @@ def mark_job_applied(job_id: str) -> bool:
         return False
 
 
+VALID_APPLICATION_STAGES = {
+    "applied", "interview_1", "interview_2", "interview_3", "offer", "rejected", "ghosted",
+}
+
+
+def update_application_stage(job_id: str, stage: str, rejection_reason: Optional[str] = None,
+                              notes: Optional[str] = None) -> bool:
+    """
+    Updates the outcome-tracking fields for a job: application_stage, stage_updated_at,
+    and optionally rejection_reason / outcome_notes. Non-fatal if the columns don't exist yet
+    (run supabase_setup/add_application_outcomes.sql to enable this).
+    """
+    if not job_id or stage not in VALID_APPLICATION_STAGES:
+        logging.error(f"Invalid input for updating application stage: job_id={job_id}, stage={stage}")
+        return False
+
+    update_payload = {
+        "application_stage": stage,
+        "stage_updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    if rejection_reason is not None:
+        update_payload["rejection_reason"] = rejection_reason
+    if notes is not None:
+        update_payload["outcome_notes"] = notes
+
+    try:
+        logging.info(f"Updating application_stage for job_id {job_id} to '{stage}'...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update(update_payload)\
+                           .eq("job_id", job_id)\
+                           .execute()
+
+        if response.data:
+            logging.info(f"Successfully updated application_stage for job_id {job_id}.")
+            return True
+        else:
+            logging.warning(f"Update application_stage for job_id {job_id} might have failed or job not found.")
+            return False
+
+    except Exception as e:
+        if "application_stage" in str(e) or "rejection_reason" in str(e) or "outcome_notes" in str(e):
+            logging.warning("Outcome-tracking columns missing — run supabase_setup/add_application_outcomes.sql.")
+        else:
+            logging.error(f"Error updating application_stage for job_id {job_id} in Supabase: {e}")
+        return False
+
+
+def get_applied_jobs_with_outcomes(limit: int = 999) -> list:
+    """
+    Fetches all applied jobs with their outcome-tracking fields and score_breakdown,
+    for the outcome-logging UI and calibration analysis. Falls back to fewer columns
+    if the outcome-tracking migration hasn't been run yet.
+    """
+    def _query(columns: str):
+        return supabase.table(config.SUPABASE_TABLE_NAME)\
+                       .select(columns)\
+                       .eq("status", "applied")\
+                       .order("application_date", desc=True)\
+                       .limit(limit)\
+                       .execute()
+
+    base_cols = ("job_id, job_title, company, resume_score, score_breakdown, job_url, "
+                 "application_date, application_stage, stage_updated_at, rejection_reason, outcome_notes")
+    try:
+        response = _query(base_cols)
+        return response.data or []
+    except Exception as e:
+        err = str(e)
+        if "application_stage" in err or "rejection_reason" in err or "outcome_notes" in err:
+            logging.warning("Outcome-tracking columns missing — run supabase_setup/add_application_outcomes.sql. "
+                             "Fetching without them.")
+            fallback_cols = "job_id, job_title, company, resume_score, score_breakdown, job_url, application_date"
+            try:
+                response = _query(fallback_cols)
+                return response.data or []
+            except Exception as e2:
+                logging.error(f"Error fetching applied jobs (fallback) from Supabase: {e2}")
+                return []
+        logging.error(f"Error fetching applied jobs with outcomes from Supabase: {e}")
+        return []
+
+
 def verify_job_score_update(job_id: str, expected_score: int, expected_stage: str) -> bool:
     """Fetches a job and verifies resume_score and resume_score_stage were persisted correctly."""
     if not job_id:
