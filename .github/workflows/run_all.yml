@@ -5,8 +5,44 @@ on:
   schedule:
     - cron: "0 10 * * *"  # Every day at 10:00 UTC — must run daily since LinkedIn search uses the past-24h filter
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
+  check-last-run:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Skip if a successful run happened in the last 24h
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          LAST_RUN=$(gh run list --workflow "run_all.yml" --status success --limit 1 --json updatedAt -q '.[0].updatedAt')
+          if [ -z "$LAST_RUN" ]; then
+            echo "No prior successful run found — proceeding."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_TS=$(date -d "$LAST_RUN" +%s)
+          NOW_TS=$(date -u +%s)
+          HOURS_SINCE=$(( (NOW_TS - LAST_TS) / 3600 ))
+
+          if [ "$HOURS_SINCE" -lt 24 ]; then
+            echo "Last successful run was $HOURS_SINCE hour(s) ago (< 24h) — skipping."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Last successful run was $HOURS_SINCE hour(s) ago — proceeding."
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
   run-all:
+    needs: check-last-run
+    if: needs.check-last-run.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
     steps:
