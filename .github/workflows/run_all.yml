@@ -15,7 +15,7 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-      - name: Skip if a successful run happened in the last 24h
+      - name: Skip if a successful run already happened today (UTC)
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,15 +28,14 @@ jobs:
             exit 0
           fi
 
-          LAST_TS=$(date -d "$LAST_RUN" +%s)
-          NOW_TS=$(date -u +%s)
-          HOURS_SINCE=$(( (NOW_TS - LAST_TS) / 3600 ))
+          LAST_DATE=$(date -u -d "$LAST_RUN" +%Y-%m-%d)
+          TODAY=$(date -u +%Y-%m-%d)
 
-          if [ "$HOURS_SINCE" -lt 24 ]; then
-            echo "Last successful run was $HOURS_SINCE hour(s) ago (< 24h) — skipping."
+          if [ "$LAST_DATE" = "$TODAY" ]; then
+            echo "Already ran successfully today ($TODAY, UTC) — skipping."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Last successful run was $HOURS_SINCE hour(s) ago — proceeding."
+            echo "Last successful run was on $LAST_DATE (today is $TODAY, UTC) — proceeding."
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
