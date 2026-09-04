@@ -155,6 +155,41 @@ class TestApplicationsPage:
         assert not app.exception
         assert calls and calls[0][0] == ("j3", "offer")
 
+    def test_save_confirmation_survives_the_rerun(self, app, monkeypatch):
+        """
+        Regression: the confirmation used to be written before st.rerun(), which
+        threw it away before the browser painted it — saving looked like a no-op.
+        """
+        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
+        self._open(app)
+        app.selectbox("stage_j3").set_value("offer").run()
+        app.button("save_j3").click().run()
+        assert any("Saved" in s.value for s in app.success)
+        assert any("Offer" in s.value for s in app.success)
+
+    def test_saved_badge_marks_the_row_that_changed(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
+        self._open(app)
+        app.button("save_j3").click().run()
+        badged = [m.value for m in app.markdown if "Saved]" in m.value]
+        assert len(badged) == 1
+        assert "AI Engineer" in badged[0]
+
+    def test_confirmation_clears_on_the_next_interaction(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
+        self._open(app)
+        app.button("save_j3").click().run()
+        assert any("Saved" in s.value for s in app.success)
+        app.text_input("search_applied").set_value("").run()
+        assert not any("Saved" in s.value for s in app.success)
+
+    def test_failed_save_shows_an_error_not_a_confirmation(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: False)
+        self._open(app)
+        app.button("save_j3").click().run()
+        assert any("Failed to save" in e.value for e in app.error)
+        assert not any("Saved" in s.value for s in app.success)
+
     def test_search_narrows_applications(self, app):
         self._open(app)
         app.text_input("search_applied").set_value("gamma").run()
