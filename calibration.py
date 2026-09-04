@@ -141,6 +141,8 @@ def summarize(jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
     pending = [j for j in jobs if not is_resolved(j) and not is_excluded(j)]
     interviews = [j for j in resolved if got_interview(j)]
     offers = [j for j in resolved if (j.get("application_stage") or "") == "offer"]
+    rejected = [j for j in resolved if (j.get("application_stage") or "") == "rejected"]
+    ghosted = [j for j in resolved if (j.get("application_stage") or "") == "ghosted"]
 
     pairs = [(predicted_interview_probability(j), got_interview(j)) for j in resolved]
     predicted = [p for p, _ in pairs if p is not None]
@@ -152,6 +154,8 @@ def summarize(jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
         "resolved": len(resolved),
         "interviews": len(interviews),
         "offers": len(offers),
+        "rejected": len(rejected),
+        "ghosted": len(ghosted),
         "interview_rate": (len(interviews) / len(resolved)) if resolved else None,
         "brier": brier_score(pairs),
         "mean_predicted": (sum(predicted) / len(predicted)) if predicted else None,

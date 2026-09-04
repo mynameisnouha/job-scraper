@@ -24,7 +24,15 @@ _OLD = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
 FAKE_TODAY_JOBS = [
     {"job_id": "j1", "job_title": "ML Engineer", "company": "ACME", "resume_score": 82,
      "job_url": "https://example.test/j1", "scraped_at": _TODAY,
-     "score_breakdown": {"recommendation": "apply_now", "one_line_verdict": "Strong fit."}},
+     "why_me_pitch": "I shipped a fine-tuned LLM to production.",
+     "score_breakdown": {
+         "recommendation": "apply_now", "one_line_verdict": "Strong fit.",
+         "differentiators": ["QLoRA fine-tuning in production"],
+         "key_gaps": ["Kubernetes"],
+         "fixable_before_applying": [{"gap": "GCP not shown", "fix": "Add a bullet"}],
+         "competitive_context": {"p_first_round_interview": {"after_fixes": 0.3}},
+         "application_effort_hours": 1.5,
+     }},
     # Below the default min score of 70 — filtered out by default.
     {"job_id": "j2", "job_title": "Data Scientist", "company": "Beta", "resume_score": 41,
      "job_url": None, "scraped_at": _TODAY, "score_breakdown": {}},
@@ -84,6 +92,37 @@ class TestJobsToApplyPage:
         app.slider[0].set_value(0).run()
         text = " ".join(m.value for m in app.markdown)
         assert "Data Scientist" in text
+
+    def test_card_shows_summary_pros_cons_and_facts(self, app):
+        app.run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "Strong fit." in text
+        assert "Lead with" in text
+        assert "QLoRA fine-tuning in production" in text
+        assert "They'll push back on" in text
+        assert "Kubernetes" in text
+        captions = " ".join(c.value for c in app.caption)
+        assert "Interview odds" in captions and "30%" in captions
+
+    def test_card_shows_the_recommendation_as_a_badge(self, app):
+        app.run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "Apply now" in text
+
+    def test_pitch_and_prep_collapsed_into_an_expander(self, app):
+        app.run()
+        labels = [e.label for e in app.expander]
+        assert "Pitch & prep" in labels
+
+    def test_card_survives_a_breakdown_with_nothing_in_it(self, app, monkeypatch):
+        """Screened-out jobs carry a 5-key breakdown — the card must still render."""
+        bare = [{"job_id": "b1", "job_title": "Bare Job", "company": "Co",
+                 "resume_score": 80, "job_url": None, "scraped_at": _TODAY,
+                 "score_breakdown": {"overall_score": 80, "screen_only": True}}]
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: bare)
+        app.run()
+        assert not app.exception
+        assert any("Bare Job" in m.value for m in app.markdown)
 
     def test_search_narrows_by_title(self, app):
         app.run()
@@ -193,6 +232,22 @@ class TestApplicationsPage:
         app.button("save_j3").click().run()
         assert any("Failed to save" in e.value for e in app.error)
         assert not any("Saved" in t.value for t in app.toast)
+
+    def test_stats_row_summarizes_every_application(self, app):
+        self._open(app)
+        values = {m.label: m.value for m in app.metric}
+        assert values["Applied"] == "3"
+        assert values["Awaiting reply"] == "1"   # j4 has no stage yet
+        assert values["Interviews"] == "1"       # j3
+        assert values["Rejected"] == "1"         # j5
+        assert values["Offers"] == "0"
+
+    def test_stats_ignore_the_search_filter(self, app):
+        """Totals must describe the whole pipeline, not the current search."""
+        self._open(app)
+        app.text_input("search_applied").set_value("gamma").run()
+        values = {m.label: m.value for m in app.metric}
+        assert values["Applied"] == "3"
 
     def test_search_narrows_applications(self, app):
         self._open(app)

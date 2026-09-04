@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import calibration
+import job_view
 import supabase_utils
 from dashboard import found_today
 
@@ -130,34 +131,72 @@ def render_today_page():
         return
 
     for job in jobs:
-        breakdown = job.get("score_breakdown") or {}
-        with st.container(border=True):
-            cols = st.columns([5, 1.2, 1.5])
-            with cols[0]:
-                title = job.get("job_title") or "N/A"
-                company = job.get("company") or "N/A"
-                url = job.get("job_url")
-                if url:
-                    st.markdown(f"**[{title}]({url})** — {company}")
+        render_job_card(job)
+
+
+REC_LABELS = {
+    "apply_now": ":green-badge[Apply now]",
+    "apply_after_fixes": ":blue-badge[Apply after fixes]",
+    "apply_if_gate_negotiable": ":orange-badge[If gate negotiable]",
+    "skip": ":red-badge[Skip]",
+}
+
+
+def render_job_card(job):
+    breakdown = job.get("score_breakdown") or {}
+    job_id = job.get("job_id")
+    title = job.get("job_title") or "N/A"
+    company = job.get("company") or "N/A"
+    url = job.get("job_url")
+
+    with st.container(border=True):
+        head = st.columns([6, 1.1, 1.6])
+        with head[0]:
+            heading = f"**[{title}]({url})**" if url else f"**{title}**"
+            rec = REC_LABELS.get(breakdown.get("recommendation"), "")
+            st.markdown(f"{heading} — {company} &nbsp; {rec}")
+        with head[1]:
+            st.markdown(score_badge(job.get("resume_score")))
+        with head[2]:
+            if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
+                if supabase_utils.mark_job_applied(job_id):
+                    supabase_utils.update_application_stage(job_id, "applied")
+                    flash_saved(f"Marked applied: {title}")
+                    st.rerun()
                 else:
-                    st.markdown(f"**{title}** — {company}")
-                rec = breakdown.get("recommendation")
-                verdict = breakdown.get("one_line_verdict")
-                if rec:
-                    st.caption(f"Recommendation: {rec}")
-                if verdict:
-                    st.caption(verdict)
-            with cols[1]:
-                st.markdown(score_badge(job.get("resume_score")))
-            with cols[2]:
-                job_id = job.get("job_id")
-                if st.button("Mark applied", key=f"apply_{job_id}"):
-                    if supabase_utils.mark_job_applied(job_id):
-                        supabase_utils.update_application_stage(job_id, "applied")
-                        flash_saved(f"Marked applied: {job.get('job_title') or job_id}")
-                        st.rerun()
-                    else:
-                        st.error("Failed to mark applied — check logs.")
+                    st.error("Failed to mark applied — check logs.")
+
+        verdict = job_view.summary(breakdown)
+        if verdict:
+            st.markdown(verdict)
+
+        facts = job_view.quick_facts(breakdown)
+        if facts:
+            st.caption(" · ".join(f"**{label}** {value}" for label, value in facts))
+
+        pros = job_view.pros(breakdown)
+        cons = job_view.cons(breakdown)
+        if pros or cons:
+            left, right = st.columns(2)
+            with left:
+                st.markdown("**Lead with**" if pros else "")
+                for item in pros:
+                    st.markdown(f"- {item}")
+            with right:
+                st.markdown("**They'll push back on**" if cons else "")
+                for item in cons:
+                    st.markdown(f"- {item}")
+
+        pitch = job.get("why_me_pitch")
+        wins = job_view.quick_wins(breakdown)
+        if pitch or wins:
+            with st.expander("Pitch & prep"):
+                if pitch:
+                    st.markdown(pitch)
+                if wins:
+                    st.markdown("**Before applying**")
+                    for item in wins:
+                        st.markdown(f"- {item}")
 
 
 def render_applications_page():
@@ -166,6 +205,19 @@ def render_applications_page():
     if not jobs:
         st.info("No applied jobs yet.")
         return
+
+    # Stats cover every application, not just the search results — otherwise
+    # typing in the box would silently change what the totals mean.
+    s = calibration.summarize(jobs)
+    tiles = st.columns(5)
+    tiles[0].metric("Applied", s["total_applied"])
+    tiles[1].metric("Awaiting reply", s["pending"])
+    tiles[2].metric("Interviews", s["interviews"])
+    tiles[3].metric("Offers", s["offers"])
+    tiles[4].metric("Rejected", s["rejected"])
+    if s["resolved"]:
+        extra = f" · {s['ghosted']} ghosted" if s["ghosted"] else ""
+        st.caption(f"Interview rate {pct(s['interview_rate'])} of {s['resolved']} resolved{extra}")
 
     search = st.text_input("Search", key="search_applied",
                            placeholder="Filter by job title or company…")
