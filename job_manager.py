@@ -283,7 +283,10 @@ async def delete_old_inactive_jobs():
     logging.info("--- Starting Task: Delete Old Inactive Jobs ---")
     delete_older_than_date = get_past_date(config.JOB_DELETION_DAYS)
     delete_older_than_date_str = delete_older_than_date.isoformat()
-    inactive_states = ['expired', 'removed']
+    # 'closed' = you marked the posting as no longer accepting candidates in the UI.
+    # Safe to purge on the same schedule as expired/removed — you never applied,
+    # so there's no outcome to learn from.
+    inactive_states = ['expired', 'removed', 'closed']
 
     try:
         # Select jobs to delete

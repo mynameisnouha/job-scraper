@@ -10,6 +10,7 @@ negative — you haven't heard back yet. Counting it as "no interview" would
 understate the interview rate and poison the Brier score, so unresolved
 applications are excluded from every metric here.
 """
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 # Stages that mean the application reached at least a first-round interview.
@@ -24,6 +25,9 @@ EXCLUDED_STAGES = {"spam_or_removed"}
 # Below this many resolved outcomes, calibration numbers are noise.
 MIN_RESOLVED_FOR_METRICS = 15
 
+# No reply after this long almost certainly means no reply is coming.
+GHOSTED_AFTER_DAYS = 30
+
 SCORE_BUCKETS = [
     ("<50", 0, 50),
     ("50-64", 50, 65),
@@ -36,6 +40,47 @@ SCORE_BUCKETS = [
 def is_resolved(job: Dict[str, Any]) -> bool:
     """True if we know how this application ended (not still waiting)."""
     return (job.get("application_stage") or "") in RESOLVED_STAGES
+
+
+def _parse_ts(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def days_since_applied(job: Dict[str, Any], now: Optional[datetime] = None) -> Optional[int]:
+    """Days since the application was sent, or None if the date is unusable."""
+    applied_at = _parse_ts(job.get("application_date"))
+    if applied_at is None:
+        return None
+    if applied_at.tzinfo is None:
+        applied_at = applied_at.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    return (now - applied_at).days
+
+
+def stale_pending(jobs: List[Dict[str, Any]], days: int = GHOSTED_AFTER_DAYS,
+                  now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    """
+    Applications still sitting at 'applied' with no reply for `days`.
+
+    Most employers never send a rejection, so without this the pending pile
+    grows forever and the resolved set — the only thing calibration can learn
+    from — stays empty. These are *suggestions*, never auto-applied: a real
+    reply can still arrive late, and a wrong 'ghosted' is a false negative in
+    the training data.
+    """
+    out = []
+    for job in jobs:
+        if (job.get("application_stage") or "applied") != "applied":
+            continue
+        age = days_since_applied(job, now=now)
+        if age is not None and age >= days:
+            out.append(job)
+    return sorted(out, key=lambda j: j.get("application_date") or "")
 
 
 def is_excluded(job: Dict[str, Any]) -> bool:

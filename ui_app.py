@@ -260,7 +260,15 @@ def render_job_card(job):
             st.markdown(verdict)
         _facts_line(job_view.quick_facts(breakdown))
 
-        actions = st.columns([1, 1, 4])
+        actions = st.columns([1, 1, 1.4, 2.6])
+        with actions[2]:
+            if st.button("No longer accepting", key=f"closed_{job_id}", width="stretch",
+                         help="Posting is closed and you never applied — remove it from the queue"):
+                if supabase_utils.mark_job_closed(job_id):
+                    flash_saved(f"Closed: {title}")
+                    st.rerun()
+                else:
+                    st.error("Failed to close — check logs.")
         with actions[0]:
             if st.button("Details", key=f"details_{job_id}", width="stretch"):
                 # Held in session_state rather than opened inline: a widget click
@@ -271,6 +279,34 @@ def render_job_card(job):
         with actions[1]:
             if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
                 mark_applied(job)
+
+
+def render_ghost_prompt(jobs):
+    """
+    Offer to close out applications that have gone quiet. Suggested, never
+    automatic — a late reply is possible, and a wrong 'ghosted' is a false
+    negative in the data everything downstream learns from.
+    """
+    stale = calibration.stale_pending(jobs)
+    if not stale:
+        return
+
+    st.warning(f"{len(stale)} application(s) have had no reply for "
+               f"{calibration.GHOSTED_AFTER_DAYS}+ days. Until they're resolved they "
+               "count for nothing — calibration only learns from settled outcomes.")
+    with st.expander(f"Review {len(stale)} silent application(s)"):
+        for job in stale:
+            age = calibration.days_since_applied(job)
+            st.markdown(f"- **{job.get('job_title') or job.get('job_id')}** — "
+                        f"{job.get('company') or '—'} · applied {age} days ago")
+        if st.button(f"Mark all {len(stale)} as ghosted", key="ghost_all"):
+            failed = [j.get("job_id") for j in stale
+                      if not supabase_utils.update_application_stage(j.get("job_id"), "ghosted")]
+            if failed:
+                st.error(f"{len(failed)} could not be updated — check logs.")
+            else:
+                flash_saved(f"Marked {len(stale)} application(s) as ghosted")
+                st.rerun()
 
 
 def render_applications_page():
@@ -293,16 +329,20 @@ def render_applications_page():
         extra = f" · {s['ghosted']} ghosted" if s["ghosted"] else ""
         st.caption(f"Interview rate {pct(s['interview_rate'])} of {s['resolved']} resolved{extra}")
 
+    render_ghost_prompt(jobs)
+
+    show_resolved = st.checkbox("Show resolved", value=True,
+                                help="Resolved applications stay in the database — they're the "
+                                     "data calibration learns from. This only hides them here.")
+    if not show_resolved:
+        jobs = [j for j in jobs if not calibration.is_resolved(j)]
+
     search = st.text_input("Search", key="search_applied",
                            placeholder="Filter by job title or company…")
     jobs = [j for j in jobs if matches_search(j, search)]
     if not jobs:
         st.info("No applications match that search.")
         return
-
-    saved_message = consume_flash()
-    if saved_message:
-        st.toast(saved_message, icon="✅")
 
     def sort_key(j):
         return j.get("stage_updated_at") or j.get("application_date") or ""
@@ -448,6 +488,13 @@ def render_calibration_page():
 
 def main():
     st.title("Job Scraper")
+
+    # Consumed here, not per page, so a save made on one page still confirms
+    # even though the rerun that follows it may land somewhere else.
+    saved_message = consume_flash()
+    if saved_message:
+        st.toast(saved_message, icon="✅")
+
     page = st.sidebar.radio("View", ["Jobs to Apply", "Applications", "Calibration"])
     if page == "Jobs to Apply":
         render_today_page()

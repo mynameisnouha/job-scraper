@@ -1,4 +1,60 @@
+from datetime import datetime, timedelta, timezone
+
 import calibration
+
+NOW = datetime(2026, 9, 4, 12, 0, tzinfo=timezone.utc)
+
+
+def applied_job(days_ago, stage="applied"):
+    return {
+        "job_id": f"j{days_ago}{stage}",
+        "application_date": (NOW - timedelta(days=days_ago)).isoformat(),
+        "application_stage": stage,
+    }
+
+
+class TestStalePending:
+    def test_finds_only_silent_applications(self):
+        jobs = [
+            applied_job(45),                        # silent, old enough
+            applied_job(5),                         # silent, too recent
+            applied_job(60, stage="rejected"),      # already resolved
+            applied_job(90, stage="interview_1"),   # already resolved
+        ]
+        stale = calibration.stale_pending(jobs, now=NOW)
+        assert [j["job_id"] for j in stale] == ["j45applied"]
+
+    def test_threshold_is_inclusive(self):
+        at = applied_job(calibration.GHOSTED_AFTER_DAYS)
+        assert calibration.stale_pending([at], now=NOW) == [at]
+
+    def test_missing_stage_counts_as_applied(self):
+        job = {"job_id": "x", "application_date": (NOW - timedelta(days=40)).isoformat()}
+        assert calibration.stale_pending([job], now=NOW) == [job]
+
+    def test_unparseable_or_missing_date_is_skipped(self):
+        jobs = [{"job_id": "a", "application_date": None, "application_stage": "applied"},
+                {"job_id": "b", "application_date": "not-a-date", "application_stage": "applied"}]
+        assert calibration.stale_pending(jobs, now=NOW) == []
+
+    def test_oldest_first(self):
+        jobs = [applied_job(35), applied_job(90), applied_job(60)]
+        ages = [calibration.days_since_applied(j, now=NOW)
+                for j in calibration.stale_pending(jobs, now=NOW)]
+        assert ages == [90, 60, 35]
+
+    def test_naive_timestamps_are_treated_as_utc(self):
+        job = {"job_id": "n", "application_stage": "applied",
+               "application_date": (NOW - timedelta(days=40)).replace(tzinfo=None).isoformat()}
+        assert calibration.stale_pending([job], now=NOW) == [job]
+
+
+class TestDaysSinceApplied:
+    def test_counts_whole_days(self):
+        assert calibration.days_since_applied(applied_job(12), now=NOW) == 12
+
+    def test_none_when_unusable(self):
+        assert calibration.days_since_applied({}, now=NOW) is None
 
 
 def job(stage=None, score=None, p=None, reason=None):

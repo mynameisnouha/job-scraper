@@ -522,6 +522,35 @@ def update_application_stage(job_id: str, stage: str, rejection_reason: Optional
         return False
 
 
+def mark_job_closed(job_id: str) -> bool:
+    """
+    Marks a posting you never applied to as no longer accepting candidates:
+    job_state='closed' and is_active=False, so it drops out of the apply queue
+    and gets swept up by job_manager's inactive-job cleanup.
+
+    Deliberately does NOT touch `status`, so it can never be confused with an
+    application you actually sent.
+    """
+    if not job_id:
+        logging.error("No job_id provided to mark as closed.")
+        return False
+
+    try:
+        logging.info(f"Marking job {job_id} as no longer accepting candidates...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({"job_state": "closed", "is_active": False})\
+                           .eq("job_id", job_id)\
+                           .execute()
+        if response.data:
+            logging.info(f"Successfully marked job {job_id} as closed.")
+            return True
+        logging.warning(f"Mark-closed for job_id {job_id} affected no rows.")
+        return False
+    except Exception as e:
+        logging.error(f"Error marking job {job_id} as closed: {e}")
+        return False
+
+
 def get_applied_jobs_with_outcomes(limit: int = 999) -> list:
     """
     Fetches all applied jobs with their outcome-tracking fields and score_breakdown,

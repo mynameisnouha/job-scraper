@@ -41,18 +41,27 @@ FAKE_TODAY_JOBS = [
      "job_url": None, "scraped_at": _OLD, "score_breakdown": {}},
 ]
 
+def _days_ago(n):
+    return (datetime.now(timezone.utc) - timedelta(days=n)).isoformat()
+
+
+# Dates are relative so the fixture doesn't drift into "stale" as time passes —
+# with fixed dates these applications would eventually trip the ghost prompt and
+# break unrelated tests.
+_STAGE_UPDATED = _days_ago(3)
+
 FAKE_APPLIED_JOBS = [
     {"job_id": "j3", "job_title": "AI Engineer", "company": "Gamma", "resume_score": 77,
-     "job_url": "https://example.test/j3", "application_date": "2026-08-01T10:00:00Z",
-     "stage_updated_at": "2026-08-20T09:00:00Z",
+     "job_url": "https://example.test/j3", "application_date": _days_ago(10),
+     "stage_updated_at": _STAGE_UPDATED,
      "application_stage": "interview_1", "rejection_reason": None, "outcome_notes": None},
     # No application_stage yet — the pre-migration / just-applied case.
     {"job_id": "j4", "job_title": "NLP Engineer", "company": "Delta", "resume_score": 60,
-     "job_url": None, "application_date": "2026-07-15T10:00:00Z",
+     "job_url": None, "application_date": _days_ago(5),
      "application_stage": None, "rejection_reason": None, "outcome_notes": None},
     # Already rejected, with a reason — exercises the reason selectbox index lookup.
     {"job_id": "j5", "job_title": "MLOps Engineer", "company": "Eps", "resume_score": 55,
-     "job_url": None, "application_date": "2026-07-01T10:00:00Z",
+     "job_url": None, "application_date": _days_ago(20),
      "application_stage": "rejected", "rejection_reason": "german_level",
      "outcome_notes": "Needed C1."},
 ]
@@ -78,8 +87,8 @@ class TestJobsToApplyPage:
         assert "ML Engineer" in text          # today + score 82
         assert "Data Scientist" not in text   # score 41, below default min of 70
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago
-        # One card survives, carrying its Details and Mark applied buttons.
-        assert sorted(b.key for b in app.button) == ["apply_j1", "details_j1"]
+        # One card survives, carrying its three actions.
+        assert sorted(b.key for b in app.button) == ["apply_j1", "closed_j1", "details_j1"]
 
     def test_unchecking_today_only_reveals_older_jobs(self, app):
         app.run()
@@ -176,6 +185,25 @@ class TestJobsToApplyPage:
         assert not app.exception
         assert any("Bare Job" in m.value for m in app.markdown)
 
+    def test_no_longer_accepting_closes_the_job(self, app, monkeypatch):
+        calls = []
+        monkeypatch.setattr(supabase_utils, "mark_job_closed",
+                            lambda jid: calls.append(jid) or True)
+        app.run()
+        app.button("closed_j1").click().run()
+        assert calls == ["j1"]
+        assert not app.exception
+
+    def test_closing_does_not_record_an_application(self, app, monkeypatch):
+        """A closed posting you never applied to must not enter the outcome data."""
+        applied = []
+        monkeypatch.setattr(supabase_utils, "mark_job_closed", lambda jid: True)
+        monkeypatch.setattr(supabase_utils, "mark_job_applied",
+                            lambda jid: applied.append(jid) or True)
+        app.run()
+        app.button("closed_j1").click().run()
+        assert applied == []
+
     def test_search_narrows_by_title(self, app):
         app.run()
         app.slider[0].set_value(0).run()
@@ -271,7 +299,7 @@ class TestApplicationsPage:
         """The toast vanishes on refresh; stage_updated_at is what persists."""
         self._open(app)
         captions = " ".join(c.value for c in app.caption)
-        assert "updated 2026-08-20" in captions
+        assert f"updated {_STAGE_UPDATED[:10]}" in captions
 
     def test_missing_timestamp_is_omitted_not_rendered_as_dash(self, app):
         self._open(app)
@@ -293,6 +321,45 @@ class TestApplicationsPage:
         assert values["Interviews"] == "1"       # j3
         assert values["Rejected"] == "1"         # j5
         assert values["Offers"] == "0"
+
+    def test_no_ghost_prompt_when_nothing_is_stale(self, app):
+        self._open(app)
+        assert not any("no reply for" in w.value for w in app.warning)
+
+    def test_ghost_prompt_lists_silent_applications(self, app, monkeypatch):
+        old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        jobs = [{"job_id": "old1", "job_title": "Silent Role", "company": "Quiet Co",
+                 "resume_score": 70, "application_date": old, "stage_updated_at": old,
+                 "application_stage": "applied", "score_breakdown": {}}]
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
+        self._open(app)
+        assert any("no reply for" in w.value for w in app.warning)
+        assert any("Silent Role" in m.value for m in app.markdown)
+
+    def test_ghosting_all_is_suggested_not_automatic(self, app, monkeypatch):
+        """Nothing is written until the button is pressed — a late reply is possible."""
+        old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        jobs = [{"job_id": "old1", "job_title": "Silent Role", "company": "Quiet Co",
+                 "resume_score": 70, "application_date": old, "stage_updated_at": old,
+                 "application_stage": "applied", "score_breakdown": {}}]
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
+        calls = []
+        monkeypatch.setattr(supabase_utils, "update_application_stage",
+                            lambda *a, **k: calls.append(a) or True)
+        self._open(app)
+        assert calls == []
+        app.button("ghost_all").click().run()
+        assert calls == [("old1", "ghosted")]
+
+    def test_hiding_resolved_only_affects_the_view(self, app):
+        self._open(app)
+        assert any("AI Engineer" in m.value for m in app.markdown)   # interview_1
+        app.checkbox[0].set_value(False).run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "AI Engineer" not in text     # resolved, hidden
+        assert "NLP Engineer" in text        # still pending, kept
+        # Totals are unchanged — nothing was deleted.
+        assert {m.label: m.value for m in app.metric}["Applied"] == "3"
 
     def test_stats_ignore_the_search_filter(self, app):
         """Totals must describe the whole pipeline, not the current search."""
