@@ -47,21 +47,18 @@ def fmt_date(value):
         return "—"
 
 
-def flash_saved(job_id, message):
+def flash_saved(message):
     """
     Remember that a save just succeeded so it can be shown *after* st.rerun().
-    Writing st.success() before a rerun is pointless — the rerun discards it
+    Writing the confirmation before a rerun is pointless — the rerun discards it
     before the browser ever paints it.
     """
-    st.session_state["flash"] = {"job_id": job_id, "message": message}
+    st.session_state["flash"] = message
 
 
 def consume_flash():
-    """Pop the pending save confirmation, if any. Returns (job_id, message)."""
-    flash = st.session_state.pop("flash", None)
-    if not flash:
-        return None, None
-    return flash.get("job_id"), flash.get("message")
+    """Pop the pending save confirmation, if any."""
+    return st.session_state.pop("flash", None)
 
 
 def series_color():
@@ -157,7 +154,7 @@ def render_today_page():
                 if st.button("Mark applied", key=f"apply_{job_id}"):
                     if supabase_utils.mark_job_applied(job_id):
                         supabase_utils.update_application_stage(job_id, "applied")
-                        flash_saved(job_id, f"Marked applied: {job.get('job_title') or job_id}")
+                        flash_saved(f"Marked applied: {job.get('job_title') or job_id}")
                         st.rerun()
                     else:
                         st.error("Failed to mark applied — check logs.")
@@ -177,10 +174,9 @@ def render_applications_page():
         st.info("No applications match that search.")
         return
 
-    saved_job_id, saved_message = consume_flash()
+    saved_message = consume_flash()
     if saved_message:
         st.toast(saved_message, icon="✅")
-        st.success(saved_message)
 
     def sort_key(j):
         return j.get("stage_updated_at") or j.get("application_date") or ""
@@ -196,8 +192,6 @@ def render_applications_page():
                 company = job.get("company") or "N/A"
                 url = job.get("job_url")
                 label = f"**[{title}]({url})** — {company}" if url else f"**{title}** — {company}"
-                if job_id == saved_job_id:
-                    label += " &nbsp;:green-badge[✓ Saved]"
                 st.markdown(label)
                 # stage_updated_at is durable proof the write landed — it survives
                 # a refresh, unlike the transient toast.
@@ -239,8 +233,7 @@ def render_applications_page():
                     notes=notes or None,
                 )
                 if ok:
-                    flash_saved(job_id,
-                                f"Saved: {title} → {STAGE_LABELS.get(new_stage, new_stage)}")
+                    flash_saved(f"Saved: {title} → {STAGE_LABELS.get(new_stage, new_stage)}")
                     st.rerun()
                 else:
                     st.error("Failed to save — check logs (has the SQL migration been run?).")

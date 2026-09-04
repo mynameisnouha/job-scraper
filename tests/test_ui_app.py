@@ -36,6 +36,7 @@ FAKE_TODAY_JOBS = [
 FAKE_APPLIED_JOBS = [
     {"job_id": "j3", "job_title": "AI Engineer", "company": "Gamma", "resume_score": 77,
      "job_url": "https://example.test/j3", "application_date": "2026-08-01T10:00:00Z",
+     "stage_updated_at": "2026-08-20T09:00:00Z",
      "application_stage": "interview_1", "rejection_reason": None, "outcome_notes": None},
     # No application_stage yet — the pre-migration / just-applied case.
     {"job_id": "j4", "job_title": "NLP Engineer", "company": "Delta", "resume_score": 60,
@@ -164,31 +165,34 @@ class TestApplicationsPage:
         self._open(app)
         app.selectbox("stage_j3").set_value("offer").run()
         app.button("save_j3").click().run()
-        assert any("Saved" in s.value for s in app.success)
-        assert any("Offer" in s.value for s in app.success)
+        toasts = [t.value for t in app.toast]
+        assert any("Saved" in t and "Offer" in t for t in toasts), toasts
 
-    def test_saved_badge_marks_the_row_that_changed(self, app, monkeypatch):
+    def test_toast_clears_on_the_next_interaction(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
         self._open(app)
         app.button("save_j3").click().run()
-        badged = [m.value for m in app.markdown if "Saved]" in m.value]
-        assert len(badged) == 1
-        assert "AI Engineer" in badged[0]
-
-    def test_confirmation_clears_on_the_next_interaction(self, app, monkeypatch):
-        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
-        self._open(app)
-        app.button("save_j3").click().run()
-        assert any("Saved" in s.value for s in app.success)
+        assert any("Saved" in t.value for t in app.toast)
         app.text_input("search_applied").set_value("").run()
-        assert not any("Saved" in s.value for s in app.success)
+        assert not any("Saved" in t.value for t in app.toast)
+
+    def test_stage_timestamp_shown_as_durable_evidence(self, app):
+        """The toast vanishes on refresh; stage_updated_at is what persists."""
+        self._open(app)
+        captions = " ".join(c.value for c in app.caption)
+        assert "updated 2026-08-20" in captions
+
+    def test_missing_timestamp_is_omitted_not_rendered_as_dash(self, app):
+        self._open(app)
+        captions = " ".join(c.value for c in app.caption)
+        assert "updated —" not in captions
 
     def test_failed_save_shows_an_error_not_a_confirmation(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: False)
         self._open(app)
         app.button("save_j3").click().run()
         assert any("Failed to save" in e.value for e in app.error)
-        assert not any("Saved" in s.value for s in app.success)
+        assert not any("Saved" in t.value for t in app.toast)
 
     def test_search_narrows_applications(self, app):
         self._open(app)
