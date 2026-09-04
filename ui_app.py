@@ -6,10 +6,17 @@ Run with: streamlit run ui_app.py
 """
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 
+import calibration
 import supabase_utils
 from dashboard import found_today
+
+# Categorical slot 1 from the validated reference palette, stepped per mode.
+# Single-series charts only — magnitude, so one hue, never a rainbow.
+SERIES_LIGHT = "#2a78d6"
+SERIES_DARK = "#3987e5"
 
 STAGE_LABELS = {
     "applied": "Applied",
@@ -39,6 +46,29 @@ def fmt_date(value):
         return "—"
 
 
+def series_color():
+    """The single series hue, stepped for whichever theme the viewer is using."""
+    try:
+        if st.get_option("theme.base") == "dark":
+            return SERIES_DARK
+    except Exception:
+        pass
+    return SERIES_LIGHT
+
+
+def pct(value):
+    return "—" if value is None else f"{value * 100:.0f}%"
+
+
+def matches_search(job, term):
+    """Case-insensitive substring match over job title and company."""
+    if not term or not term.strip():
+        return True
+    needle = term.strip().lower()
+    haystack = f"{job.get('job_title') or ''} {job.get('company') or ''}".lower()
+    return needle in haystack
+
+
 def score_badge(score):
     if score is None:
         return "unscored"
@@ -56,6 +86,9 @@ def render_today_page():
         st.info("No scored jobs ready for application right now.")
         return
 
+    search = st.text_input("Search", key="search_jobs",
+                           placeholder="Filter by job title or company…")
+
     controls = st.columns([1.5, 1.5, 2])
     with controls[0]:
         today_only = st.checkbox("Found today only", value=True)
@@ -68,6 +101,7 @@ def render_today_page():
     if today_only:
         jobs = [j for j in jobs if found_today(j)]
     jobs = [j for j in jobs if (j.get("resume_score") or 0) >= min_score]
+    jobs = [j for j in jobs if matches_search(j, search)]
     jobs = sorted(jobs, key=lambda j: j.get("resume_score") or 0, reverse=True)
 
     matched = len(jobs)
@@ -76,7 +110,8 @@ def render_today_page():
                "Rendering every job at once is slow — narrow with the filters above.")
 
     if not jobs:
-        st.info("No jobs match these filters. Try unchecking 'Found today only' or lowering the min score.")
+        st.info("No jobs match these filters. Try clearing the search, unchecking "
+                "'Found today only', or lowering the min score.")
         return
 
     for job in jobs:
@@ -115,6 +150,13 @@ def render_applications_page():
     jobs = supabase_utils.get_applied_jobs_with_outcomes(999)
     if not jobs:
         st.info("No applied jobs yet.")
+        return
+
+    search = st.text_input("Search", key="search_applied",
+                           placeholder="Filter by job title or company…")
+    jobs = [j for j in jobs if matches_search(j, search)]
+    if not jobs:
+        st.info("No applications match that search.")
         return
 
     def sort_key(j):
@@ -174,13 +216,91 @@ def render_applications_page():
                     st.error("Failed to save — check logs (has the SQL migration been run?).")
 
 
+def render_calibration_page():
+    st.header("Calibration")
+    st.caption("Is the scorer's confidence actually predictive? Applications still "
+               "waiting for a reply are excluded — no answer yet isn't a rejection.")
+
+    if st.button("Refresh"):
+        st.rerun()
+
+    jobs = supabase_utils.get_applied_jobs_with_outcomes(999)
+    if not jobs:
+        st.info("No applied jobs yet. Log some outcomes on the Applications page first.")
+        return
+
+    s = calibration.summarize(jobs)
+
+    tiles = st.columns(5)
+    tiles[0].metric("Applied", s["total_applied"])
+    tiles[1].metric("Awaiting reply", s["pending"])
+    tiles[2].metric("Resolved", s["resolved"])
+    tiles[3].metric("Interview rate", pct(s["interview_rate"]))
+    tiles[4].metric("Offers", s["offers"])
+
+    if not s["enough_data"]:
+        st.warning(
+            f"Not enough resolved outcomes yet — {s['resolved']}/{s['min_required']}. "
+            "The numbers below will swing wildly until you have more; treat them as a "
+            "preview, not a signal."
+        )
+
+    st.subheader("Predicted vs actual")
+    if s["mean_predicted"] is None:
+        st.info("No scored job carries a predicted interview probability yet, so there's "
+                "nothing to calibrate against.")
+    else:
+        cols = st.columns(3)
+        cols[0].metric("Scorer predicted (avg)", pct(s["mean_predicted"]))
+        cols[1].metric("Actually happened", pct(s["interview_rate"]))
+        cols[2].metric("Brier score", "—" if s["brier"] is None else f"{s['brier']:.3f}",
+                       help="Mean squared error of the predicted probability. Lower is "
+                            "better; 0.25 is what always guessing 50% would score.")
+        gap = (s["mean_predicted"] - (s["interview_rate"] or 0))
+        if abs(gap) >= 0.05:
+            direction = "over" if gap > 0 else "under"
+            st.caption(f"The scorer is **{direction}confident** by roughly "
+                       f"{abs(gap) * 100:.0f} percentage points on resolved applications.")
+
+    st.subheader("Interview rate by score bucket")
+    rows = calibration.bucket_stats(jobs)
+    table = pd.DataFrame([
+        {"Score": r["bucket"], "Resolved": r["n"], "Interviews": r["interviews"],
+         "Interview rate": pct(r["interview_rate"])}
+        for r in rows
+    ])
+    st.dataframe(table, hide_index=True, width="stretch")
+
+    charted = [r for r in rows if r["n"] > 0 and r["interview_rate"] is not None]
+    if s["enough_data"] and charted:
+        chart_df = pd.DataFrame(
+            [{"Score bucket": r["bucket"], "Interview rate": r["interview_rate"]}
+             for r in charted]
+        ).set_index("Score bucket")
+        st.bar_chart(chart_df, color=series_color(), y_label="Interview rate")
+    elif charted:
+        st.caption("Chart appears once there are enough resolved outcomes to be worth plotting.")
+
+    st.subheader("Why applications were rejected")
+    reasons = calibration.rejection_reason_counts(jobs)
+    if not reasons:
+        st.info("No rejections logged yet.")
+    else:
+        reason_df = pd.DataFrame(
+            [{"Reason": k, "Count": v} for k, v in reasons.items()]
+        ).set_index("Reason")
+        st.bar_chart(reason_df, color=series_color(), horizontal=True, x_label="Applications")
+
+
 def main():
     st.title("Job Scraper")
-    page = st.sidebar.radio("View", ["Jobs to Apply", "Applications"])
+    page = st.sidebar.radio("View", ["Jobs to Apply", "Applications", "Calibration"])
     if page == "Jobs to Apply":
         render_today_page()
-    else:
+    elif page == "Applications":
         render_applications_page()
+    else:
+        render_calibration_page()
 
 
 if __name__ == "__main__":

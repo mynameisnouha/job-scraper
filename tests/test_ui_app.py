@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import calibration
 import supabase_utils
 
 pytest.importorskip("streamlit")
@@ -83,6 +84,26 @@ class TestJobsToApplyPage:
         text = " ".join(m.value for m in app.markdown)
         assert "Data Scientist" in text
 
+    def test_search_narrows_by_title(self, app):
+        app.run()
+        app.slider[0].set_value(0).run()
+        app.text_input("search_jobs").set_value("data scien").run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "Data Scientist" in text
+        assert "ML Engineer" not in text
+
+    def test_search_matches_company_case_insensitively(self, app):
+        app.run()
+        app.text_input("search_jobs").set_value("acme").run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "ML Engineer" in text
+
+    def test_search_with_no_hits_shows_hint(self, app):
+        app.run()
+        app.text_input("search_jobs").set_value("zzzz-no-such-job").run()
+        assert not app.exception
+        assert any("No jobs match these filters" in i.value for i in app.info)
+
     def test_no_jobs_match_filters_state(self, app):
         app.run()
         app.slider[0].set_value(100).run()
@@ -134,8 +155,88 @@ class TestApplicationsPage:
         assert not app.exception
         assert calls and calls[0][0] == ("j3", "offer")
 
+    def test_search_narrows_applications(self, app):
+        self._open(app)
+        app.text_input("search_applied").set_value("gamma").run()
+        text = " ".join(m.value for m in app.markdown)
+        assert "AI Engineer" in text
+        assert "NLP Engineer" not in text
+
+    def test_search_with_no_hits_shows_hint(self, app):
+        self._open(app)
+        app.text_input("search_applied").set_value("zzzz-no-such-job").run()
+        assert not app.exception
+        assert any("No applications match that search" in i.value for i in app.info)
+
     def test_empty_state(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: [])
         self._open(app)
         assert not app.exception
         assert any("No applied jobs" in i.value for i in app.info)
+
+
+def _resolved(n, stage="rejected", score=80, p=None):
+    out = []
+    for i in range(n):
+        breakdown = {"competitive_context": {"p_first_round_interview": {"after_fixes": p}}} if p else {}
+        out.append({"job_id": f"r{i}", "job_title": f"Role {i}", "company": "Co",
+                    "resume_score": score, "application_stage": stage,
+                    "application_date": _TODAY, "stage_updated_at": _TODAY,
+                    "rejection_reason": "german_level", "outcome_notes": None,
+                    "score_breakdown": breakdown})
+    return out
+
+
+class TestCalibrationPage:
+    def _open(self, app):
+        app.run()
+        app.sidebar.radio[0].set_value("Calibration").run()
+        assert not app.exception
+        return app
+
+    def test_renders_with_the_default_fixture(self, app):
+        self._open(app)
+        assert not app.exception
+
+    def test_empty_state(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: [])
+        self._open(app)
+        assert any("No applied jobs yet" in i.value for i in app.info)
+
+    def test_warns_when_below_threshold(self, app):
+        """Small samples must be labelled as noise, not presented as signal."""
+        self._open(app)
+        assert any("Not enough resolved outcomes" in w.value for w in app.warning)
+
+    def test_no_warning_once_threshold_met(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",
+                            lambda limit=999: _resolved(calibration.MIN_RESOLVED_FOR_METRICS))
+        self._open(app)
+        assert not any("Not enough resolved outcomes" in w.value for w in app.warning)
+
+    def test_pending_applications_excluded_from_rate(self, app, monkeypatch):
+        jobs = _resolved(1, stage="interview_1") + _resolved(1, stage="rejected")
+        jobs += [{"job_id": "p1", "job_title": "Pending", "company": "Co", "resume_score": 80,
+                  "application_stage": "applied", "application_date": _TODAY,
+                  "stage_updated_at": _TODAY, "score_breakdown": {}}]
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
+        self._open(app)
+        values = {m.label: m.value for m in app.metric}
+        assert values["Applied"] == "3"
+        assert values["Awaiting reply"] == "1"
+        assert values["Resolved"] == "2"
+        assert values["Interview rate"] == "50%"
+
+    def test_overconfidence_is_called_out(self, app, monkeypatch):
+        # Scorer predicted 80%, every application was rejected.
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",
+                            lambda limit=999: _resolved(20, stage="rejected", p=0.8))
+        self._open(app)
+        text = " ".join(c.value for c in app.caption)
+        assert "overconfident" in text
+
+    def test_no_predictions_available(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",
+                            lambda limit=999: _resolved(20, stage="rejected", p=None))
+        self._open(app)
+        assert any("nothing to calibrate against" in i.value for i in app.info)

@@ -8,6 +8,7 @@ google-genai
 litellm
 pydantic
 streamlit
+pandas
 playwright
 markdownify
 reportlab
