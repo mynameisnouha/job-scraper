@@ -15,27 +15,42 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-      - name: Skip if a successful run already happened today (UTC)
+      - name: Skip if the dashboard was already generated today (UTC)
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          LAST_RUN=$(gh run list --workflow "run_all.yml" --status success --limit 1 --json updatedAt -q '.[0].updatedAt')
-          if [ -z "$LAST_RUN" ]; then
-            echo "No prior successful run found — proceeding."
+          # Look at recent completed runs and find the last one where the
+          # "run-all" job (the one that actually reaches "Generate Dashboard")
+          # actually succeeded — a run can be "successful" overall while the
+          # job itself was skipped by this same check, so we inspect the job,
+          # not the run-level conclusion.
+          RUN_IDS=$(gh run list --workflow "run_all.yml" --status completed --limit 15 --json databaseId -q '.[].databaseId')
+
+          LAST_COMPLETED=""
+          for id in $RUN_IDS; do
+            CONCLUSION=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="run-all") | .conclusion')
+            if [ "$CONCLUSION" = "success" ]; then
+              LAST_COMPLETED=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="run-all") | .completedAt')
+              break
+            fi
+          done
+
+          if [ -z "$LAST_COMPLETED" ]; then
+            echo "No prior run reached a successful dashboard generation — proceeding."
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          LAST_DATE=$(date -u -d "$LAST_RUN" +%Y-%m-%d)
+          LAST_DATE=$(date -u -d "$LAST_COMPLETED" +%Y-%m-%d)
           TODAY=$(date -u +%Y-%m-%d)
 
           if [ "$LAST_DATE" = "$TODAY" ]; then
-            echo "Already ran successfully today ($TODAY, UTC) — skipping."
+            echo "Dashboard already generated successfully today ($TODAY, UTC) — skipping."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Last successful run was on $LAST_DATE (today is $TODAY, UTC) — proceeding."
+            echo "Last successful dashboard generation was on $LAST_DATE (today is $TODAY, UTC) — proceeding."
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
