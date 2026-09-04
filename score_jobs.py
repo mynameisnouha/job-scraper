@@ -6,6 +6,7 @@ import requests
 import io
 import pdfplumber
 import os
+from pydantic import ValidationError
 
 import config
 import supabase_utils
@@ -409,6 +410,12 @@ recommendation cannot be apply_now or apply_after_fixes regardless of the raw sc
 - 25-44: a hard gate failed; only worth it if the gate is negotiable
 - 0-24: do not apply
 
+## MANDATORY FIELDS — never omit these
+competitive_context (with p_first_round_interview.as_is AND .after_fixes as 0-1 decimals,
+not percentages), dimension_scores (all seven), and one_line_verdict are required on every
+answer. If the JD is thin, estimate from what's there and say so in calibration_check.confidence
+— an honest low-confidence estimate is useful, a missing field is not.
+
 ## OUTPUT FIELDS (also fill the standard skills/experience/education fields below for compatibility)
 - german_required: 'C1-fluent' ONLY if fluent/native/verhandlungssicher German is explicitly
   demanded. 'B2' if intermediate named. 'nice-to-have' if listed as a plus. 'none' if not
@@ -464,7 +471,31 @@ fixable before the deadline.
             temperature=0.3,
         )
 
-        breakdown = ScoreBreakdown.model_validate_json(score_text)
+        try:
+            breakdown = ScoreBreakdown.model_validate_json(score_text)
+        except ValidationError as ve:
+            # competitive_context and dimension_scores are mandatory now, so a model
+            # that skips them fails here. Without this repair pass the score is lost
+            # and the job is picked up again on the next run — the same omission
+            # burning budget indefinitely. One retry naming the exact fields is
+            # cheaper than that loop.
+            logging.warning(f"Score for {job_id} failed validation ({ve.error_count()} error(s)); "
+                            f"retrying once with the errors fed back.")
+            repair_prompt = (
+                f"{prompt}\n\n--- YOUR PREVIOUS ANSWER WAS REJECTED ---\n"
+                f"{score_text}\n\n"
+                f"It failed schema validation:\n{ve}\n\n"
+                "Return the SAME analysis with those fields filled in. Every field listed "
+                "above is mandatory — estimate honestly rather than omitting one, and state "
+                "low confidence in calibration_check if you had to guess."
+            )
+            score_text = primary_client.generate_content(
+                prompt=repair_prompt,
+                response_format=ScoreBreakdown,
+                temperature=0.3,
+            )
+            breakdown = ScoreBreakdown.model_validate_json(score_text)
+            logging.info(f"Repair pass succeeded for {job_id}.")
 
         # --- Hard gates: requirements the candidate cannot clear today. ---
         # Enforced in code (not left entirely to the LLM's judgement) so a great skills
@@ -494,7 +525,7 @@ fixable before the deadline.
                 breakdown.recommendation = "skip"
             breakdown.reasoning = f"HARD GATE: {'; '.join(gate_reasons)}. {breakdown.reasoning}"
 
-        p_as_is = ((breakdown.competitive_context or {}).get("p_first_round_interview") or {}).get("as_is")
+        p_as_is = breakdown.competitive_context.p_first_round_interview.as_is
         if p_as_is is not None and p_as_is < 0.10 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
             logging.info(f"  P(interview) as_is={p_as_is} < 0.10 for {job_id} — downgrading recommendation.")
             breakdown.recommendation = "apply_if_gate_negotiable" if caps else "skip"
@@ -519,16 +550,14 @@ fixable before the deadline.
             failed = [g for g in breakdown.hard_gates if g.get("result") == "fail"]
             if failed:
                 logging.info(f"  Gates failed:   {[g.get('gate') for g in failed]}")
-        if breakdown.dimension_scores:
-            logging.info(f"  Dimensions:     {breakdown.dimension_scores}")
-        if breakdown.competitive_context:
-            p = breakdown.competitive_context.get("p_first_round_interview") or {}
-            logging.info(f"  P(interview):   as_is={p.get('as_is')} after_fixes={p.get('after_fixes')}")
+        logging.info(f"  Dimensions:     {breakdown.dimension_scores.model_dump()}")
+        p = breakdown.competitive_context.p_first_round_interview
+        logging.info(f"  P(interview):   as_is={p.as_is} after_fixes={p.after_fixes}")
         if breakdown.one_line_verdict:
             logging.info(f"  Verdict:        {breakdown.one_line_verdict}")
 
         # expected_value ranks the apply queue: interview odds per hour of effort spent.
-        p_after_fixes = ((breakdown.competitive_context or {}).get("p_first_round_interview") or {}).get("after_fixes")
+        p_after_fixes = p.after_fixes
         if p_after_fixes is not None and breakdown.application_effort_hours:
             breakdown.expected_value = round(p_after_fixes / breakdown.application_effort_hours, 3)
 

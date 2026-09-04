@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -77,6 +77,52 @@ class ScreenResult(BaseModel):
 class PitchOutput(BaseModel):
     pitch: str = Field(..., description="3-4 sentence first-person pitch mapping the candidate's strongest evidence to the job's top requirements")
 
+class InterviewProbability(BaseModel):
+    """
+    The scorer's own odds of landing a first-round interview. Required (not
+    optional-with-default) so the JSON schema forces the model to produce it:
+    this is the number every calibration check is measured against, and when it
+    was optional roughly a third of scored jobs came back without it.
+    """
+    as_is: float = Field(..., description="Probability of a first-round interview with the CV as it stands today, 0-1")
+    after_fixes: float = Field(..., description="Probability once every fixable_before_applying item is done, 0-1")
+
+    @field_validator("as_is", "after_fixes", mode="before")
+    @classmethod
+    def _normalize(cls, v):
+        """
+        Accept 15 as well as 0.15 — the model emits both for '15%'. Coercing
+        here (rather than rejecting) keeps a whole score from being lost to a
+        units slip. Clamped so a nonsense value can't leave the 0-1 range.
+        """
+        try:
+            p = float(v)
+        except (TypeError, ValueError):
+            return v
+        if p > 1:
+            p = p / 100.0
+        return min(max(p, 0.0), 1.0)
+
+
+class CompetitiveContext(BaseModel):
+    """Who else is applying, and how the candidate ranks against them."""
+    estimated_applicant_volume: str = Field(..., description="Rough applicant count or band for this posting")
+    modal_competitor: str = Field(..., description="The profile of the typical competing candidate")
+    candidate_percentile: int = Field(..., description="Where the candidate sits in that pool, 0-100")
+    p_first_round_interview: InterviewProbability = Field(..., description="Calibrated interview odds")
+
+
+class DimensionScores(BaseModel):
+    """The weighted sub-scores behind the headline number, 0-100 each."""
+    must_have_coverage: int = Field(..., description="Weighted must-haves met, by evidence tier (35%)")
+    evidence_strength: int = Field(..., description="Are matches tier 1-2, or inferred? (15%)")
+    nice_to_have_coverage: int = Field(..., description="Weighted nice-to-haves met (10%)")
+    seniority_fit: int = Field(..., description="Experience ledger vs the role's real level (15%)")
+    environment_fit: int = Field(..., description="Company stage/pace vs the candidate's track record (10%)")
+    domain_fit: int = Field(..., description="Industry/regulatory familiarity (5%)")
+    differentiation: int = Field(..., description="How rare the candidate's strongest asset is in this pool (10%)")
+
+
 class ScoreBreakdown(BaseModel):
     overall_score: int = Field(..., ge=0, le=100, description="Overall suitability score 0-100")
     skills_match_score: int = Field(..., ge=0, le=100, description="How well the candidate's skills match the job requirements")
@@ -96,8 +142,8 @@ class ScoreBreakdown(BaseModel):
     # --- v2 fields: hard gates, weighted dimensions, competitive context, calibration ---
     hard_gates: List[Dict[str, Any]] = Field(default_factory=list,
         description="One entry per gate evaluated: {gate, result: pass/fail/unknown, cap_applied, detail, negotiable, how}")
-    dimension_scores: Dict[str, int] = Field(default_factory=dict,
-        description="0-100 per dimension: must_have_coverage, evidence_strength, nice_to_have_coverage, seniority_fit, environment_fit, domain_fit, differentiation")
+    dimension_scores: DimensionScores = Field(...,
+        description="0-100 per dimension — every dimension must be scored")
     differentiators: List[str] = Field(default_factory=list, description="What the candidate has that the median applicant likely does not")
     disqualifier_matches: List[str] = Field(default_factory=list, description="Matches against the JD's explicit 'not for you if' section")
     fixable_before_applying: List[Dict[str, Any]] = Field(default_factory=list,
@@ -105,8 +151,8 @@ class ScoreBreakdown(BaseModel):
     fixable_in_two_weeks: List[Dict[str, Any]] = Field(default_factory=list,
         description="Gaps closeable with a weekend project or write-up: [{gap, fix, effort_minutes}]")
     structural_gaps: List[str] = Field(default_factory=list, description="Gaps that cannot be fixed before this application closes")
-    competitive_context: Dict[str, Any] = Field(default_factory=dict,
-        description="estimated_applicant_volume, modal_competitor, candidate_percentile, p_first_round_interview: {as_is, after_fixes}")
+    competitive_context: CompetitiveContext = Field(...,
+        description="Applicant pool and the calibrated interview odds — required, never omit")
     company_stage: str = Field("", description="Inferred company stage/headcount, e.g. 'startup <50', 'mid-size', 'large enterprise'")
     working_language_of_product: str = Field("", description="Language the product's users/data/internal docs are actually in, distinct from JD language")
     remote_scope: str = Field("", description="Countries/timezone remote work is actually scoped to, if remote")
@@ -120,7 +166,7 @@ class ScoreBreakdown(BaseModel):
     expected_value: float = Field(0.0, description="p_first_round_interview.after_fixes / application_effort_hours")
     calibration_check: Dict[str, Any] = Field(default_factory=dict,
         description="must_haves_total, must_haves_met_tier_1_or_2, hard_gates_failed, cap_applied, score_before_cap, final_score, would_a_skeptical_recruiter_agree, confidence, confidence_reason")
-    one_line_verdict: str = Field("", description="One sentence: the honest bottom line")
+    one_line_verdict: str = Field(..., description="One sentence: the honest bottom line")
 
 class Config:
     extra = 'allow'
