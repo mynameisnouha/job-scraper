@@ -78,7 +78,8 @@ class TestJobsToApplyPage:
         assert "ML Engineer" in text          # today + score 82
         assert "Data Scientist" not in text   # score 41, below default min of 70
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago
-        assert len(app.button) == 1
+        # One card survives, carrying its Details and Mark applied buttons.
+        assert sorted(b.key for b in app.button) == ["apply_j1", "details_j1"]
 
     def test_unchecking_today_only_reveals_older_jobs(self, app):
         app.run()
@@ -93,14 +94,14 @@ class TestJobsToApplyPage:
         text = " ".join(m.value for m in app.markdown)
         assert "Data Scientist" in text
 
-    def test_card_shows_summary_pros_cons_and_facts(self, app):
+    def test_overview_card_shows_only_the_headline(self, app):
+        """The list stays scannable: verdict and facts, detail stays behind Details."""
         app.run()
         text = " ".join(m.value for m in app.markdown)
+        assert "ML Engineer" in text
         assert "Strong fit." in text
-        assert "Lead with" in text
-        assert "QLoRA fine-tuning in production" in text
-        assert "They'll push back on" in text
-        assert "Kubernetes" in text
+        assert "Lead with" not in text
+        assert "QLoRA fine-tuning in production" not in text
         captions = " ".join(c.value for c in app.caption)
         assert "Interview odds" in captions and "30%" in captions
 
@@ -109,10 +110,61 @@ class TestJobsToApplyPage:
         text = " ".join(m.value for m in app.markdown)
         assert "Apply now" in text
 
-    def test_pitch_and_prep_collapsed_into_an_expander(self, app):
+    def test_details_button_opens_the_dialog_with_the_full_breakdown(self, app):
         app.run()
-        labels = [e.label for e in app.expander]
-        assert "Pitch & prep" in labels
+        app.button("details_j1").click().run()
+        assert not app.exception
+        text = " ".join(m.value for m in app.markdown)
+        assert "Lead with" in text
+        assert "QLoRA fine-tuning in production" in text
+        assert "They'll push back on" in text
+        assert "Kubernetes" in text
+        assert "Before applying" in text
+        assert "GCP not shown → Add a bullet" in text
+        assert "I shipped a fine-tuned LLM to production." in text
+
+    def test_dialog_stays_closed_until_clicked(self, app):
+        app.run()
+        assert "Open posting" not in " ".join(m.value for m in app.markdown)
+
+    def test_mark_applied_from_inside_the_dialog(self, app, monkeypatch):
+        calls = []
+        monkeypatch.setattr(supabase_utils, "mark_job_applied",
+                            lambda jid: calls.append(jid) or True)
+        monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: True)
+        app.run()
+        app.button("details_j1").click().run()
+        app.button("dlg_apply_j1").click().run()
+        assert calls == ["j1"]
+
+    def test_dialog_stays_open_across_reruns(self, app):
+        """
+        Regression: opening the dialog inline from the button branch meant any
+        widget click inside it reran the script and the dialog vanished — so its
+        own Mark applied button could never fire.
+        """
+        app.run()
+        app.button("details_j1").click().run()
+        assert "Open posting" in " ".join(m.value for m in app.markdown)
+        # An unrelated interaction elsewhere on the page.
+        app.text_input("search_jobs").set_value("ML").run()
+        assert "Open posting" in " ".join(m.value for m in app.markdown)
+
+    def test_filtering_a_job_out_closes_its_dialog(self, app):
+        app.run()
+        app.button("details_j1").click().run()
+        app.text_input("search_jobs").set_value("zzz-no-match").run()
+        assert not app.exception
+        assert "Open posting" not in " ".join(m.value for m in app.markdown)
+
+    def test_details_dialog_survives_an_empty_breakdown(self, app, monkeypatch):
+        bare = [{"job_id": "b1", "job_title": "Bare Job", "company": "Co",
+                 "resume_score": 80, "job_url": None, "scraped_at": _TODAY,
+                 "score_breakdown": {}}]
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: bare)
+        app.run()
+        app.button("details_b1").click().run()
+        assert not app.exception
 
     def test_card_survives_a_breakdown_with_nothing_in_it(self, app, monkeypatch):
         """Screened-out jobs carry a 5-key breakdown — the card must still render."""

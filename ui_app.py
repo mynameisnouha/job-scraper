@@ -133,6 +133,16 @@ def render_today_page():
     for job in jobs:
         render_job_card(job)
 
+    # Re-opened on every rerun so widgets inside the dialog keep working.
+    # A job filtered out of the list closes it rather than stranding it open.
+    open_job_id = st.session_state.get("open_job")
+    if open_job_id:
+        open_job = next((j for j in jobs if j.get("job_id") == open_job_id), None)
+        if open_job:
+            job_details_dialog(open_job)
+        else:
+            close_details()
+
 
 REC_LABELS = {
     "apply_now": ":green-badge[Apply now]",
@@ -142,7 +152,94 @@ REC_LABELS = {
 }
 
 
+def mark_applied(job):
+    """Shared by the overview card and the detail dialog."""
+    job_id = job.get("job_id")
+    title = job.get("job_title") or job_id
+    if supabase_utils.mark_job_applied(job_id):
+        supabase_utils.update_application_stage(job_id, "applied")
+        flash_saved(f"Marked applied: {title}")
+        st.rerun()
+    else:
+        st.error("Failed to mark applied — check logs.")
+
+
+def _bullets(heading, items):
+    if not items:
+        return
+    st.markdown(f"**{heading}**")
+    for item in items:
+        st.markdown(f"- {item}")
+
+
+def _facts_line(facts):
+    if facts:
+        st.caption(" · ".join(f"**{label}** {value}" for label, value in facts))
+
+
+def close_details():
+    st.session_state.pop("open_job", None)
+
+
+@st.dialog("Job details", width="large", on_dismiss=close_details)
+def job_details_dialog(job):
+    """Everything needed to actually write the application, one click deep."""
+    breakdown = job.get("score_breakdown") or {}
+    title = job.get("job_title") or "N/A"
+    company = job.get("company") or "N/A"
+    url = job.get("job_url")
+
+    st.markdown(f"### {title}")
+    rec = REC_LABELS.get(breakdown.get("recommendation"), "")
+    st.markdown(f"{company} &nbsp; {score_badge(job.get('resume_score'))} &nbsp; {rec}")
+    if url:
+        st.markdown(f"[Open posting ↗]({url})")
+
+    verdict = job_view.summary(breakdown)
+    if verdict:
+        st.markdown(verdict)
+    _facts_line(job_view.quick_facts(breakdown))
+
+    st.divider()
+    left, right = st.columns(2)
+    with left:
+        _bullets("Lead with", job_view.pros(breakdown))
+    with right:
+        _bullets("They'll push back on", job_view.cons(breakdown))
+
+    wins = job_view.quick_wins(breakdown)
+    if wins:
+        st.divider()
+        _bullets("Before applying", wins)
+
+    pitch = job.get("why_me_pitch")
+    if pitch:
+        st.divider()
+        st.markdown("**Pitch**")
+        st.markdown(pitch)
+
+    context = job_view.context_facts(breakdown)
+    rivals = job_view.competition(breakdown)
+    if context or rivals:
+        st.divider()
+        for label, value in context + rivals:
+            st.markdown(f"**{label}** — {value}")
+
+    note = job_view.confidence_note(breakdown)
+    if note:
+        st.caption(note)
+
+    st.divider()
+    if st.button("Mark applied", key=f"dlg_apply_{job.get('job_id')}", type="primary"):
+        close_details()
+        mark_applied(job)
+
+
 def render_job_card(job):
+    """
+    Overview only — enough to decide whether this one is worth a closer look.
+    The full breakdown lives behind Details so the list stays scannable.
+    """
     breakdown = job.get("score_breakdown") or {}
     job_id = job.get("job_id")
     title = job.get("job_title") or "N/A"
@@ -150,53 +247,30 @@ def render_job_card(job):
     url = job.get("job_url")
 
     with st.container(border=True):
-        head = st.columns([6, 1.1, 1.6])
+        head = st.columns([6, 1.1])
         with head[0]:
             heading = f"**[{title}]({url})**" if url else f"**{title}**"
             rec = REC_LABELS.get(breakdown.get("recommendation"), "")
             st.markdown(f"{heading} — {company} &nbsp; {rec}")
         with head[1]:
             st.markdown(score_badge(job.get("resume_score")))
-        with head[2]:
-            if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
-                if supabase_utils.mark_job_applied(job_id):
-                    supabase_utils.update_application_stage(job_id, "applied")
-                    flash_saved(f"Marked applied: {title}")
-                    st.rerun()
-                else:
-                    st.error("Failed to mark applied — check logs.")
 
         verdict = job_view.summary(breakdown)
         if verdict:
             st.markdown(verdict)
+        _facts_line(job_view.quick_facts(breakdown))
 
-        facts = job_view.quick_facts(breakdown)
-        if facts:
-            st.caption(" · ".join(f"**{label}** {value}" for label, value in facts))
-
-        pros = job_view.pros(breakdown)
-        cons = job_view.cons(breakdown)
-        if pros or cons:
-            left, right = st.columns(2)
-            with left:
-                st.markdown("**Lead with**" if pros else "")
-                for item in pros:
-                    st.markdown(f"- {item}")
-            with right:
-                st.markdown("**They'll push back on**" if cons else "")
-                for item in cons:
-                    st.markdown(f"- {item}")
-
-        pitch = job.get("why_me_pitch")
-        wins = job_view.quick_wins(breakdown)
-        if pitch or wins:
-            with st.expander("Pitch & prep"):
-                if pitch:
-                    st.markdown(pitch)
-                if wins:
-                    st.markdown("**Before applying**")
-                    for item in wins:
-                        st.markdown(f"- {item}")
+        actions = st.columns([1, 1, 4])
+        with actions[0]:
+            if st.button("Details", key=f"details_{job_id}", width="stretch"):
+                # Held in session_state rather than opened inline: a widget click
+                # inside the dialog reruns the script, and an inline-opened dialog
+                # would vanish mid-interaction.
+                st.session_state["open_job"] = job_id
+                st.rerun()
+        with actions[1]:
+            if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
+                mark_applied(job)
 
 
 def render_applications_page():

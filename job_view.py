@@ -152,3 +152,60 @@ def quick_facts(breakdown: Dict[str, Any]) -> List[Tuple[str, str]]:
         facts.append(("Source", "Recruiting agency"))
 
     return facts
+
+
+# --- Detail-only content: too much for the overview card, wanted once you're
+# actually deciding how to apply. ---
+
+_CONTEXT_FIELDS = [
+    ("company_stage", "Company"),
+    ("remote_scope", "Remote scope"),
+    ("working_language_of_product", "Product language"),
+    ("regulatory_context", "Regulatory"),
+    ("language_fit", "Language fit"),
+    ("sponsorship_signal", "Sponsorship"),
+]
+_EMPTY_VALUES = {"", "unclear", "none", "n/a", "not stated", "absent"}
+
+
+def context_facts(breakdown: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Environment and constraints worth knowing before writing the application."""
+    b = breakdown or {}
+    out = []
+    for key, label in _CONTEXT_FIELDS:
+        value = str(b.get(key) or "").strip()
+        if value and value.lower() not in _EMPTY_VALUES:
+            out.append((label, shorten(value, 120)))
+    return out
+
+
+def competition(breakdown: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """Who else is in the pile, and where the candidate sits in it."""
+    context = (breakdown or {}).get("competitive_context") or {}
+    if not isinstance(context, dict):
+        return []
+    out = []
+    volume = str(context.get("estimated_applicant_volume") or "").strip()
+    if volume:
+        out.append(("Applicants", shorten(volume, 60)))
+    percentile = context.get("candidate_percentile")
+    if isinstance(percentile, (int, float)):
+        out.append(("Your percentile", f"{int(percentile)}th"))
+    modal = str(context.get("modal_competitor") or "").strip()
+    if modal:
+        out.append(("Typical rival", shorten(modal, 120)))
+    return out
+
+
+def confidence_note(breakdown: Dict[str, Any]) -> str:
+    """
+    The scorer's own confidence and why — the honest caveat on everything above.
+    """
+    check = (breakdown or {}).get("calibration_check") or {}
+    if not isinstance(check, dict):
+        return ""
+    level = str(check.get("confidence") or "").strip()
+    reason = str(check.get("confidence_reason") or "").strip()
+    if level and reason:
+        return f"Confidence {level} — {shorten(reason, 160)}"
+    return level or shorten(reason, 160)
