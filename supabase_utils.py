@@ -522,6 +522,26 @@ def update_application_stage(job_id: str, stage: str, rejection_reason: Optional
         return False
 
 
+def get_scored_jobs_for_health_check(limit: int = 500) -> list:
+    """
+    Fetches scored jobs with everything needed to judge — and if necessary redo —
+    their scoring. Used by check_scoring_health.py and rescore_degraded.py.
+    """
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select("job_id, job_title, company, level, description, "
+                                   "scraped_at, resume_score, resume_score_stage, score_breakdown")\
+                           .not_.is_("score_breakdown", None)\
+                           .eq("is_active", True)\
+                           .order("scraped_at", desc=True)\
+                           .limit(limit)\
+                           .execute()
+        return response.data or []
+    except Exception as e:
+        logging.error(f"Error fetching scored jobs for health check: {e}")
+        return []
+
+
 def mark_job_closed(job_id: str) -> bool:
     """
     Marks a posting you never applied to as no longer accepting candidates:

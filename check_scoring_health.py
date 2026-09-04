@@ -38,12 +38,7 @@ def missing_fields(breakdown):
 
 
 def fetch(limit):
-    return supabase_utils.supabase.table(supabase_utils.config.SUPABASE_TABLE_NAME)\
-        .select("job_id, job_title, scraped_at, resume_score, score_breakdown")\
-        .not_.is_("score_breakdown", None)\
-        .order("scraped_at", desc=True)\
-        .limit(limit)\
-        .execute().data or []
+    return supabase_utils.get_scored_jobs_for_health_check(limit=limit)
 
 
 def main():
