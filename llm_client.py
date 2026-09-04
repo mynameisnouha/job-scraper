@@ -164,6 +164,43 @@ class LLMClient:
                 f"Increase LLM_DAILY_REQUEST_BUDGET or wait for reset."
             )
 
+    @staticmethod
+    def _log_usage(response, cache_system: bool) -> None:
+        """
+        Log token usage, and cache hits when caching was requested.
+
+        Worth logging loudly: a cache that silently never hits looks exactly
+        like a cache that works, except on the bill. If cache_read stays 0
+        across consecutive scoring calls, something in the prefix is varying.
+        """
+        try:
+            usage = getattr(response, "usage", None)
+            if usage is None:
+                return
+            prompt_tokens = getattr(usage, "prompt_tokens", None)
+            completion_tokens = getattr(usage, "completion_tokens", None)
+            # litellm surfaces Anthropic's cache counters under either name
+            # depending on version, so check both rather than assume. Uses an
+            # explicit None test, not `or`: a genuine 0 is the value that matters
+            # most here and `or` would discard it for the fallback.
+            def counter(*names):
+                for name in names:
+                    value = getattr(usage, name, None)
+                    if isinstance(value, int):
+                        return value
+                return 0
+
+            read = counter("cache_read_input_tokens", "_cache_read_input_tokens")
+            created = counter("cache_creation_input_tokens", "_cache_creation_input_tokens")
+            msg = f"tokens in={prompt_tokens} out={completion_tokens}"
+            if cache_system:
+                msg += f" cache_read={read} cache_write={created}"
+                if not read and not created:
+                    msg += " (no cache activity — check the prefix is stable)"
+            logger.info(msg)
+        except Exception:  # logging must never break a scoring run
+            pass
+
     def generate_content(
         self,
         prompt: str,
@@ -171,6 +208,7 @@ class LLMClient:
         temperature: float = 1,
         response_format: Optional[Type[BaseModel]] = None,
         model_override: Optional[str] = None,
+        cache_system: bool = False,
     ) -> str:
         """
         Generate content using the configured LLM.
@@ -195,7 +233,22 @@ class LLMClient:
         messages = []
 
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+            if cache_system:
+                # Anthropic prompt caching: the scoring rubric and resume are
+                # byte-identical on every call in a run, so paying full input
+                # price for them each time is pure waste. Cached reads are ~10%
+                # of the normal rate. Caching is a prefix match, so anything
+                # varying per job must stay in the user message below.
+                messages.append({
+                    "role": "system",
+                    "content": [{
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }],
+                })
+            else:
+                messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
         # Build base kwargs for litellm.completion
@@ -256,6 +309,7 @@ class LLMClient:
 
                 # Track daily usage
                 self._daily_count += 1
+                self._log_usage(response, cache_system)
 
                 # Extract text from response
                 message = response.choices[0].message

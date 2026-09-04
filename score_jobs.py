@@ -445,11 +445,21 @@ answer. If the JD is thin, estimate from what's there and say so in calibration_
   the fixable items are notionally applied), 'apply_if_gate_negotiable' (a gate capped the score
   but it's negotiable), or 'skip'.
 
+## BREVITY — the output is read on a card, not in a report
+Every string field has a word limit in the schema; respect it. Do not restate the JD, do not
+explain a judgement twice, and do not pad a list to reach its maximum. hard_gates carries ONLY
+gates that fail or are unknown — a gate that passes needs no entry and no explanation.
+
 --- RESUME ---
 {resume_text}
 --- END RESUME ---
+"""
 
---- JOB DESCRIPTION ---
+    # Split so the cacheable half comes first: the rubric and the resume are
+    # byte-identical for every job in a run, while the JD changes each call.
+    # Anthropic caching is a prefix match, so the varying part must be last —
+    # putting the JD in the system block would invalidate the cache every time.
+    user_prompt = f"""--- JOB DESCRIPTION ---
 Job Title: {job_title}
 Company: {job_company}
 Level: {job_level}
@@ -466,7 +476,9 @@ fixable before the deadline.
     try:
         logging.info(f"Requesting structured score for job_id: {job_id}")
         score_text = primary_client.generate_content(
-            prompt=prompt,
+            prompt=user_prompt,
+            system_prompt=prompt,
+            cache_system=True,
             response_format=ScoreBreakdown,
             temperature=0.3,
         )
@@ -481,8 +493,9 @@ fixable before the deadline.
             # cheaper than that loop.
             logging.warning(f"Score for {job_id} failed validation ({ve.error_count()} error(s)); "
                             f"retrying once with the errors fed back.")
+            # Keep the same system block so the repair call still hits the cache.
             repair_prompt = (
-                f"{prompt}\n\n--- YOUR PREVIOUS ANSWER WAS REJECTED ---\n"
+                f"{user_prompt}\n\n--- YOUR PREVIOUS ANSWER WAS REJECTED ---\n"
                 f"{score_text}\n\n"
                 f"It failed schema validation:\n{ve}\n\n"
                 "Return the SAME analysis with those fields filled in. Every field listed "
@@ -491,6 +504,8 @@ fixable before the deadline.
             )
             score_text = primary_client.generate_content(
                 prompt=repair_prompt,
+                system_prompt=prompt,
+                cache_system=True,
                 response_format=ScoreBreakdown,
                 temperature=0.3,
             )
@@ -547,9 +562,9 @@ fixable before the deadline.
         logging.info(f"  Recommendation: {breakdown.recommendation}")
         logging.info(f"  Reasoning:      {breakdown.reasoning}")
         if breakdown.hard_gates:
-            failed = [g for g in breakdown.hard_gates if g.get("result") == "fail"]
+            failed = [g for g in breakdown.hard_gates if g.result == "fail"]
             if failed:
-                logging.info(f"  Gates failed:   {[g.get('gate') for g in failed]}")
+                logging.info(f"  Gates failed:   {[g.gate for g in failed]}")
         logging.info(f"  Dimensions:     {breakdown.dimension_scores.model_dump()}")
         p = breakdown.competitive_context.p_first_round_interview
         logging.info(f"  P(interview):   as_is={p.as_is} after_fixes={p.after_fixes}")

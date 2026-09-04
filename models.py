@@ -77,6 +77,22 @@ class ScreenResult(BaseModel):
 class PitchOutput(BaseModel):
     pitch: str = Field(..., description="3-4 sentence first-person pitch mapping the candidate's strongest evidence to the job's top requirements")
 
+class HardGate(BaseModel):
+    """
+    One requirement the candidate might not clear.
+
+    Only failing or unknown gates are reported. Passing gates used to be emitted
+    with full prose too — 60% of all gate entries — and nothing ever read them,
+    which made hard_gates a quarter of every response's output tokens.
+    """
+    gate: str = Field(..., description="Short gate name, e.g. 'working_language', 'seniority_floor'")
+    result: str = Field(..., description="'fail' or 'unknown' — do not report gates that pass")
+    detail: str = Field(..., description="Why it fails, max 20 words")
+    negotiable: bool = Field(False, description="Could an employer waive this?")
+    how: str = Field("", description="If negotiable, how to raise it — max 15 words, else empty")
+    cap_applied: Optional[int] = Field(None, description="Score ceiling this gate imposes, if any")
+
+
 class InterviewProbability(BaseModel):
     """
     The scorer's own odds of landing a first-round interview. Required (not
@@ -106,8 +122,8 @@ class InterviewProbability(BaseModel):
 
 class CompetitiveContext(BaseModel):
     """Who else is applying, and how the candidate ranks against them."""
-    estimated_applicant_volume: str = Field(..., description="Rough applicant count or band for this posting")
-    modal_competitor: str = Field(..., description="The profile of the typical competing candidate")
+    estimated_applicant_volume: str = Field(..., description="Applicant count or band only, e.g. '200-400'. No explanation.")
+    modal_competitor: str = Field(..., description="The typical competing candidate, max 20 words")
     candidate_percentile: int = Field(..., description="Where the candidate sits in that pool, 0-100")
     p_first_round_interview: InterviewProbability = Field(..., description="Calibrated interview odds")
 
@@ -134,23 +150,26 @@ class ScoreBreakdown(BaseModel):
     years_experience_required: int = Field(0, ge=0, description="Minimum years of professional experience the JD explicitly requires. 0 if not stated or entry-level.")
     jd_language: str = Field("en", description="Language the job description is written in: 'en', 'de', or 'mixed'")
     visa_sponsorship_mentioned: str = Field("unclear", description="Does the JD mention visa/relocation support: 'yes', 'no', or 'unclear'")
-    key_matching_skills: List[str] = Field(default_factory=list, description="Top skills from resume that match the job")
-    key_gaps: List[str] = Field(default_factory=list, description="Important skills/requirements the candidate lacks")
+    key_matching_skills: List[str] = Field(default_factory=list, description="Top matching skills — max 4, each max 15 words")
+    key_gaps: List[str] = Field(default_factory=list, description="Most important gaps — max 4, each max 15 words")
     recommendation: str = Field(..., description="One of: 'apply_now', 'apply_after_fixes', 'apply_if_gate_negotiable', 'skip'")
-    reasoning: str = Field(..., description="2-3 sentence explanation of the score")
+    reasoning: str = Field(..., description="Why this score, max 2 sentences")
 
     # --- v2 fields: hard gates, weighted dimensions, competitive context, calibration ---
-    hard_gates: List[Dict[str, Any]] = Field(default_factory=list,
-        description="One entry per gate evaluated: {gate, result: pass/fail/unknown, cap_applied, detail, negotiable, how}")
+    hard_gates: List[HardGate] = Field(default_factory=list,
+        description="ONLY gates that fail or are unknown. Omit passing gates entirely.")
     dimension_scores: DimensionScores = Field(...,
         description="0-100 per dimension — every dimension must be scored")
-    differentiators: List[str] = Field(default_factory=list, description="What the candidate has that the median applicant likely does not")
-    disqualifier_matches: List[str] = Field(default_factory=list, description="Matches against the JD's explicit 'not for you if' section")
+    differentiators: List[str] = Field(default_factory=list,
+        description="What the median applicant lacks — max 4, each max 15 words")
+    disqualifier_matches: List[str] = Field(default_factory=list,
+        description="Matches against the JD's 'not for you if' section — max 3, each max 12 words")
     fixable_before_applying: List[Dict[str, Any]] = Field(default_factory=list,
-        description="Gaps that are true but not shown on the CV: [{gap, fix, effort_minutes}]")
+        description="CV-fixable gaps, max 3: [{gap: max 10 words, fix: max 20 words, effort_minutes}]")
     fixable_in_two_weeks: List[Dict[str, Any]] = Field(default_factory=list,
-        description="Gaps closeable with a weekend project or write-up: [{gap, fix, effort_minutes}]")
-    structural_gaps: List[str] = Field(default_factory=list, description="Gaps that cannot be fixed before this application closes")
+        description="Gaps a weekend project closes, max 2: [{gap: max 10 words, fix: max 15 words, effort_minutes}]")
+    structural_gaps: List[str] = Field(default_factory=list,
+        description="Unfixable before this closes — max 4, each max 15 words")
     competitive_context: CompetitiveContext = Field(...,
         description="Applicant pool and the calibrated interview odds — required, never omit")
     company_stage: str = Field("", description="Inferred company stage/headcount, e.g. 'startup <50', 'mid-size', 'large enterprise'")
@@ -165,7 +184,9 @@ class ScoreBreakdown(BaseModel):
     application_effort_estimate: str = Field("", description="e.g. 'CV + cover letter upload' vs '3 essay questions'")
     expected_value: float = Field(0.0, description="p_first_round_interview.after_fixes / application_effort_hours")
     calibration_check: Dict[str, Any] = Field(default_factory=dict,
-        description="must_haves_total, must_haves_met_tier_1_or_2, hard_gates_failed, cap_applied, score_before_cap, final_score, would_a_skeptical_recruiter_agree, confidence, confidence_reason")
+        description="Numbers plus a short caveat: must_haves_total, must_haves_met_tier_1_or_2, "
+                    "hard_gates_failed, cap_applied, score_before_cap, final_score, confidence "
+                    "(high/medium/low), confidence_reason (max 15 words)")
     one_line_verdict: str = Field(..., description="One sentence: the honest bottom line")
 
 class Config:

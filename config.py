@@ -110,7 +110,10 @@ LLM_MAX_RPM = 10
 LLM_MAX_RETRIES = 3
 LLM_RETRY_BASE_DELAY = 10
 LLM_DAILY_REQUEST_BUDGET = 0
-LLM_REQUEST_DELAY_SECONDS = 8
+# Self-imposed pacing, not a provider limit. At 8s this added ~11 minutes of pure
+# sleep to an 86-job backfill; 2s is still well inside Sonnet's rate limits and
+# keeps consecutive calls inside the 5-minute prompt-cache window.
+LLM_REQUEST_DELAY_SECONDS = 2
 
 LINKEDIN_MAX_START = 1 
 INDEED_MAX_START = 2   # Indeed pages to paginate beyond the first (needed so dedup can look past page 1)
