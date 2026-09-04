@@ -10,9 +10,9 @@ DEGRADED = {"overall_score": 60, "reasoning": "…"}
 SCREENED = {"overall_score": 25, "screen_only": True}
 
 
-def row(job_id, breakdown):
+def row(job_id, breakdown, score=50):
     return {"job_id": job_id, "job_title": f"Role {job_id}", "company": "Co",
-            "description": "desc", "score_breakdown": breakdown}
+            "description": "desc", "resume_score": score, "score_breakdown": breakdown}
 
 
 class TestFindDegraded:
@@ -36,3 +36,20 @@ class TestFindDegraded:
         monkeypatch.setattr(supabase_utils, "get_scored_jobs_for_health_check",
                             lambda limit: [row("a", COMPLETE)])
         assert rescore_degraded.find_degraded(10) == []
+
+    def test_min_score_skips_jobs_you_would_never_apply_to(self, monkeypatch):
+        rows = [row("low", DEGRADED, score=18), row("high", DEGRADED, score=72)]
+        monkeypatch.setattr(supabase_utils, "get_scored_jobs_for_health_check", lambda limit: rows)
+        got = rescore_degraded.find_degraded(10, min_score=60)
+        assert [j["job_id"] for j in got] == ["high"]
+
+    def test_highest_scoring_first_so_a_small_limit_spends_well(self, monkeypatch):
+        rows = [row("mid", DEGRADED, score=55), row("top", DEGRADED, score=80),
+                row("low", DEGRADED, score=30)]
+        monkeypatch.setattr(supabase_utils, "get_scored_jobs_for_health_check", lambda limit: rows)
+        assert [j["job_id"] for j in rescore_degraded.find_degraded(2)] == ["top", "mid"]
+
+    def test_min_score_zero_keeps_everything(self, monkeypatch):
+        rows = [row("low", DEGRADED, score=5)]
+        monkeypatch.setattr(supabase_utils, "get_scored_jobs_for_health_check", lambda limit: rows)
+        assert len(rescore_degraded.find_degraded(10, min_score=0)) == 1

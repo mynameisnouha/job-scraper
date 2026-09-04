@@ -45,29 +45,53 @@ def load_resume_text():
     return format_resume_to_text(resume_data)
 
 
-def find_degraded(limit):
-    """Jobs that were fully scored but came back without the required fields."""
+def find_degraded(limit, min_score=0):
+    """
+    Jobs that were fully scored but came back without the required fields.
+
+    `min_score` exists because rescoring is only worth paying for on jobs you
+    might actually apply to — a repaired breakdown on a job scored 18 is a
+    prediction that will never be checked against an outcome. Ordered by score
+    descending so a small --limit spends the budget on the best jobs.
+    """
     rows = supabase_utils.get_scored_jobs_for_health_check(limit=1000)
     degraded = [r for r in rows if classify(r.get("score_breakdown")) == "degraded"]
     logging.info(f"Found {len(degraded)} degraded job(s) out of {len(rows)} scored.")
+
+    if min_score:
+        kept = [r for r in degraded if (r.get("resume_score") or 0) >= min_score]
+        logging.info(f"{len(kept)} of them score >= {min_score}; skipping the other "
+                     f"{len(degraded) - len(kept)} as not worth rescoring.")
+        degraded = kept
+
+    degraded.sort(key=lambda r: r.get("resume_score") or 0, reverse=True)
     return degraded[:limit]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=20, help="Max jobs to rescore in this run")
+    parser.add_argument("--min-score", type=int, default=0,
+                        help="Only rescore jobs scoring at least this — below it you'd never apply, "
+                             "so the repaired prediction would never be checked")
+    parser.add_argument("--delay", type=float, default=None,
+                        help=f"Seconds between calls (default {config.LLM_REQUEST_DELAY_SECONDS} "
+                             "from config). Lower it to finish sooner if your rate limit allows")
     parser.add_argument("--dry-run", action="store_true", help="List what would be rescored, change nothing")
     args = parser.parse_args()
 
-    jobs = find_degraded(args.limit)
+    delay = config.LLM_REQUEST_DELAY_SECONDS if args.delay is None else args.delay
+    jobs = find_degraded(args.limit, min_score=args.min_score)
     if not jobs:
         logging.info("Nothing to rescore — every fully-scored job carries the required fields.")
         return
 
     if args.dry_run:
-        print(f"\nWould rescore {len(jobs)} job(s):")
+        print(f"\nWould rescore {len(jobs)} job(s), ~{delay:.0f}s apart "
+              f"(~{len(jobs) * (delay + 25) / 60:.0f} min including model time):")
         for job in jobs:
-            print(f"  {job.get('job_id')} — {(job.get('job_title') or '')[:55]} "
+            print(f"  [{job.get('resume_score')}] {job.get('job_id')} — "
+                  f"{(job.get('job_title') or '')[:50]} "
                   f"(missing: {', '.join(missing_fields(job.get('score_breakdown')))})")
         return
 
@@ -99,8 +123,8 @@ def main():
             supabase_utils.update_job_score(job_id, breakdown.overall_score,
                                             resume_score_stage="initial", score_breakdown=payload)
 
-        if i < len(jobs):
-            time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
+        if i < len(jobs) and delay > 0:
+            time.sleep(delay)
 
     logging.info("=" * 50)
     logging.info("RESCORE SUMMARY")
