@@ -104,7 +104,7 @@ def format_resume_to_text(resume_data: Dict[str, Any]) -> str:
 
 CANDIDATE_PROFILE = """- Education: AI Engineering Master's from University of Passau (in progress/completed)
 - Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
-- Languages: English (C1), German (A2, improving toward B1)
+- Languages: English (C2), German (A2, improving toward B1)
 - Career stage: Early-career, seeking first full-time Data Science / AI role"""
 
 # --- v2 candidate profile: the full structured input the v2 rating spec expects. ---
@@ -155,7 +155,7 @@ CANDIDATE_PROFILE_V2 = f"""
 - Effective FTE-years for seniority comparison (part-time/intern time discounted ~50%): {EFFECTIVE_FTE_YEARS}
 
 ### Languages
-- English: C1
+- English: C2
 - French: B2
 - German: A2, improving toward B1
 
@@ -353,8 +353,12 @@ Never round up to make a job look more viable than it is.
 - location: on-site/hybrid required somewhere outside Passau/Munich/Berlin/Hamburg/Stuttgart and
   not remote -> cap 30.
 - working_language: if the day-to-day working language, OR the language of the product's users
-  and data, requires German above A2/beginning-B1 level for daily work -> cap 45. A JD merely
+  and data, requires German above A2/beginning-B1 level for daily work -> cap 55. A JD merely
   written in German with English as the stated internal working language does NOT trigger this.
+  In practice German employers are frequently more flexible on this than the JD wording implies,
+  especially when a candidate's English is native-level fluent (C2) — do not treat a JD written in
+  German, or a "German preferred/von Vorteil" line, as proof the role is closed to an English-only
+  candidate.
 - seniority_floor: if the JD states a minimum years-of-FTE-experience the effective FTE-years
   ({EFFECTIVE_FTE_YEARS}) cannot meet -> cap 40.
 - disqualifier_match: for each clear match against an explicit "this role is not for you if" /
@@ -471,7 +475,8 @@ fixable before the deadline.
         caps = []
 
         if breakdown.german_required == "C1-fluent":
-            caps.append((45, "JD requires fluent/native German (candidate is A2-B1)"))
+            caps.append((55, "JD requires fluent/native German (candidate is A2-B1, but C2 English "
+                              "and employer flexibility on this in practice keep it from being a hard block)"))
         if breakdown.years_experience_required and breakdown.years_experience_required > EFFECTIVE_FTE_YEARS:
             caps.append((40, f"JD requires {breakdown.years_experience_required}+ years; "
                               f"effective FTE-years is {EFFECTIVE_FTE_YEARS}"))
