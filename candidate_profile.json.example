@@ -1,0 +1,10 @@
+{
+  "short_profile": "- Education: <degree> from <university> (in progress/completed)\n- Current role: <title> at <company>\n- Languages: English (C1), German (B1)\n- Career stage: Early-career, seeking first full-time <field> role",
+  "experience_ledger": {
+    "full_time_professional_months": 0,
+    "working_student_months": 0,
+    "internship_months": 0,
+    "thesis_or_research_months": 0
+  },
+  "profile_v2": "\n### Availability\n- Earliest full-time start: <YYYY-MM-DD>\n- Open to part-time bridge work now\n- Hard deadline to have a signed contract: <YYYY-MM-DD>\n\n### Work authorization\n- Current status: <your permit / citizenship status>\n- Needs sponsorship for full-time work: <YES/NO, plus the reasoning the scorer should apply>\n- Authorized without a new application only in: <country list>\n\n### Experience ledger (do NOT sum into one \"years of experience\" figure)\n- Full-time professional: {full_time_professional_months} months\n- Working student: {working_student_months} months\n- Internship: {internship_months} months\n- Thesis / research: {thesis_or_research_months} months\n- Effective FTE-years for seniority comparison (part-time/intern time discounted ~50%): {effective_fte_years}\n\n### Languages\n- English: <level>\n\n### Location\n- Base: <city, country>\n- Willing to relocate to: <cities>\n- Remote OK\n\n### Evidence index (what can actually be pointed at, not just plausibly claimed)\ntier_1 = shipped in production with a metric, on the CV | tier_2 = built and working, on the CV, no metric |\ntier_3 = personal project/coursework, linkable | tier_4 = true but not currently written anywhere a reader can see | tier_5 = not done\n- <skill>: tier_1\n- <skill>: tier_4 (true, not on CV)\n- <skill>: tier_5\n"
+}

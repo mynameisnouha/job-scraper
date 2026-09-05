@@ -64,6 +64,9 @@ This project is designed to run primarily through GitHub Actions. Follow these s
       - `GROQ_API_KEY`: (Optional) Your Groq API key if using Groq models.
       - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase project's `service_role` key.
       - `SUPABASE_URL`: Your Supabase project's URL.
+      - `CANDIDATE_PROFILE_JSON`: The contents of your `candidate_profile.json` (see the local
+        setup section below). Scoring reads it from this secret in CI and refuses to run without
+        it. Set it with `gh secret set CANDIDATE_PROFILE_JSON < candidate_profile.json`.
 
     - > **Note:** Other non-sensitive variables like `LLM_MODEL`, `LLM_MAX_RPM`, and `JOBS_TO_SCORE_PER_RUN` are now hardcoded in `config.py` as safe defaults. You only need to set them as GitHub Variables if you want to override the `config.py` defaults (though this is no longer the recommended approach).
 
@@ -177,7 +180,13 @@ The individual Python scripts can still be run locally for development or testin
       # Note: LLM settings (MODEL, RPM, etc.) can be configured in config.py
       ```
 
-5.  **Run scripts locally (example):**
+5.  **Create your candidate profile:**
+    - Copy `candidate_profile.json.example` to `candidate_profile.json` and fill in your own
+      details. `score_jobs.py` reads it at import and refuses to run without it.
+    - This file is gitignored on purpose: it holds work-authorization status, salary strategy
+      and contract deadlines. Keep it out of version control.
+
+6.  **Run scripts locally (example):**
     ```bash
     python scraper.py
     python resume_parser.py

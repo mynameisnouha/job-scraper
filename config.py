@@ -92,6 +92,11 @@ INDEED_LOCATION = "Germany"
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
+# --- Candidate Profile ---
+# Untracked and gitignored: it holds residence-permit status, salary strategy and contract
+# deadlines. Copy candidate_profile.json.example to this path and fill it in.
+CANDIDATE_PROFILE_PATH = "candidate_profile.json"
+
 # --- Processing Limits ---
 SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
 JOBS_TO_SCORE_PER_RUN = 60

@@ -103,20 +103,53 @@ def format_resume_to_text(resume_data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-CANDIDATE_PROFILE = """- Education: AI Engineering Master's from University of Passau (in progress/completed)
-- Current role: Working Student Data Scientist at Daimler Buses (Mercedes-Benz Group)
-- Languages: English (C2), German (A2, improving toward B1)
-- Career stage: Early-career, seeking first full-time Data Science / AI role"""
+# --- Candidate profile: loaded from an untracked local file, never committed. ---
+# The profile carries residence-permit status, salary strategy and contract deadlines, so it
+# lives outside the repo. Copy candidate_profile.json.example to the path in
+# config.CANDIDATE_PROFILE_PATH and fill it in.
 
-# --- v2 candidate profile: the full structured input the v2 rating spec expects. ---
+
+def _load_candidate_profile() -> Dict[str, Any]:
+    """
+    Reads the candidate profile, preferring the CANDIDATE_PROFILE_JSON env var (how CI supplies it,
+    as a repository secret) and falling back to the local untracked file. Raises if it is missing or
+    malformed — scoring against an empty profile would silently produce miscalibrated scores, which
+    is worse than not running.
+    """
+    path = config.CANDIDATE_PROFILE_PATH
+    # Actions sets an undefined secret to the empty string rather than leaving the variable
+    # unset, so an unset-or-blank secret must fall through to the file, not fail as bad JSON.
+    raw = (os.environ.get("CANDIDATE_PROFILE_JSON") or "").strip()
+    source = "CANDIDATE_PROFILE_JSON" if raw else f"'{path}'"
+
+    try:
+        if raw:
+            profile = json.loads(raw)
+        else:
+            with open(path, 'r', encoding='utf-8') as f:
+                profile = json.load(f)
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"Candidate profile not found at '{path}' and CANDIDATE_PROFILE_JSON is unset. Copy "
+            f"candidate_profile.json.example to '{path}' and fill in your own details. It is "
+            f"gitignored on purpose — do not commit it."
+        )
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Candidate profile from {source} is not valid JSON: {e}")
+
+    missing = [k for k in ("short_profile", "experience_ledger", "profile_v2") if k not in profile]
+    if missing:
+        raise RuntimeError(f"Candidate profile from {source} is missing required key(s): {', '.join(missing)}")
+    return profile
+
+
+_PROFILE = _load_candidate_profile()
+
+CANDIDATE_PROFILE = _PROFILE["short_profile"]
+
 # effective FTE-years = full_time + 0.5*(working_student + internship + thesis), per the
 # ledger note that recruiters discount part-time/intern time by roughly half.
-EXPERIENCE_LEDGER = {
-    "full_time_professional_months": 0,
-    "working_student_months": 24,
-    "internship_months": 14,
-    "thesis_or_research_months": 6,
-}
+EXPERIENCE_LEDGER = _PROFILE["experience_ledger"]
 EFFECTIVE_FTE_YEARS = round((
     EXPERIENCE_LEDGER["full_time_professional_months"]
     + 0.5 * EXPERIENCE_LEDGER["working_student_months"]
@@ -124,61 +157,11 @@ EFFECTIVE_FTE_YEARS = round((
     + 0.5 * EXPERIENCE_LEDGER["thesis_or_research_months"]
 ) / 12, 1)
 
-CANDIDATE_PROFILE_V2 = f"""
-### Availability
-- Earliest full-time start: 2027-03-01 (Master's thesis contract, 30h/week, Sept 2026 - Feb 2027)
-- Open to part-time bridge work now
-- Hard deadline to have a signed contract: 2027-02-28
-
-### Work authorization
-- Current status: German student residence permit (Aufenthaltserlaubnis zu Studienzwecken)
-- Needs sponsorship for full-time work: NO — the permit converts to a work-based residence
-  permit upon signing a qualifying employment contract in Germany. This is a standard permit
-  conversion, not an employer-run sponsorship process. Only fails this gate if the JD explicitly
-  requires an EU passport / existing unrestricted EU work permission / security clearance that
-  a converted permit cannot satisfy.
-- EU Blue Card: WANTS one, not just eligible. Degree requirement is satisfied (Master's from a
-  German university). The only variable is whether the offered salary clears the Blue Card gross
-  annual salary threshold (roughly €45k for standard occupations / roughly €41k for shortage
-  occupations incl. IT/STEM — figures move yearly, treat as approximate, note when a salary_band
-  is close to the line). A role whose stated salary clears the threshold is a genuine plus, not
-  just nice-to-have: it gets her onto the Blue Card instead of a standard permit, which unlocks
-  faster permanent residency and EU-wide mobility. Reflect this under differentiation/environment_fit
-  or as a fixable/structural note when salary is stated and below threshold — do NOT treat it as
-  a hard gate; she does not need the Blue Card to accept the offer, only wants it.
-- Authorized without a new application only in: Germany
-
-### Experience ledger (do NOT sum into one "years of experience" figure)
-- Full-time professional: {EXPERIENCE_LEDGER['full_time_professional_months']} months
-- Working student: {EXPERIENCE_LEDGER['working_student_months']} months
-- Internship: {EXPERIENCE_LEDGER['internship_months']} months
-- Thesis / research: {EXPERIENCE_LEDGER['thesis_or_research_months']} months
-- Effective FTE-years for seniority comparison (part-time/intern time discounted ~50%): {EFFECTIVE_FTE_YEARS}
-
-### Languages
-- English: C2
-- French: B2
-- German: A2, improving toward B1
-
-### Location
-- Base: Passau, Germany
-- Willing to relocate to: Munich, Berlin, Hamburg, Stuttgart
-- Remote OK
-
-### Evidence index (what can actually be pointed at, not just plausibly claimed)
-tier_1 = shipped in production with a metric, on the CV | tier_2 = built and working, on the CV, no metric |
-tier_3 = personal project/coursework, linkable | tier_4 = true but not currently written anywhere a reader can see | tier_5 = not done
-- LLM fine-tuning: tier_1
-- Inference optimization: tier_1
-- FastAPI backends: tier_2
-- AWS ECS deployment: tier_2
-- Structured LLM output: tier_2
-- LLM evaluation frameworks: tier_5
-- Automated testing: tier_4 (true, not on CV)
-- Daily use of AI coding tools (Claude Code): tier_4 (true, not on CV)
-- Frontend: tier_5
-- Healthcare domain: tier_5
-"""
+# --- v2 candidate profile: the full structured input the v2 rating spec expects. ---
+CANDIDATE_PROFILE_V2 = _PROFILE["profile_v2"].format(
+    effective_fte_years=EFFECTIVE_FTE_YEARS,
+    **EXPERIENCE_LEDGER,
+)
 
 
 def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
