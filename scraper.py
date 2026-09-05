@@ -7,9 +7,11 @@ import logging
 import config
 import user_agents
 import supabase_utils
+import scrape_guard
 from markdownify import markdownify as md
 import json
 import re
+import sys
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -151,8 +153,20 @@ def _get_careers_future_job_company_name(job_item: dict) -> str | None:
     return None
 
 # --- LinkedIn Scraping Logic ---
-def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
-    """Fetches job IDs from LinkedIn search results pages with delays, rotating user agents, and retries."""
+def _fetch_linkedin_job_ids(search_query: str, location: str,
+                            outcome: "scrape_guard.SourceOutcome | None" = None) -> list:
+    """Fetches job IDs from LinkedIn search results pages with delays, rotating user agents, and retries.
+
+    Every search response is recorded on `outcome` with its HTTP status and body
+    size, so that a run yielding zero jobs can be read as a block rather than as
+    an empty result set. See scrape_guard.
+    """
+
+    def _record(status_code=None, body_bytes=0, items_parsed=0, error=""):
+        if outcome is not None:
+            outcome.record_attempt(search_query, status_code=status_code,
+                                   body_bytes=body_bytes, items_parsed=items_parsed,
+                                   error=error)
 
     job_ids_list = []
     start = 0
@@ -199,11 +213,15 @@ def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
                 else:
                     
                     logging.error(f"HTTP Error fetching search results page: {e}")
+                    body = e.response.text if e.response is not None else ""
+                    _record(status_code=e.response.status_code if e.response is not None else None,
+                            body_bytes=len(body), error=f"HTTPError {e}"[:120])
                     res = None 
                     break
             except requests.exceptions.RequestException as e:
                 
                 logging.error(f"Request Exception fetching search results page: {e}")
+                _record(error=f"RequestException {e}"[:120])
                 res = None
                 break
 
@@ -215,6 +233,7 @@ def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
         if not res.text:
             
              logging.info(f"Received empty response text at start={start}, stopping.")
+             _record(status_code=res.status_code, body_bytes=0, items_parsed=0)
              break
 
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -223,6 +242,7 @@ def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
         if not all_jobs_on_this_page:
             
              logging.info(f"No job listings ('li' elements) found on page at start={start}, stopping.")
+             _record(status_code=res.status_code, body_bytes=len(res.text), items_parsed=0)
              break
 
     
@@ -245,6 +265,8 @@ def _fetch_linkedin_job_ids(search_query: str, location: str) -> list:
 
     
         logging.info(f"Added {jobs_found_this_iteration} unique job IDs from this page.")
+        _record(status_code=res.status_code, body_bytes=len(res.text),
+                items_parsed=jobs_found_this_iteration)
 
         if jobs_found_this_iteration == 0 and len(all_jobs_on_this_page) > 0:
         
@@ -422,20 +444,26 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
          logging.error(f"General Error processing details for job ID {job_id} after successful fetch: {e}")
          return None
 
-def process_linkedin_query(search_query: str, location: str, limit: int = None) -> list:
+def process_linkedin_query(search_query: str, location: str, limit: int = None,
+                           outcome: "scrape_guard.SourceOutcome | None" = None) -> list:
     """
     Orchestrates scraping and detail fetching for a single query,
     filtering against existing jobs in Supabase BEFORE fetching details.
     Returns a list of new job details found.
+
+    `outcome` accumulates how many postings the search returned (before dedup)
+    against how many were new, so the run can tell a broken source from a quiet one.
     """
 
-    scraped_job_ids = _fetch_linkedin_job_ids(search_query, location)
+    scraped_job_ids = _fetch_linkedin_job_ids(search_query, location, outcome=outcome)
     if not scraped_job_ids:
     
         logging.info("No job IDs found in Phase 1. Skipping detail fetching.")
         return []
 
     unique_linkedin_job_ids = list(set(scraped_job_ids))
+    if outcome is not None:
+        outcome.record_query(fetched=len(unique_linkedin_job_ids))
 
     logging.info(f"Found {len(scraped_job_ids)} raw job IDs, {len(unique_linkedin_job_ids)} unique IDs after scraping.")
 
@@ -693,7 +721,8 @@ def _fetch_careers_future_job_details(job_id: str) -> dict | None:
     
     return None # Return None in case of any error
 
-def process_careers_future_query(search_query: str, limit: int = None) -> list:
+def process_careers_future_query(search_query: str, limit: int = None,
+                                 outcome: "scrape_guard.SourceOutcome | None" = None) -> list:
     """
     Fetch jobs from CareersFuture and return them as a list of dictionaries.
     """
@@ -702,6 +731,9 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
     if not careers_future_jobs:
         logging.info("No job items found in Phase 1. Skipping detail fetching.")
         return []
+
+    if outcome is not None:
+        outcome.record_query(fetched=len(careers_future_jobs))
 
     # 2. Fetch existing job identifiers from Supabase
     logging.info("Phase 2: Fetching existing job identifiers from Supabase...")
@@ -794,222 +826,53 @@ def process_careers_future_query(search_query: str, limit: int = None) -> list:
     logging.info(f"--- Finished Phase 4: Successfully fetched details for {processed_count} new job(s) ---")
     return detailed_new_jobs
 
-# ═══════════════════════════════════════════════════════════════
-# INDEED SCRAPER
-# ═══════════════════════════════════════════════════════════════
-
-def _make_indeed_session() -> requests.Session:
-    """Create a requests Session with Indeed-friendly headers."""
-    session = requests.Session()
-    ua = random.choice(user_agents.USER_AGENTS)
-    session.headers.update({
-        "User-Agent": ua,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-GB,en;q=0.9,de;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-    })
-    # Warm up session with homepage to get cookies
-    try:
-        session.get("https://de.indeed.com", timeout=config.REQUEST_TIMEOUT)
-    except requests.RequestException:
-        pass
-    return session
-
-
-def _fetch_indeed_job_keys(session: requests.Session, search_query: str, location: str, limit: int = 10,
-                           existing_ids: set = None) -> list:
-    """
-    Fetch job keys from Indeed search results using an existing session.
-    Keys already present in the DB (existing_ids, as 'indeed_<jk>') are skipped BEFORE
-    counting toward the limit, so mature queries still surface new postings deeper in the results.
-    """
-    keys = []
-    existing_ids = existing_ids or set()
-    query_encoded = search_query.replace(" ", "+")
-    loc_encoded = location.replace(" ", "+")
-    start = 0
-
-    max_start = config.INDEED_MAX_START * 10
-    while len(keys) < limit and start <= max_start:
-        url = f"https://de.indeed.com/jobs?q={query_encoded}&l={loc_encoded}&start={start}"
-        if start > 0:
-            time.sleep(random.uniform(config.INDEED_SEARCH_DELAY, config.INDEED_SEARCH_DELAY + 5))
-            session.headers["User-Agent"] = random.choice(user_agents.USER_AGENTS)
-
-        logging.info(f"Indeed search: {url}")
-
-        try:
-            res = session.get(url, timeout=config.REQUEST_TIMEOUT)
-            res.raise_for_status()
-        except requests.RequestException as e:
-            logging.error(f"Indeed search failed: {e}")
-            break
-
-        soup = BeautifulSoup(res.text, "html.parser")
-        cards = soup.select("[data-jk]")
-        if not cards:
-            cards = soup.select("a[data-jk]")
-        if not cards:
-            logging.info("No Indeed job cards found on this page.")
-            break
-
-        for card in cards:
-            jk = card.get("data-jk")
-            if jk and jk not in keys and f"indeed_{jk}" not in existing_ids:
-                keys.append(jk)
-                if len(keys) >= limit:
-                    break
-
-        logging.info(f"Found {len(cards)} cards, total keys so far: {len(keys)}")
-        if len(cards) < 10:
-            break
-        start += 10
-
-    logging.info(f"Indeed: collected {len(keys)} job keys.")
-    return keys
-
-
-def _fetch_indeed_job_details(session: requests.Session, job_key: str) -> dict | None:
-    """Fetch details for a single Indeed job from its view page."""
-    url = f"https://de.indeed.com/viewjob?jk={job_key}"
-    session.headers["User-Agent"] = random.choice(user_agents.USER_AGENTS)
-    time.sleep(random.uniform(config.INDEED_DETAIL_DELAY, config.INDEED_DETAIL_DELAY + 3))
-
-    try:
-        res = session.get(url, timeout=config.REQUEST_TIMEOUT)
-        res.raise_for_status()
-    except requests.RequestException as e:
-        logging.error(f"Indeed detail failed for jk={job_key}: {e}")
-        return None
-
-    soup = BeautifulSoup(res.text, "html.parser")
-
-    title_tag = soup.select_one("h1[class*=title]") or soup.select_one(".jobsearch-JobInfoHeader-title") or soup.find("h1")
-    title = title_tag.get_text(strip=True) if title_tag else "N/A"
-
-    company_tag = (soup.select_one("[data-company-name]") or
-                   soup.select_one(".jobsearch-InlineCompanyRating div") or
-                   soup.select_one("[class*=company]"))
-    company = company_tag.get_text(strip=True) if company_tag else "N/A"
-
-    desc_div = soup.select_one("#jobDescriptionText") or soup.select_one(".jobsearch-JobComponent-description")
-    description = ""
-    if desc_div:
-        description = convert_html_to_markdown(str(desc_div))
-    if not description or not description.strip():
-        logging.warning(f"Indeed jk={job_key}: empty description, skipping.")
-        return None
-
-    loc_tag = (soup.select_one("[data-testid=jobLocation]") or
-               soup.select_one(".jobsearch-JobInfoHeader-subtitle") or
-               soup.find("div", class_=lambda c: c and "location" in c.lower()))
-    location = loc_tag.get_text(strip=True) if loc_tag else config.LINKEDIN_LOCATION
-
-    if is_internship_role(title):
-        logging.info(f"Indeed: skipping internship/thesis: {title}")
-        return None
-
-    if is_freelance_role(title):
-        logging.info(f"Indeed: skipping freelance/contract: {title}")
-        return None
-
-    return {
-        "job_id": f"indeed_{job_key}",
-        "job_title": title,
-        "company": company,
-        "description": description,
-        "level": "N/A",
-        "location": location,
-        "provider": "indeed",
-        "job_url": url,
-    }
-
-
-def process_indeed_query(search_query: str, location: str, limit: int = None) -> list:
-    """Search Indeed for jobs and return scored-ready dicts."""
-    limit = limit or config.MAX_JOBS_PER_SEARCH.get("indeed", 10)
-
-    try:
-        existing_ids, _ = supabase_utils.get_existing_jobs_from_supabase()
-    except Exception:
-        existing_ids = set()
-
-    session = _make_indeed_session()
-    keys = _fetch_indeed_job_keys(session, search_query, location, limit, existing_ids=existing_ids)
-    if not keys:
-        return []
-
-    jobs = []
-    for k in keys:
-        details = _fetch_indeed_job_details(session, k)
-        if details:
-            jobs.append(details)
-        if len(jobs) >= limit:
-            break
-
-    logging.info(f"Indeed: {len(jobs)} new jobs from query '{search_query}'.")
-    return jobs
-
-
 # --- Main Execution ---
 if __name__ == "__main__":
 
     total_new_jobs_saved = 0
+    # One outcome per enabled source. A source that fetches nothing fails the run;
+    # a source that fetches plenty and saves nothing new does not. See scrape_guard.
+    outcomes = []
 
     # Get jobs from LinkedIn
     if "linkedin" in config.SCRAPING_SOURCES:
+        linkedin_outcome = scrape_guard.SourceOutcome("linkedin")
+        outcomes.append(linkedin_outcome)
         logging.info("\n--- Starting LinkedIn Job Scraping ---")
         max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("linkedin", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
         for query in config.LINKEDIN_SEARCH_QUERIES:
             logging.info(f"Processing Search Query: '{query}'")
 
-            new_linkedin_job_details = process_linkedin_query(query, config.LINKEDIN_LOCATION, limit=max_jobs_per_search)
+            new_linkedin_job_details = process_linkedin_query(query, config.LINKEDIN_LOCATION,
+                                                              limit=max_jobs_per_search,
+                                                              outcome=linkedin_outcome)
 
             if new_linkedin_job_details:
                 logging.info(f"Saving {len(new_linkedin_job_details)} new job(s) for query '{query}'")
                 supabase_utils.save_jobs_to_supabase(new_linkedin_job_details)
+                linkedin_outcome.record_query(new=len(new_linkedin_job_details))
                 total_new_jobs_saved += len(new_linkedin_job_details)
             else:
                 logging.info(f"No new job details were fetched or processed for query '{query}'.")
     else:
         logging.info("\n--- Skipping LinkedIn Job Scraping per config ---")
 
-    # Get jobs from Indeed
-    if "indeed" in config.SCRAPING_SOURCES:
-        logging.info("\n--- Starting Indeed Job Scraping ---")
-        max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("indeed", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
-        for query in config.INDEED_SEARCH_QUERIES:
-            logging.info(f"Processing Indeed Search Query: '{query}'")
-
-            new_indeed_job_details = process_indeed_query(query, config.INDEED_LOCATION, limit=max_jobs_per_search)
-
-            if new_indeed_job_details:
-                logging.info(f"Saving {len(new_indeed_job_details)} new job(s) for query '{query}'")
-                supabase_utils.save_jobs_to_supabase(new_indeed_job_details)
-                total_new_jobs_saved += len(new_indeed_job_details)
-            else:
-                logging.info(f"No new job details were fetched or processed for query '{query}'.")
-    else:
-        logging.info("\n--- Skipping Indeed Job Scraping per config ---")
-
     # Get jobs from Careers Future
     if "careers_future" in config.SCRAPING_SOURCES:
+        careers_future_outcome = scrape_guard.SourceOutcome("careers_future")
+        outcomes.append(careers_future_outcome)
         logging.info(f"\n--- Starting Careers Future Job Scraping ---")
         max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("careers_future", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
         for query in config.CAREERS_FUTURE_SEARCH_QUERIES:
             logging.info(f"\n{'='*20} Processing Careers Future Search Query: '{query}' {'='*20}")
 
-            new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search)
+            new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search,
+                                                                          outcome=careers_future_outcome)
 
             if new_careers_future_job_details:
                 logging.info(f"\n--- Saving {len(new_careers_future_job_details)} new job(s) for query '{query}' ---")
                 supabase_utils.save_jobs_to_supabase(new_careers_future_job_details)
+                careers_future_outcome.record_query(new=len(new_careers_future_job_details))
                 total_new_jobs_saved += len(new_careers_future_job_details)
             else:
                 logging.info(f"\nNo new job details were fetched or processed for query '{query}'.")
@@ -1019,3 +882,8 @@ if __name__ == "__main__":
     # --- End of Script ---      
     logging.info(f"\n{'='*20} Job scraping script finished {'='*20}")
     logging.info(f"Total new jobs saved across all queries: {total_new_jobs_saved}")
+
+    # A source that returns nothing at all is broken and must fail the run — that is
+    # the whole lesson of Indeed dying quietly for twelve weeks. "Fetched plenty,
+    # saved nothing new" is a normal day and stays at INFO.
+    sys.exit(scrape_guard.report(outcomes))

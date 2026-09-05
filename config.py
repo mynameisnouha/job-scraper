@@ -68,27 +68,6 @@ CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Appl
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
-# --- Indeed Configuration ---
-INDEED_SEARCH_QUERIES = [
-    "Graduate Program",
-    "Data Scientist",
-    "Machine Learning Engineer",
-    "AI Engineer",
-    "Data Engineer",
-    "NLP Engineer",
-    "Computer Vision Engineer",
-    "Deep Learning Engineer",
-    "LLM Engineer",
-    "AI Research Scientist",
-    "MLOps Engineer",
-    "Machine Learning Scientist",
-    "AI Developer",
-    "Prompt Engineer",
-    "AI Specialist",
-    "Python Developer",
-]
-INDEED_LOCATION = "Germany"
-
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
@@ -98,7 +77,9 @@ MANUAL_JOBS_PATH = "manual_jobs.json"
 CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
+SCRAPING_SOURCES = ["linkedin"] # "linkedin", "careers_future"
+# Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
+# runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 JOBS_TO_SCORE_PER_RUN = 60
 JOBS_TO_CUSTOMIZE_PER_RUN = 3
 RESUME_CUSTOMIZATION_MIN_SCORE = 55  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
@@ -112,7 +93,6 @@ P_INTERVIEW_MIN_BATCH = 10         # below this many scored jobs, percentiles ar
 P_INTERVIEW_ABSOLUTE_FLOOR = 0.10  # the old absolute rule, kept only as the small-batch fallback
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
-    "indeed": 5,
     "careers_future": 10,
 }
 
@@ -129,9 +109,6 @@ LLM_DAILY_REQUEST_BUDGET = 0
 LLM_REQUEST_DELAY_SECONDS = 2
 
 LINKEDIN_MAX_START = 1 
-INDEED_MAX_START = 2   # Indeed pages to paginate beyond the first (needed so dedup can look past page 1)
-INDEED_SEARCH_DELAY = 10
-INDEED_DETAIL_DELAY = 8
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 15

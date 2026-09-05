@@ -79,7 +79,15 @@ jobs:
           fi
 
       # ── Step 1: Scrape Jobs ──────────────────────────────────────────
+      # scraper.py exits non-zero when a source fetches zero jobs (see scrape_guard).
+      # That must not skip scoring: whatever other sources landed still deserves to be
+      # scored, and a dead source should show as a red run, not as a stalled pipeline.
+      # So the failure is captured here and re-raised at the end of the job.
+      # When the workflow is split into parallel legs (Step A.1), this becomes
+      # `needs: scrape` + `if: always()` on the score job with `fail-fast: false`.
       - name: "1 — Scrape Jobs"
+        id: scrape
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -129,3 +137,11 @@ jobs:
           name: dashboard
           path: dashboard.html
           retention-days: 7
+
+      # ── Step 7: Fail the run if a scrape source was broken ────────────
+      # Deliberately last: everything downstream has already run on whatever did land.
+      - name: "7 — Surface broken scrape sources"
+        if: always() && steps.scrape.outcome == 'failure'
+        run: |
+          echo "::error::A scrape source fetched zero jobs. See step 1 for the HTTP status and response body size of each request — a non-2xx is a block, a 200 with a large body and nothing parsed is a challenge page or a broken selector."
+          exit 1

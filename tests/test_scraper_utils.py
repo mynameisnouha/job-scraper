@@ -60,3 +60,73 @@ class TestGetCareersFutureCompanyName:
     def test_no_company(self):
         assert _get_careers_future_job_company_name({}) is None
         assert _get_careers_future_job_company_name(None) is None
+
+
+# --- Zero-yield diagnostics on the LinkedIn fetch path (step A.0) -------------
+
+import requests
+
+import scraper
+import scrape_guard
+
+
+def _response(status_code, body):
+    """A real requests.Response, so raise_for_status behaves as in production."""
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = body.encode("utf-8")
+    response.url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+    return response
+
+
+class TestLinkedInFetchDiagnostics:
+    def test_a_block_records_status_and_body_size(self, monkeypatch):
+        monkeypatch.setattr(scraper.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(scraper.requests, "get",
+                            lambda *a, **k: _response(403, "<html>denied</html>"))
+
+        outcome = scrape_guard.SourceOutcome("linkedin")
+        ids = scraper._fetch_linkedin_job_ids("Data Scientist", "Germany", outcome=outcome)
+
+        assert ids == []
+        assert outcome.attempts, "a blocked request must still be recorded"
+        attempt = outcome.attempts[0]
+        assert attempt.status_code == 403
+        assert attempt.body_bytes == len("<html>denied</html>")
+        assert attempt.items_parsed == 0
+        # And that is enough for the guard to fail the run.
+        assert outcome.status == scrape_guard.BROKEN
+        assert scrape_guard.report([outcome]) == 1
+
+    def test_a_200_with_no_job_cards_records_the_body_size(self, monkeypatch):
+        """The case a status code alone cannot explain: served fine, parsed nothing."""
+        big_page = "<html>" + ("<div>not a job card</div>" * 500) + "</html>"
+        monkeypatch.setattr(scraper.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: _response(200, big_page))
+
+        outcome = scrape_guard.SourceOutcome("linkedin")
+        scraper._fetch_linkedin_job_ids("AI Engineer", "Germany", outcome=outcome)
+
+        attempt = outcome.attempts[0]
+        assert attempt.status_code == 200
+        assert attempt.body_bytes == len(big_page)
+        assert attempt.items_parsed == 0
+
+    def test_a_successful_page_records_what_it_parsed(self, monkeypatch):
+        card = ('<li><div class="base-card" '
+                'data-entity-urn="urn:li:jobPosting:4001"></div></li>')
+        monkeypatch.setattr(scraper.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(scraper.requests, "get",
+                            lambda *a, **k: _response(200, f"<ul>{card}</ul>"))
+
+        outcome = scrape_guard.SourceOutcome("linkedin")
+        ids = scraper._fetch_linkedin_job_ids("MLOps Engineer", "Germany", outcome=outcome)
+
+        assert ids == ["4001"]
+        assert outcome.attempts[0].items_parsed == 1
+
+    def test_the_recorder_is_optional(self, monkeypatch):
+        """Other callers pass no outcome and must keep working."""
+        monkeypatch.setattr(scraper.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: _response(403, "no"))
+        assert scraper._fetch_linkedin_job_ids("Data Scientist", "Germany") == []
