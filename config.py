@@ -101,7 +101,15 @@ CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 SCRAPING_SOURCES = ["linkedin", "indeed"] # "linkedin", "indeed", "careers_future"
 JOBS_TO_SCORE_PER_RUN = 60
 JOBS_TO_CUSTOMIZE_PER_RUN = 3
-RESUME_CUSTOMIZATION_MIN_SCORE = 70  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
+RESUME_CUSTOMIZATION_MIN_SCORE = 55  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
+
+# --- Apply-queue gating on interview odds ---
+# The recommendation downgrade is relative to the run, not absolute: an absolute
+# floor of 0.10 fired on every job ever scored (observed max p_as_is = 0.09), so
+# nothing could reach apply_now. Only the weakest slice of each run is downgraded.
+P_INTERVIEW_PERCENTILE_FLOOR = 40  # downgrade jobs below this percentile of the run's p_after_fixes
+P_INTERVIEW_MIN_BATCH = 10         # below this many scored jobs, percentiles are noise -> absolute fallback
+P_INTERVIEW_ABSOLUTE_FLOOR = 0.10  # the old absolute rule, kept only as the small-batch fallback
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
     "indeed": 5,

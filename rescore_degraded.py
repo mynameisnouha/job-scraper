@@ -21,7 +21,7 @@ import time
 import config
 import supabase_utils
 from check_scoring_health import classify, missing_fields
-from score_jobs import format_resume_to_text, get_resume_score_from_ai
+from score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -102,6 +102,7 @@ def main():
         return
 
     fixed = still_degraded = failed = 0
+    scored = []  # (job_id, breakdown) — the P(interview) gate is batch-relative
     for i, job in enumerate(jobs, 1):
         job_id = job.get("job_id")
         logging.info(f"[{i}/{len(jobs)}] Rescoring {job_id} — {job.get('job_title')}")
@@ -120,11 +121,14 @@ def main():
                 still_degraded += 1
             else:
                 fixed += 1
-            supabase_utils.update_job_score(job_id, breakdown.overall_score,
-                                            resume_score_stage="initial", score_breakdown=payload)
+            if supabase_utils.update_job_score(job_id, breakdown.overall_score,
+                                               resume_score_stage="initial", score_breakdown=payload):
+                scored.append((job_id, breakdown))
 
         if i < len(jobs) and delay > 0:
             time.sleep(delay)
+
+    finalize_batch_recommendations(scored, resume_score_stage="initial")
 
     logging.info("=" * 50)
     logging.info("RESCORE SUMMARY")

@@ -523,15 +523,16 @@ fixable before the deadline.
                 breakdown.recommendation = "skip"
             breakdown.reasoning = f"HARD GATE: {'; '.join(gate_reasons)}. {breakdown.reasoning}"
 
-        p_as_is = breakdown.competitive_context.p_first_round_interview.as_is
-        if p_as_is is not None and p_as_is < 0.10 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
-            logging.info(f"  P(interview) as_is={p_as_is} < 0.10 for {job_id} — downgrading recommendation.")
-            breakdown.recommendation = "apply_if_gate_negotiable" if caps else "skip"
+        # The P(interview) downgrade is NOT applied here: it is relative to the rest
+        # of the run, so it happens once the whole batch is scored
+        # (see apply_interview_odds_downgrade).
 
         breakdown.calibration_check.setdefault("score_before_cap", score_before_cap)
         breakdown.calibration_check["final_score"] = breakdown.overall_score
-        if caps:
-            breakdown.calibration_check["cap_applied"] = min(c[0] for c in caps)
+        # Always overwrite: the model states its own cap_applied, and when no cap of
+        # ours fired that claim used to survive into the stored breakdown (observed:
+        # score_before_cap == final_score == 18 with cap_applied "55 (startup…)").
+        breakdown.calibration_check["cap_applied"] = min(c[0] for c in caps) if caps else None
 
         logging.info(f"=== SCORE BREAKDOWN for {job_id} ===")
         logging.info(f"  Overall:        {breakdown.overall_score}/100")
@@ -564,6 +565,111 @@ fixable before the deadline.
     except Exception as e:
         logging.error(f"Error scoring job_id {job_id}: {e}")
         return None
+
+
+# --- Batch-relative recommendation gating -------------------------------------
+
+def _percentile(sorted_values: List[float], pct: float) -> float:
+    """Linear-interpolation percentile (numpy's default) over an already-sorted list."""
+    if not sorted_values:
+        raise ValueError("percentile of an empty list")
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    pos = (pct / 100.0) * (len(sorted_values) - 1)
+    lo = int(pos)
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return sorted_values[lo] + (pos - lo) * (sorted_values[hi] - sorted_values[lo])
+
+
+def _interview_odds(breakdown: ScoreBreakdown) -> tuple[Optional[float], Optional[float]]:
+    """(p_as_is, p_after_fixes) for a breakdown, or (None, None) if absent."""
+    context = getattr(breakdown, "competitive_context", None)
+    p = getattr(context, "p_first_round_interview", None) if context else None
+    if p is None:
+        return None, None
+    return getattr(p, "as_is", None), getattr(p, "after_fixes", None)
+
+
+def apply_interview_odds_downgrade(breakdowns: List[ScoreBreakdown]) -> List[int]:
+    """Downgrade the recommendation of the weakest jobs in this run, in place.
+
+    The old rule was absolute (`p_as_is < 0.10`) and fired on every job ever scored —
+    the observed maximum across the whole corpus is 0.09 — so `apply_now` was
+    unreachable and the field carried no information. The rule is now *relative*:
+    only jobs below the `P_INTERVIEW_PERCENTILE_FLOOR`th percentile of this run's
+    `p_after_fixes` distribution are downgraded. Runs smaller than
+    `P_INTERVIEW_MIN_BATCH` fall back to the absolute rule, because a percentile over
+    a handful of jobs is noise.
+
+    The raw probabilities are never touched — this is a presentation decision, and it
+    must be reversible without rescoring. Returns the indices that changed.
+    """
+    floor_pct = getattr(config, "P_INTERVIEW_PERCENTILE_FLOOR", 40)
+    min_batch = getattr(config, "P_INTERVIEW_MIN_BATCH", 10)
+    absolute_floor = getattr(config, "P_INTERVIEW_ABSOLUTE_FLOOR", 0.10)
+
+    after_fixes = sorted(p for _, p in map(_interview_odds, breakdowns) if p is not None)
+    use_percentile = len(after_fixes) >= min_batch
+    threshold = _percentile(after_fixes, floor_pct) if use_percentile else absolute_floor
+    rule = "percentile" if use_percentile else "absolute"
+    logging.info(
+        f"P(interview) gate: {rule} rule over {len(after_fixes)} scored job(s), "
+        f"threshold={threshold:.4f}"
+    )
+
+    changed = []
+    for i, breakdown in enumerate(breakdowns):
+        if breakdown.recommendation not in ("apply_now", "apply_after_fixes"):
+            continue
+        p_as_is, p_after_fixes = _interview_odds(breakdown)
+        p = p_after_fixes if use_percentile else p_as_is
+        if p is None or p >= threshold:
+            continue
+        capped = breakdown.calibration_check.get("cap_applied") is not None
+        previous = breakdown.recommendation
+        breakdown.recommendation = "apply_if_gate_negotiable" if capped else "skip"
+        breakdown.calibration_check["p_interview_downgrade"] = {
+            "rule": rule,
+            "threshold": round(threshold, 4),
+            "value": p,
+            "from": previous,
+        }
+        logging.info(
+            f"  P(interview) {p} below {rule} threshold {threshold:.4f} — "
+            f"{previous} -> {breakdown.recommendation}."
+        )
+        changed.append(i)
+    return changed
+
+
+def finalize_batch_recommendations(scored: List[tuple], resume_score_stage: str = "initial") -> int:
+    """Apply the batch-relative downgrade to `[(job_id, breakdown), ...]` and re-persist
+    only the rows whose recommendation actually changed. Returns the number re-persisted."""
+    if not scored:
+        return 0
+    breakdowns = [b for _, b in scored]
+    changed = apply_interview_odds_downgrade(breakdowns)
+    written = 0
+    for i in changed:
+        job_id, breakdown = scored[i]
+        if supabase_utils.update_job_score(job_id, breakdown.overall_score,
+                                           resume_score_stage=resume_score_stage,
+                                           score_breakdown=breakdown.model_dump()):
+            written += 1
+        else:
+            logging.warning(f"Could not persist the recommendation downgrade for {job_id}.")
+    if changed:
+        logging.info(f"Recommendation downgrades applied to {len(changed)} job(s); {written} re-persisted.")
+    return written
+
+
+def log_tailoring_queue_size(breakdowns: List[ScoreBreakdown]) -> int:
+    """One line per run: how many jobs cleared the resume-tailoring threshold."""
+    min_score = getattr(config, "RESUME_CUSTOMIZATION_MIN_SCORE", 55)
+    cleared = sum(1 for b in breakdowns if b.overall_score >= min_score)
+    logging.info(f"Tailoring queue: {cleared}/{len(breakdowns)} scored job(s) at or above "
+                 f"RESUME_CUSTOMIZATION_MIN_SCORE={min_score}.")
+    return cleared
 
 
 def extract_text_from_pdf_url(pdf_url: str) -> Optional[str]:
@@ -628,6 +734,7 @@ def rescore_jobs_with_custom_resume():
     logging.info(f"Processing {len(jobs_to_rescore)} jobs for re-scoring...")
     successful_rescores = 0
     failed_rescores = 0
+    rescored_this_run = []  # (job_id, breakdown) for the batch-relative gate below
 
     for i, job in enumerate(jobs_to_rescore):
         job_id = job.get('job_id')
@@ -673,6 +780,7 @@ def rescore_jobs_with_custom_resume():
             if supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="custom",
                                                score_breakdown=breakdown.model_dump()):
                 successful_rescores += 1
+                rescored_this_run.append((job_id, breakdown))
             else:
                 failed_rescores += 1 
         else:
@@ -681,6 +789,8 @@ def rescore_jobs_with_custom_resume():
         if i < len(jobs_to_rescore) - 1: 
             logging.debug(f"Waiting {config.LLM_REQUEST_DELAY_SECONDS} seconds before next API call...")
             time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
+
+    finalize_batch_recommendations(rescored_this_run, resume_score_stage="custom")
 
     rescore_end_time = time.time()
     logging.info("--- Job Re-scoring Finished ---")
@@ -735,6 +845,7 @@ def main():
             logging.info(f"Processing {len(jobs_to_score_initially)} jobs for initial scoring...")
             successful_initial_scores = 0
             failed_initial_scores = 0
+            scored_this_run = []  # (job_id, breakdown) for the batch-relative gate below
 
             # 4. Loop Through Jobs and Score Them
             for i, job in enumerate(jobs_to_score_initially):
@@ -751,6 +862,7 @@ def main():
                     if supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="initial",
                                                        score_breakdown=breakdown.model_dump()):
                         successful_initial_scores += 1
+                        scored_this_run.append((job_id, breakdown))
                         # Strong matches get a "why me" pitch for the application message / Anschreiben
                         if breakdown.overall_score >= 70 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
                             pitch = generate_why_me_pitch(default_resume_text, job, breakdown)
@@ -765,6 +877,11 @@ def main():
                     logging.debug(f"Waiting {config.LLM_REQUEST_DELAY_SECONDS} seconds before next API call...")
                     time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
             
+            # The P(interview) gate is relative to this run, so it can only be decided
+            # once every job in the batch has a score.
+            finalize_batch_recommendations(scored_this_run, resume_score_stage="initial")
+            log_tailoring_queue_size([b for _, b in scored_this_run])
+
             if successful_initial_scores == 0 and failed_initial_scores > 0:
                 logging.error(
                     "ALL initial scoring attempts failed. This usually means an LLM auth/config problem "

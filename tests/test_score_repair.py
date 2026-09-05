@@ -155,10 +155,15 @@ def test_failing_hard_gates_are_read_as_models_not_dicts(responses):
     assert result.hard_gates[0].result == "fail"
 
 
-def test_low_interview_odds_downgrade_an_apply_recommendation(responses):
+def test_scoring_one_job_no_longer_decides_the_interview_odds_downgrade(responses):
+    """The P(interview) gate is relative to the run now (see
+    apply_interview_odds_downgrade), so a single call must leave the model's
+    recommendation alone — the old absolute 0.10 rule fired on every job ever
+    scored and made apply_now unreachable."""
     queue, _, calls = responses
     payload = json.loads(json.dumps(VALID))
     payload["competitive_context"]["p_first_round_interview"] = {"as_is": 0.02, "after_fixes": 0.05}
     queue.append(payload)
     result = score_jobs.get_resume_score_from_ai("resume text", JOB)
-    assert result.recommendation != "apply_now"
+    assert result.recommendation == "apply_now"
+    assert result.competitive_context.p_first_round_interview.as_is == 0.02

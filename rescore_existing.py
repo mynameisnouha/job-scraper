@@ -8,7 +8,7 @@ import config
 import supabase_utils
 from llm_client import primary_client
 from models import ScoreBreakdown
-from score_jobs import format_resume_to_text, get_resume_score_from_ai
+from score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -61,6 +61,7 @@ def process_backfill():
     url_skipped = 0
     rescored = 0
     rescore_skipped = 0
+    scored = []  # (job_id, breakdown) — the P(interview) gate is batch-relative
 
     for i, job in enumerate(jobs):
         job_id = job.get("job_id")
@@ -96,6 +97,7 @@ def process_backfill():
                 ok = supabase_utils.update_job_score(job_id, score, resume_score_stage="initial",
                                                      score_breakdown=breakdown.model_dump())
                 if ok:
+                    scored.append((job_id, breakdown))
                     verified = supabase_utils.verify_job_score_update(job_id, score, "initial")
                     if not verified:
                         logging.warning(f"  Score write for job_id {job_id} appeared to succeed but read-back mismatch!")
@@ -112,6 +114,8 @@ def process_backfill():
 
         if i < len(jobs) - 1:
             time.sleep(config.LLM_REQUEST_DELAY_SECONDS if have_llm and has_old_score else 0.5)
+
+    finalize_batch_recommendations(scored, resume_score_stage="initial")
 
     # ── Summary ───────────────────────────────────────────────────────
     elapsed = time.time() - overall_start

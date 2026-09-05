@@ -6,7 +6,7 @@ import uuid
 
 import config
 import supabase_utils
-from score_jobs import format_resume_to_text, get_resume_score_from_ai
+from score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ def process_manual_jobs(resume_text: str) -> tuple[int, int]:
     logger.info(f"Processing {len(jobs)} manually-added jobs...")
     success = 0
     failed = 0
+    scored = []  # (job_id, breakdown) — the P(interview) gate is batch-relative
 
     for i, job in enumerate(jobs):
         job_id = job["job_id"]
@@ -74,6 +75,7 @@ def process_manual_jobs(resume_text: str) -> tuple[int, int]:
                                                  score_breakdown=breakdown.model_dump())
             if ok:
                 success += 1
+                scored.append((job_id, breakdown))
             else:
                 failed += 1
         else:
@@ -81,5 +83,7 @@ def process_manual_jobs(resume_text: str) -> tuple[int, int]:
 
         if i < len(jobs) - 1:
             time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
+
+    finalize_batch_recommendations(scored, resume_score_stage="initial")
 
     return success, failed
