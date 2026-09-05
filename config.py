@@ -33,7 +33,9 @@ LLM_MODEL = "anthropic/claude-sonnet-4-6"
 # Only jobs that pass the screen get the full (expensive) scoring call.
 SCREENING_ENABLED = True
 LLM_SCREEN_MODEL = "anthropic/claude-haiku-4-5"
-JOBS_TO_SCREEN_PER_RUN = 150
+# Per-RUN, and the pipeline now runs four times a day — these are quartered from
+# their once-a-day values so the daily totals (and the LLM spend) stay put.
+JOBS_TO_SCREEN_PER_RUN = 40
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
@@ -60,6 +62,10 @@ LINKEDIN_SEARCH_QUERIES = [
 LINKEDIN_LOCATION = "Germany"
 LINKEDIN_GEO_ID = 101282230      # Singapore: 102454443, Dubai: 100205264
 LINKEDIN_JOB_TYPE = "F" # F=Full-time, C=Contract, P=Part-time, T=Temporary, I=Internship
+# Stays at 24h deliberately. The fragility of "one failed run loses that day's
+# postings" is fixed by running four times a day (see run_all.yml), not by widening
+# the window: a 7-day window would re-fetch the same 500 results without telling us
+# which went up an hour ago, and applying early measurably helps.
 LINKEDIN_JOB_POSTING_DATE = "r86400" # r86400=Past 24h, r604800=Past week
 LINKEDIN_F_WT = "1%2C2%2C3" # 1=Onsite, 2=Remote, 3=Hybrid (URL-encoded comma list; single value like "3" also works)
 LINKEDIN_F_E = "2%2C3" # Experience level: 1=Internship, 2=Entry level, 3=Associate, 4=Mid-Senior, 5=Director
@@ -80,7 +86,7 @@ CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 SCRAPING_SOURCES = ["linkedin"] # "linkedin", "careers_future"
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
-JOBS_TO_SCORE_PER_RUN = 60
+JOBS_TO_SCORE_PER_RUN = 15
 JOBS_TO_CUSTOMIZE_PER_RUN = 3
 RESUME_CUSTOMIZATION_MIN_SCORE = 55  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
 

@@ -26,7 +26,7 @@ Streamlit-free, HTTP-free, and side-effect-free apart from logging.
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 BROKEN = "broken"
 NO_NEW = "no_new"
@@ -61,14 +61,21 @@ class SourceOutcome:
     source: str
     fetched: int = 0
     new: int = 0
+    already_in_db: int = 0
+    filtered_out: Dict[str, int] = field(default_factory=dict)
     attempts: List[FetchAttempt] = field(default_factory=list)
     elapsed_seconds: float = 0.0
 
     @property
-    def already_known(self) -> int:
-        """Fetched but not saved: already in the database, or dropped by the
-        internship / freelance / empty-description filters. Not purely duplicates."""
-        return max(self.fetched - self.new, 0)
+    def filtered_total(self) -> int:
+        return sum(self.filtered_out.values())
+
+    @property
+    def unaccounted(self) -> int:
+        """Fetched postings that reached no bucket. Should be 0; surfaced rather
+        than hidden, because a number that silently absorbs the leftovers is how
+        `fetched - new` came to mean three different things at once."""
+        return self.fetched - (self.already_in_db + self.filtered_total + self.new)
 
     def record_attempt(self, query: str, status_code: Optional[int] = None,
                        body_bytes: int = 0, items_parsed: int = 0, error: str = "") -> None:
@@ -76,11 +83,28 @@ class SourceOutcome:
                                           body_bytes=body_bytes, items_parsed=items_parsed,
                                           error=error))
 
-    def record_query(self, fetched: int = 0, new: int = 0) -> None:
-        """Add one query's totals. `fetched` counts postings the source returned
-        before deduplication; `new` counts the ones actually saved."""
+    def record_query(self, fetched: int = 0, new: int = 0, already_in_db: int = 0) -> None:
+        """Add one query's totals.
+
+        The four buckets partition `fetched`, so they sum:
+            fetched = already_in_db + filtered_out + new(saved)
+
+        `fetched` is what the search returned before any deduplication,
+        `already_in_db` what dedup dropped, `filtered_out` what the content
+        filters dropped and why (record_filtered), `new` what was saved.
+        """
         self.fetched += fetched
         self.new += new
+        self.already_in_db += already_in_db
+
+    def record_filtered(self, reason: str, count: int = 1) -> None:
+        """Count a fetched posting that was dropped, by reason. Distinguishing
+        'already had it' from 'rejected it' from 'the fetch failed' is what makes
+        a per-query duplicate rate readable — a query returning 20 results that
+        another query already covered looks identical to a productive one when
+        the counters are lumped together."""
+        if count:
+            self.filtered_out[reason] = self.filtered_out.get(reason, 0) + count
 
     @property
     def status(self) -> str:
@@ -91,13 +115,23 @@ class SourceOutcome:
 
 def summarize(outcome: SourceOutcome) -> Tuple[int, str]:
     """(logging level, message) for one source's outcome."""
+    breakdown = (f"{outcome.already_in_db} already in the database, "
+                 f"{outcome.filtered_total} filtered")
+    if outcome.filtered_out:
+        reasons = ", ".join(f"{reason} {count}"
+                            for reason, count in sorted(outcome.filtered_out.items(),
+                                                        key=lambda kv: -kv[1]))
+        breakdown += f" ({reasons})"
+    if outcome.unaccounted:
+        breakdown += (f", {outcome.unaccounted} unaccounted — the counters do not add up")
+
     if outcome.status == OK:
         return logging.INFO, (f"{outcome.source}: {outcome.fetched} fetched, "
-                              f"{outcome.new} new.")
+                              f"{outcome.new} saved — {breakdown}.")
 
     if outcome.status == NO_NEW:
-        return logging.INFO, (f"{outcome.source}: {outcome.fetched} fetched, 0 new — "
-                              f"every posting was already in the database. Normal.")
+        return logging.INFO, (f"{outcome.source}: {outcome.fetched} fetched, 0 saved — "
+                              f"{breakdown}. Normal.")
 
     lines = [
         f"{outcome.source}: 0 fetched across {len(outcome.attempts)} request(s) — "
@@ -122,9 +156,8 @@ def summarize(outcome: SourceOutcome) -> Tuple[int, str]:
 def step_summary(outcomes: List[SourceOutcome]) -> str:
     """A Markdown table for $GITHUB_STEP_SUMMARY: one row per source.
 
-    "Known" is everything fetched but not saved — already in the database, or
-    dropped by the internship / freelance / empty-description filters — so it is
-    not a pure duplicate count and is not labelled as one.
+    The columns partition what was fetched — in-DB, filtered, saved — rather than
+    collapsing them into one "not saved" number.
     """
     if not outcomes:
         return "### Scrape\n\nNo sources ran.\n"
@@ -133,12 +166,23 @@ def step_summary(outcomes: List[SourceOutcome]) -> str:
     lines = [
         "### Scrape",
         "",
-        "| Source | Fetched | New | Known | Elapsed | Status |",
-        "| --- | ---: | ---: | ---: | ---: | --- |",
+        "| Source | Fetched | In DB | Filtered | Saved | Elapsed | Status |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for o in outcomes:
-        lines.append(f"| {o.source} | {o.fetched} | {o.new} | {o.already_known} | "
-                     f"{o.elapsed_seconds:.0f}s | {labels[o.status]} |")
+        lines.append(f"| {o.source} | {o.fetched} | {o.already_in_db} | {o.filtered_total} | "
+                     f"{o.new} | {o.elapsed_seconds:.0f}s | {labels[o.status]} |")
+
+    for o in outcomes:
+        if o.filtered_out:
+            reasons = ", ".join(f"{reason} {count}"
+                                for reason, count in sorted(o.filtered_out.items(),
+                                                            key=lambda kv: -kv[1]))
+            lines += ["", f"{o.source} filtered: {reasons}"]
+        if o.unaccounted:
+            lines += ["", f"⚠️ {o.source}: {o.unaccounted} fetched posting(s) reached no "
+                          f"bucket — the counters do not add up, so one of them is lying."]
+
     broken = [o.source for o in outcomes if o.status == BROKEN]
     if broken:
         lines += ["", f"**{', '.join(broken)} fetched nothing.** "

@@ -8,70 +8,34 @@ on:
         required: false
         default: ""
   schedule:
-    - cron: "0 10 * * *"  # Every day at 10:00 UTC
+    # Four times a day. LinkedIn's search filter is the past 24 hours, so every
+    # posting gets roughly four chances to be seen inside its visibility window and
+    # a single failed run costs nothing. Per-run caps in config.py are quartered to
+    # match, so the daily LLM spend is unchanged.
+    - cron: "0 0,6,12,18 * * *"
 
 permissions:
   actions: read
   contents: read
 
+# Runs must not overlap — a second scrape while the first is mid-flight would race
+# on dedup and double-score. cancel-in-progress stays false: the run already going
+# is the one with work in flight, so the newcomer waits rather than killing it.
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
 jobs:
-  check-last-run:
+  # Resolves the matrix only. There is deliberately NO "did today's run already
+  # happen" guard any more: that premise died with the once-a-day schedule, and
+  # keyed on the dashboard step it would have suppressed runs 2, 3 and 4. Overlap
+  # is handled by the `concurrency` block above, which is native and needs no jq
+  # against run history.
+  resolve-sources:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
       sources: ${{ steps.sources.outputs.list }}
     steps:
-      - name: Skip if today's work already happened (UTC)
-        id: check
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          # The question here is NOT "did the run go green" — it is "did today's
-          # work already happen". Those two diverge the moment a partial failure
-          # is a legitimate outcome, which is exactly what `fail-fast: false` plus
-          # the zero-yield guard made routine: a run can go red because one source
-          # was blocked while every downstream stage still did its job. Keying on
-          # the run or job conclusion would aggregate "a source was broken" with
-          # "nothing ran" and re-run the whole pipeline for the former.
-          #
-          # So this reads a STEP outcome (the dashboard step inside the manage
-          # job), not a job conclusion: the dashboard is the last thing the
-          # pipeline does, so its success means the pipeline reached the end.
-          # Please don't "fix" this back to `.jobs[].conclusion`.
-          #
-          # Anything other than an explicit "success" counts as not-happened —
-          # a skipped step reports "skipped", not "failure", so an `== "failure"`
-          # test would silently treat a skipped day as done.
-          RUN_IDS=$(gh run list --workflow "run_all.yml" --status completed --limit 15 --json databaseId -q '.[].databaseId')
-
-          LAST_COMPLETED=""
-          for id in $RUN_IDS; do
-            OUTCOME=$(gh run view "$id" --json jobs \
-              -q '.jobs[] | select(.name=="manage") | .steps[] | select(.name=="Generate Dashboard") | .conclusion')
-            if [ "$OUTCOME" = "success" ]; then
-              LAST_COMPLETED=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="manage") | .completedAt')
-              break
-            fi
-          done
-
-          if [ -z "$LAST_COMPLETED" ]; then
-            echo "No prior run reached a successful dashboard generation — proceeding."
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          LAST_DATE=$(date -u -d "$LAST_COMPLETED" +%Y-%m-%d)
-          TODAY=$(date -u +%Y-%m-%d)
-
-          if [ "$LAST_DATE" = "$TODAY" ]; then
-            echo "Dashboard already generated successfully today ($TODAY, UTC) — skipping."
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Last successful dashboard generation was on $LAST_DATE (today is $TODAY, UTC) — proceeding."
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Resolve which sources to scrape
         id: sources
         env:
@@ -95,13 +59,12 @@ jobs:
   # fail-fast: false — a LinkedIn block must not cancel the other legs, and a leg
   # that fetches zero exits non-zero on purpose (see scrape_guard).
   scrape:
-    needs: check-last-run
-    if: needs.check-last-run.outputs.should_run == 'true'
+    needs: resolve-sources
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        source: ${{ fromJson(needs.check-last-run.outputs.sources) }}
+        source: ${{ fromJson(needs.resolve-sources.outputs.sources) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -121,8 +84,8 @@ jobs:
   # !cancelled() rather than success(): whatever did land still deserves scoring.
   # A dead scrape leg shows as a red run; it must not skip the rest of the day.
   score:
-    needs: [check-last-run, scrape]
-    if: ${{ !cancelled() && needs.check-last-run.outputs.should_run == 'true' }}
+    needs: scrape
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -155,11 +118,11 @@ jobs:
         run: python custom_resume_generator.py
 
   # ── Stage 3: manage ───────────────────────────────────────────────────────
-  # Holds the dashboard step the skip-guard above keys on. Same !cancelled()
-  # reasoning: a red scrape leg must not cost us the day's housekeeping.
+  # Same !cancelled() reasoning as score: a red scrape leg must not cost the
+  # run its housekeeping.
   manage:
-    needs: [check-last-run, score]
-    if: ${{ !cancelled() && needs.check-last-run.outputs.should_run == 'true' }}
+    needs: score
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -176,8 +139,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python job_manager.py
 
-      # The skip-guard in check-last-run reads THIS step's outcome by name.
-      # Renaming it means updating the jq expression above.
       - name: Generate Dashboard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

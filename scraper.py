@@ -463,8 +463,10 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
         return []
 
     unique_linkedin_job_ids = list(set(scraped_job_ids))
-    if outcome is not None:
-        outcome.record_query(fetched=len(unique_linkedin_job_ids))
+
+    def _filtered(reason):
+        if outcome is not None:
+            outcome.record_filtered(reason)
 
     logging.info(f"Found {len(scraped_job_ids)} raw job IDs, {len(unique_linkedin_job_ids)} unique IDs after scraping.")
 
@@ -473,10 +475,17 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
     job_ids_set, company_title_set = supabase_utils.get_existing_jobs_from_supabase()
 
     new_job_ids_to_process = []
+    already_in_db = 0
     for job_id in unique_linkedin_job_ids:
         if str(job_id) in job_ids_set:
+            already_in_db += 1
             continue
         new_job_ids_to_process.append(str(job_id))
+
+    # Record fetched and the dedup drop together, so the buckets partition `fetched`
+    # instead of leaving "not saved" to mean three different things.
+    if outcome is not None:
+        outcome.record_query(fetched=len(unique_linkedin_job_ids), already_in_db=already_in_db)
 
 
     logging.info(f"Found {len(unique_linkedin_job_ids)} unique scraped IDs.")
@@ -492,6 +501,8 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
 
     if limit is not None and len(new_job_ids_to_process) > limit:
         logging.info(f"Truncating new_job_ids_to_process from {len(new_job_ids_to_process)} to {limit} to stay within source limit.")
+        if outcome is not None:
+            outcome.record_filtered("over_per_query_limit", len(new_job_ids_to_process) - limit)
         new_job_ids_to_process = new_job_ids_to_process[:limit]
 
     logging.info(f"\n--- Starting Phase 2: Fetching Job Details for {len(new_job_ids_to_process)} New IDs ---")
@@ -505,13 +516,16 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
         if details:
             if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
+                _filtered("internship")
                 continue
             if is_freelance_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
+                _filtered("freelance")
                 continue
             company_title_key = ((details.get('company') or '').strip().lower(), (details.get('job_title') or '').strip().lower())
             if all(company_title_key) and company_title_key in company_title_set:
                 logging.info(f"Skipping repost (company/title already in DB): {details.get('job_title')} @ {details.get('company')} (ID: {job_id})")
+                _filtered("repost_same_company_title")
                 continue
             if all(company_title_key):
                 company_title_set.add(company_title_key)
@@ -522,10 +536,13 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
                     processed_count += 1
                 else:
                     logging.warning(f"Fetched details for {job_id} but missing 'job_id' key. Skipping.")
+                    _filtered("missing_job_id")
             else:
                 logging.warning(f"Skipping job ID {job_id} due to missing or empty description.") 
+                _filtered("no_description")
         else:
             logging.warning(f"Skipping job ID {job_id} as detail fetching failed or returned no data.") 
+            _filtered("detail_fetch_failed")
 
 
     logging.info(f"--- Finished Phase 2: Successfully fetched details for {processed_count} new job(s) ---")
@@ -733,8 +750,9 @@ def process_careers_future_query(search_query: str, limit: int = None,
         logging.info("No job items found in Phase 1. Skipping detail fetching.")
         return []
 
-    if outcome is not None:
-        outcome.record_query(fetched=len(careers_future_jobs))
+    def _filtered(reason, count=1):
+        if outcome is not None:
+            outcome.record_filtered(reason, count)
 
     # 2. Fetch existing job identifiers from Supabase
     logging.info("Phase 2: Fetching existing job identifiers from Supabase...")
@@ -756,10 +774,11 @@ def process_careers_future_query(search_query: str, limit: int = None,
     for job_item in careers_future_jobs:
         if not isinstance(job_item, dict):
             logging.warning(f"Skipping invalid job item (not a dict): {str(job_item)[:100]}")
+            _filtered("malformed_item")
             continue
 
         job_uuid = str(job_item.get('uuid'))
-        
+
         # Check 1: Does the UUID already exist in Supabase?
         if job_uuid and job_uuid in job_ids_set_supabase:
             logging.debug(f"Skipping job (ID exists in Supabase): UUID='{job_uuid}', Title='{job_item.get('title', 'N/A')}'")
@@ -792,9 +811,15 @@ def process_careers_future_query(search_query: str, limit: int = None,
 
         new_job_ids_to_process.append(job_uuid) 
 
+    # The buckets partition `fetched`: dedup drops, filter drops, and saves.
+    if outcome is not None:
+        outcome.record_query(fetched=len(careers_future_jobs),
+                             already_in_db=skipped_by_id_count + skipped_by_combo_count)
+
     # 4. Fetch details ONLY for the genuinely new job IDs
     if limit is not None and len(new_job_ids_to_process) > limit:
         logging.info(f"Truncating new_job_ids_to_process from {len(new_job_ids_to_process)} to {limit} to stay within source limit.")
+        _filtered("over_per_query_limit", len(new_job_ids_to_process) - limit)
         new_job_ids_to_process = new_job_ids_to_process[:limit]
 
     logging.info(f"Phase 4: Fetching Job Details for {len(new_job_ids_to_process)} New Jobs ---")
@@ -806,9 +831,11 @@ def process_careers_future_query(search_query: str, limit: int = None,
         if details:
             if is_internship_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
+                _filtered("internship")
                 continue
             if is_freelance_role(details.get('job_title'), details.get('level')):
                 logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
+                _filtered("freelance")
                 continue
             description = details.get('description')
             if description and description.strip():
@@ -817,10 +844,13 @@ def process_careers_future_query(search_query: str, limit: int = None,
                     processed_count += 1
                 else:
                     logging.warning(f"Fetched details for {job_id} but missing 'job_id' key. Skipping.")
+                    _filtered("missing_job_id")
             else:
                 logging.warning(f"Skipping job ID {job_id} due to missing or empty description.") 
+                _filtered("no_description")
         else:
             logging.warning(f"Skipping job ID {job_id} as detail fetching failed or returned no data.") 
+            _filtered("detail_fetch_failed")
 
 
 

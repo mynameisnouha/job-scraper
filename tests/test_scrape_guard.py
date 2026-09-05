@@ -75,7 +75,7 @@ class TestLogLevels:
     def test_healthy_logs_at_info_with_both_counts(self):
         level, message = scrape_guard.summarize(outcome(fetched=85, new=12))
         assert level == logging.INFO
-        assert "85 fetched" in message and "12 new" in message
+        assert "85 fetched" in message and "12 saved" in message
 
 
 class TestBlockDiagnostics:
@@ -150,44 +150,94 @@ class TestReportLogging:
 
         assert code == 1
         text = caplog.text
-        assert "linkedin: 85 fetched, 12 new." in text
+        assert "linkedin: 85 fetched, 12 saved" in text
         assert "arbeitsagentur: 0 fetched" in text
         assert "broken source(s): arbeitsagentur" in text
+
+
+class TestBucketsPartitionFetched:
+    """fetched = already_in_db + filtered_out + saved. A count that means three
+    things at once is how a dead source hides, so the buckets must add up."""
+
+    def test_the_four_buckets_sum_to_fetched(self):
+        o = SourceOutcome("linkedin")
+        o.record_query(fetched=170, new=39, already_in_db=101)
+        o.record_filtered("internship", 18)
+        o.record_filtered("freelance", 7)
+        o.record_filtered("no_description", 5)
+
+        assert o.filtered_total == 30
+        assert o.already_in_db + o.filtered_total + o.new == o.fetched
+        assert o.unaccounted == 0
+
+    def test_a_leftover_is_surfaced_not_absorbed(self):
+        o = SourceOutcome("linkedin")
+        o.record_query(fetched=100, new=10, already_in_db=50)
+        assert o.unaccounted == 40
+        _, message = scrape_guard.summarize(o)
+        assert "40 unaccounted" in message
+
+    def test_reasons_accumulate(self):
+        o = SourceOutcome("linkedin")
+        o.record_filtered("internship")
+        o.record_filtered("internship")
+        o.record_filtered("freelance", 3)
+        assert o.filtered_out == {"internship": 2, "freelance": 3}
+
+    def test_a_zero_count_records_nothing(self):
+        o = SourceOutcome("linkedin")
+        o.record_filtered("over_per_query_limit", 0)
+        assert o.filtered_out == {}
+
+    def test_the_log_line_names_the_reasons(self):
+        o = SourceOutcome("linkedin")
+        o.record_query(fetched=170, new=39, already_in_db=101)
+        o.record_filtered("internship", 30)
+        _, message = scrape_guard.summarize(o)
+
+        assert "170 fetched" in message
+        assert "39 saved" in message
+        assert "101 already in the database" in message
+        assert "internship 30" in message
 
 
 class TestStepSummary:
     """Each matrix leg writes its own row to $GITHUB_STEP_SUMMARY (Step A.1)."""
 
     def test_one_row_per_source_with_the_counts(self):
-        healthy = outcome("linkedin", fetched=85, new=12)
-        healthy.elapsed_seconds = 214.6
+        healthy = SourceOutcome("linkedin")
+        healthy.record_query(fetched=170, new=39, already_in_db=101)
+        healthy.record_filtered("internship", 30)
+        healthy.elapsed_seconds = 421.6
         table = scrape_guard.step_summary([healthy])
 
-        assert "| Source | Fetched | New | Known | Elapsed | Status |" in table
-        assert "| linkedin | 85 | 12 | 73 | 215s | ok |" in table
-
-    def test_known_never_goes_negative(self):
-        """Saved-more-than-fetched shouldn't render as a negative count."""
-        odd = outcome("linkedin", fetched=3, new=5)
-        assert odd.already_known == 0
+        assert "| Source | Fetched | In DB | Filtered | Saved | Elapsed | Status |" in table
+        assert "| linkedin | 170 | 101 | 30 | 39 | 422s | ok |" in table
+        assert "linkedin filtered: internship 30" in table
 
     def test_a_broken_source_is_called_out_under_the_table(self):
         table = scrape_guard.step_summary([outcome("linkedin", fetched=0)])
-        assert "| linkedin | 0 | 0 | 0 | 0s | BROKEN |" in table
+        assert "| linkedin | 0 | 0 | 0 | 0 | 0s | BROKEN |" in table
         assert "linkedin fetched nothing" in table
+
+    def test_counters_that_do_not_add_up_are_flagged_in_the_summary(self):
+        table = scrape_guard.step_summary([outcome("linkedin", fetched=100, new=10)])
+        assert "reached no bucket" in table
 
     def test_no_sources_still_renders(self):
         assert "No sources ran" in scrape_guard.step_summary([])
 
     def test_written_to_the_github_file_when_present(self, tmp_path, monkeypatch):
         target = tmp_path / "summary.md"
-        target.write_text("### Earlier step\n", encoding="utf-8")
+        target.write_text("### Earlier step" + chr(10), encoding="utf-8")
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(target))
 
-        assert scrape_guard.write_step_summary([outcome("linkedin", fetched=85, new=12)]) is True
+        o = SourceOutcome("linkedin")
+        o.record_query(fetched=85, new=12, already_in_db=73)
+        assert scrape_guard.write_step_summary([o]) is True
         written = target.read_text(encoding="utf-8")
         assert written.startswith("### Earlier step")   # appended, not clobbered
-        assert "| linkedin | 85 | 12 |" in written
+        assert "| linkedin | 85 | 73 | 0 | 12 |" in written
 
     def test_silent_outside_actions(self, monkeypatch):
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
