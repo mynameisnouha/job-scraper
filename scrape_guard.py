@@ -24,6 +24,7 @@ Streamlit-free, HTTP-free, and side-effect-free apart from logging.
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -61,6 +62,13 @@ class SourceOutcome:
     fetched: int = 0
     new: int = 0
     attempts: List[FetchAttempt] = field(default_factory=list)
+    elapsed_seconds: float = 0.0
+
+    @property
+    def already_known(self) -> int:
+        """Fetched but not saved: already in the database, or dropped by the
+        internship / freelance / empty-description filters. Not purely duplicates."""
+        return max(self.fetched - self.new, 0)
 
     def record_attempt(self, query: str, status_code: Optional[int] = None,
                        body_bytes: int = 0, items_parsed: int = 0, error: str = "") -> None:
@@ -109,6 +117,50 @@ def summarize(outcome: SourceOutcome) -> Tuple[int, str]:
         lines.append("  No HTTP responses were recorded for this source, so there is nothing "
                      "to tell a block apart from an empty result. Instrument its fetch path.")
     return logging.ERROR, "\n".join(lines)
+
+
+def step_summary(outcomes: List[SourceOutcome]) -> str:
+    """A Markdown table for $GITHUB_STEP_SUMMARY: one row per source.
+
+    "Known" is everything fetched but not saved — already in the database, or
+    dropped by the internship / freelance / empty-description filters — so it is
+    not a pure duplicate count and is not labelled as one.
+    """
+    if not outcomes:
+        return "### Scrape\n\nNo sources ran.\n"
+
+    labels = {OK: "ok", NO_NEW: "no new", BROKEN: "BROKEN"}
+    lines = [
+        "### Scrape",
+        "",
+        "| Source | Fetched | New | Known | Elapsed | Status |",
+        "| --- | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for o in outcomes:
+        lines.append(f"| {o.source} | {o.fetched} | {o.new} | {o.already_known} | "
+                     f"{o.elapsed_seconds:.0f}s | {labels[o.status]} |")
+    broken = [o.source for o in outcomes if o.status == BROKEN]
+    if broken:
+        lines += ["", f"**{', '.join(broken)} fetched nothing.** "
+                      "Per-request status codes and body sizes are in the job log."]
+    return "\n".join(lines) + "\n"
+
+
+def write_step_summary(outcomes: List[SourceOutcome]) -> bool:
+    """Append the summary to $GITHUB_STEP_SUMMARY when running in Actions.
+
+    Fail-soft: a summary is a convenience, never a reason to fail a scrape.
+    """
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not path:
+        return False
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(step_summary(outcomes))
+        return True
+    except OSError as e:
+        logging.warning(f"Could not write the step summary: {e}")
+        return False
 
 
 def report(outcomes: List[SourceOutcome]) -> int:

@@ -2,6 +2,7 @@ __pycache__/
 .env
 .venv
 ACCEPTANCE_CRITERIA.md
+IMPLEMENTATION_PLAN.md
 resume.json
 resume.pdf
 verify_pdf.py

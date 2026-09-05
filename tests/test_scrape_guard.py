@@ -153,3 +153,46 @@ class TestReportLogging:
         assert "linkedin: 85 fetched, 12 new." in text
         assert "arbeitsagentur: 0 fetched" in text
         assert "broken source(s): arbeitsagentur" in text
+
+
+class TestStepSummary:
+    """Each matrix leg writes its own row to $GITHUB_STEP_SUMMARY (Step A.1)."""
+
+    def test_one_row_per_source_with_the_counts(self):
+        healthy = outcome("linkedin", fetched=85, new=12)
+        healthy.elapsed_seconds = 214.6
+        table = scrape_guard.step_summary([healthy])
+
+        assert "| Source | Fetched | New | Known | Elapsed | Status |" in table
+        assert "| linkedin | 85 | 12 | 73 | 215s | ok |" in table
+
+    def test_known_never_goes_negative(self):
+        """Saved-more-than-fetched shouldn't render as a negative count."""
+        odd = outcome("linkedin", fetched=3, new=5)
+        assert odd.already_known == 0
+
+    def test_a_broken_source_is_called_out_under_the_table(self):
+        table = scrape_guard.step_summary([outcome("linkedin", fetched=0)])
+        assert "| linkedin | 0 | 0 | 0 | 0s | BROKEN |" in table
+        assert "linkedin fetched nothing" in table
+
+    def test_no_sources_still_renders(self):
+        assert "No sources ran" in scrape_guard.step_summary([])
+
+    def test_written_to_the_github_file_when_present(self, tmp_path, monkeypatch):
+        target = tmp_path / "summary.md"
+        target.write_text("### Earlier step\n", encoding="utf-8")
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(target))
+
+        assert scrape_guard.write_step_summary([outcome("linkedin", fetched=85, new=12)]) is True
+        written = target.read_text(encoding="utf-8")
+        assert written.startswith("### Earlier step")   # appended, not clobbered
+        assert "| linkedin | 85 | 12 |" in written
+
+    def test_silent_outside_actions(self, monkeypatch):
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+        assert scrape_guard.write_step_summary([outcome("linkedin", fetched=1, new=1)]) is False
+
+    def test_an_unwritable_summary_never_fails_the_scrape(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "no-such-dir" / "s.md"))
+        assert scrape_guard.write_step_summary([outcome("linkedin", fetched=1, new=1)]) is False

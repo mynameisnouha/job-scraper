@@ -1,9 +1,14 @@
-name: Run All (Scrape → Score → Manage → Customize)
+name: Run All (Scrape → Score → Manage)
 
 on:
   workflow_dispatch: # Manual trigger from the Actions tab
+    inputs:
+      sources:
+        description: "Comma-separated sources to scrape (e.g. linkedin). Empty = all."
+        required: false
+        default: ""
   schedule:
-    - cron: "0 10 * * *"  # Every day at 10:00 UTC — must run daily since LinkedIn search uses the past-24h filter
+    - cron: "0 10 * * *"  # Every day at 10:00 UTC
 
 permissions:
   actions: read
@@ -14,25 +19,38 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
+      sources: ${{ steps.sources.outputs.list }}
     steps:
-      - name: Skip if the dashboard was already generated today (UTC)
+      - name: Skip if today's work already happened (UTC)
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # Look at recent completed runs and find the last one where the
-          # "run-all" job (the one that actually reaches "Generate Dashboard")
-          # actually succeeded — a run can be "successful" overall while the
-          # job itself was skipped by this same check, so we inspect the job,
-          # not the run-level conclusion.
+          # The question here is NOT "did the run go green" — it is "did today's
+          # work already happen". Those two diverge the moment a partial failure
+          # is a legitimate outcome, which is exactly what `fail-fast: false` plus
+          # the zero-yield guard made routine: a run can go red because one source
+          # was blocked while every downstream stage still did its job. Keying on
+          # the run or job conclusion would aggregate "a source was broken" with
+          # "nothing ran" and re-run the whole pipeline for the former.
+          #
+          # So this reads a STEP outcome (the dashboard step inside the manage
+          # job), not a job conclusion: the dashboard is the last thing the
+          # pipeline does, so its success means the pipeline reached the end.
+          # Please don't "fix" this back to `.jobs[].conclusion`.
+          #
+          # Anything other than an explicit "success" counts as not-happened —
+          # a skipped step reports "skipped", not "failure", so an `== "failure"`
+          # test would silently treat a skipped day as done.
           RUN_IDS=$(gh run list --workflow "run_all.yml" --status completed --limit 15 --json databaseId -q '.[].databaseId')
 
           LAST_COMPLETED=""
           for id in $RUN_IDS; do
-            CONCLUSION=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="run-all") | .conclusion')
-            if [ "$CONCLUSION" = "success" ]; then
-              LAST_COMPLETED=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="run-all") | .completedAt')
+            OUTCOME=$(gh run view "$id" --json jobs \
+              -q '.jobs[] | select(.name=="manage") | .steps[] | select(.name=="Generate Dashboard") | .conclusion')
+            if [ "$OUTCOME" = "success" ]; then
+              LAST_COMPLETED=$(gh run view "$id" --json jobs -q '.jobs[] | select(.name=="manage") | .completedAt')
               break
             fi
           done
@@ -54,47 +72,68 @@ jobs:
             echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
-  run-all:
+      - name: Resolve which sources to scrape
+        id: sources
+        env:
+          REQUESTED: ${{ github.event.inputs.sources }}
+        run: |
+          # Default matrix. Add a leg here when a new source lands (Arbeitsagentur
+          # in Step B.0, the ATS adapters in B.2) — scraper.py --source must know
+          # the same name.
+          DEFAULT='["linkedin"]'
+          if [ -z "$REQUESTED" ]; then
+            echo "list=$DEFAULT" >> "$GITHUB_OUTPUT"
+          else
+            LIST=$(echo "$REQUESTED" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
+                   | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin]))')
+            echo "list=$LIST" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
+  # ── Stage 1: scrape ───────────────────────────────────────────────────────
+  # One runner per source, in parallel: wall-clock is max(sources), not sum.
+  # fail-fast: false — a LinkedIn block must not cancel the other legs, and a leg
+  # that fetches zero exits non-zero on purpose (see scrape_guard).
+  scrape:
     needs: check-last-run
     if: needs.check-last-run.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        source: ${{ fromJson(needs.check-last-run.outputs.sources) }}
     steps:
-      - name: Checkout repository code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "requirements.txt not found."
-            exit 1
-          fi
-
-      # ── Step 1: Scrape Jobs ──────────────────────────────────────────
-      # scraper.py exits non-zero when a source fetches zero jobs (see scrape_guard).
-      # That must not skip scoring: whatever other sources landed still deserves to be
-      # scored, and a dead source should show as a red run, not as a stalled pipeline.
-      # So the failure is captured here and re-raised at the end of the job.
-      # When the workflow is split into parallel legs (Step A.1), this becomes
-      # `needs: scrape` + `if: always()` on the score job with `fail-fast: false`.
-      - name: "1 — Scrape Jobs"
-        id: scrape
-        continue-on-error: true
+          pip install -r requirements.txt
+      - name: "Scrape ${{ matrix.source }}"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scraper.py
+        run: python scraper.py --source "${{ matrix.source }}"
 
-      # ── Step 2: Score Jobs ───────────────────────────────────────────
-      - name: "2 — Score Jobs"
+  # ── Stage 2: score ────────────────────────────────────────────────────────
+  # !cancelled() rather than success(): whatever did land still deserves scoring.
+  # A dead scrape leg shows as a red run; it must not skip the rest of the day.
+  score:
+    needs: [check-last-run, scrape]
+    if: ${{ !cancelled() && needs.check-last-run.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Score Jobs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -105,15 +144,7 @@ jobs:
           CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
         run: python score_jobs.py
 
-      # ── Step 3: Manage Jobs (expire / check activity / delete old) ───
-      - name: "3 — Manage Jobs"
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python job_manager.py
-
-      # ── Step 4: Customize Resumes (only jobs scoring >= RESUME_CUSTOMIZATION_MIN_SCORE) ──
-      - name: "4 — Customize Resumes"
+      - name: Customize Resumes
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -123,25 +154,39 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python custom_resume_generator.py
 
-      # ── Step 5: Generate Dashboard ────────────────────────────────────
-      - name: "5 — Generate Dashboard"
+  # ── Stage 3: manage ───────────────────────────────────────────────────────
+  # Holds the dashboard step the skip-guard above keys on. Same !cancelled()
+  # reasoning: a red scrape leg must not cost us the day's housekeeping.
+  manage:
+    needs: [check-last-run, score]
+    if: ${{ !cancelled() && needs.check-last-run.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Manage Jobs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python job_manager.py
+
+      # The skip-guard in check-last-run reads THIS step's outcome by name.
+      # Renaming it means updating the jq expression above.
+      - name: Generate Dashboard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python dashboard.py
 
-      # ── Step 6: Upload Dashboard as Artifact ──────────────────────────
-      - name: "6 — Upload Dashboard"
+      - name: Upload Dashboard
         uses: actions/upload-artifact@v4
         with:
           name: dashboard
           path: dashboard.html
           retention-days: 7
-
-      # ── Step 7: Fail the run if a scrape source was broken ────────────
-      # Deliberately last: everything downstream has already run on whatever did land.
-      - name: "7 — Surface broken scrape sources"
-        if: always() && steps.scrape.outcome == 'failure'
-        run: |
-          echo "::error::A scrape source fetched zero jobs. See step 1 for the HTTP status and response body size of each request — a non-2xx is a block, a 200 with a large body and nothing parsed is a challenge page or a broken selector."
-          exit 1

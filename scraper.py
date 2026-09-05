@@ -12,6 +12,7 @@ from markdownify import markdownify as md
 import json
 import re
 import sys
+import argparse
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -826,64 +827,107 @@ def process_careers_future_query(search_query: str, limit: int = None,
     logging.info(f"--- Finished Phase 4: Successfully fetched details for {processed_count} new job(s) ---")
     return detailed_new_jobs
 
-# --- Main Execution ---
-if __name__ == "__main__":
+# --- Per-source runners --------------------------------------------------------
+# One function per source, so a matrix leg can run exactly one of them (`--source`)
+# and the daily run can still run them all. Each returns its SourceOutcome.
 
-    total_new_jobs_saved = 0
-    # One outcome per enabled source. A source that fetches nothing fails the run;
-    # a source that fetches plenty and saves nothing new does not. See scrape_guard.
+def run_linkedin() -> scrape_guard.SourceOutcome:
+    logging.info("\n--- Starting LinkedIn Job Scraping ---")
+    outcome = scrape_guard.SourceOutcome("linkedin")
+    max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("linkedin", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    for query in config.LINKEDIN_SEARCH_QUERIES:
+        logging.info(f"Processing Search Query: '{query}'")
+
+        new_linkedin_job_details = process_linkedin_query(query, config.LINKEDIN_LOCATION,
+                                                          limit=max_jobs_per_search,
+                                                          outcome=outcome)
+
+        if new_linkedin_job_details:
+            logging.info(f"Saving {len(new_linkedin_job_details)} new job(s) for query '{query}'")
+            supabase_utils.save_jobs_to_supabase(new_linkedin_job_details)
+            outcome.record_query(new=len(new_linkedin_job_details))
+        else:
+            logging.info(f"No new job details were fetched or processed for query '{query}'.")
+    return outcome
+
+
+def run_careers_future() -> scrape_guard.SourceOutcome:
+    logging.info("\n--- Starting Careers Future Job Scraping ---")
+    outcome = scrape_guard.SourceOutcome("careers_future")
+    max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("careers_future", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    for query in config.CAREERS_FUTURE_SEARCH_QUERIES:
+        logging.info(f"\n{'='*20} Processing Careers Future Search Query: '{query}' {'='*20}")
+
+        new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search,
+                                                                      outcome=outcome)
+
+        if new_careers_future_job_details:
+            logging.info(f"\n--- Saving {len(new_careers_future_job_details)} new job(s) for query '{query}' ---")
+            supabase_utils.save_jobs_to_supabase(new_careers_future_job_details)
+            outcome.record_query(new=len(new_careers_future_job_details))
+        else:
+            logging.info(f"\nNo new job details were fetched or processed for query '{query}'.")
+    return outcome
+
+
+# Every source this script knows how to run. Adding a source (Arbeitsagentur in
+# Step B.0, the ATS adapters in B.2) means adding one entry here and one matrix
+# leg in run_all.yml.
+SOURCE_RUNNERS = {
+    "linkedin": run_linkedin,
+    "careers_future": run_careers_future,
+}
+
+
+def run_sources(sources: list) -> list:
+    """Run each named source in order and return their outcomes."""
     outcomes = []
+    for source in sources:
+        started = time.time()
+        outcome = SOURCE_RUNNERS[source]()
+        outcome.elapsed_seconds = time.time() - started
+        outcomes.append(outcome)
+    return outcomes
 
-    # Get jobs from LinkedIn
-    if "linkedin" in config.SCRAPING_SOURCES:
-        linkedin_outcome = scrape_guard.SourceOutcome("linkedin")
-        outcomes.append(linkedin_outcome)
-        logging.info("\n--- Starting LinkedIn Job Scraping ---")
-        max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("linkedin", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
-        for query in config.LINKEDIN_SEARCH_QUERIES:
-            logging.info(f"Processing Search Query: '{query}'")
 
-            new_linkedin_job_details = process_linkedin_query(query, config.LINKEDIN_LOCATION,
-                                                              limit=max_jobs_per_search,
-                                                              outcome=linkedin_outcome)
+# --- Main Execution ---
 
-            if new_linkedin_job_details:
-                logging.info(f"Saving {len(new_linkedin_job_details)} new job(s) for query '{query}'")
-                supabase_utils.save_jobs_to_supabase(new_linkedin_job_details)
-                linkedin_outcome.record_query(new=len(new_linkedin_job_details))
-                total_new_jobs_saved += len(new_linkedin_job_details)
-            else:
-                logging.info(f"No new job details were fetched or processed for query '{query}'.")
+def main(argv: list | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Scrape job postings into Supabase.")
+    parser.add_argument(
+        "--source", action="append", dest="sources", choices=sorted(SOURCE_RUNNERS),
+        help="Run only this source. Repeatable. An explicit --source overrides "
+             "config.SCRAPING_SOURCES, so a workflow matrix leg gets exactly the "
+             "source it asked for. Omit to run every source in SCRAPING_SOURCES.",
+    )
+    args = parser.parse_args(argv)
+
+    if args.sources:
+        # De-duplicated, order preserved.
+        sources = list(dict.fromkeys(args.sources))
+        logging.info(f"Running only the requested source(s): {', '.join(sources)} "
+                     f"(config.SCRAPING_SOURCES is {config.SCRAPING_SOURCES}).")
     else:
-        logging.info("\n--- Skipping LinkedIn Job Scraping per config ---")
+        sources = [s for s in config.SCRAPING_SOURCES if s in SOURCE_RUNNERS]
+        unknown = [s for s in config.SCRAPING_SOURCES if s not in SOURCE_RUNNERS]
+        if unknown:
+            logging.warning(f"SCRAPING_SOURCES names {unknown}, which this script cannot run. Ignoring.")
+        if not sources:
+            logging.error("No runnable sources configured — nothing to scrape.")
+            return 1
 
-    # Get jobs from Careers Future
-    if "careers_future" in config.SCRAPING_SOURCES:
-        careers_future_outcome = scrape_guard.SourceOutcome("careers_future")
-        outcomes.append(careers_future_outcome)
-        logging.info(f"\n--- Starting Careers Future Job Scraping ---")
-        max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("careers_future", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
-        for query in config.CAREERS_FUTURE_SEARCH_QUERIES:
-            logging.info(f"\n{'='*20} Processing Careers Future Search Query: '{query}' {'='*20}")
+    outcomes = run_sources(sources)
 
-            new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search,
-                                                                          outcome=careers_future_outcome)
-
-            if new_careers_future_job_details:
-                logging.info(f"\n--- Saving {len(new_careers_future_job_details)} new job(s) for query '{query}' ---")
-                supabase_utils.save_jobs_to_supabase(new_careers_future_job_details)
-                careers_future_outcome.record_query(new=len(new_careers_future_job_details))
-                total_new_jobs_saved += len(new_careers_future_job_details)
-            else:
-                logging.info(f"\nNo new job details were fetched or processed for query '{query}'.")
-    else:
-        logging.info("\n--- Skipping Careers Future Job Scraping per config ---")
-
-    # --- End of Script ---      
     logging.info(f"\n{'='*20} Job scraping script finished {'='*20}")
-    logging.info(f"Total new jobs saved across all queries: {total_new_jobs_saved}")
+    logging.info(f"Total new jobs saved across all queries: {sum(o.new for o in outcomes)}")
+
+    scrape_guard.write_step_summary(outcomes)
 
     # A source that returns nothing at all is broken and must fail the run — that is
     # the whole lesson of Indeed dying quietly for twelve weeks. "Fetched plenty,
     # saved nothing new" is a normal day and stays at INFO.
-    sys.exit(scrape_guard.report(outcomes))
+    return scrape_guard.report(outcomes)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
