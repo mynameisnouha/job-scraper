@@ -1,0 +1,16 @@
+{
+  "_comment": "Copy to application_answers.json (untracked) and fill in. These are the answers every German application form asks for. They are personal — salary, permit status, notice period — and this repository is public, so the real file is gitignored like candidate_profile.json.",
+
+  "gehaltsvorstellung": "<e.g. 55.000 – 65.000 EUR brutto/Jahr, verhandelbar je nach Aufgabenumfang>",
+  "eintrittstermin": "<e.g. ab 01.03.2027; für Teilzeit/Werkstudent früher verfügbar>",
+  "kuendigungsfrist": "<e.g. keine — derzeit nicht in ungekündigter Festanstellung>",
+  "aufenthaltstitel": "<your permit status and whether an employer needs to do anything>",
+  "relocation": "<e.g. umzugsbereit innerhalb Deutschlands; bevorzugt <cities>>",
+  "arbeitszeit": "<e.g. Vollzeit, hybrid oder remote>",
+  "standort": "<city, country>",
+
+  "extra": {
+    "Warum unser Unternehmen?": "<a short honest line you can adapt per company>",
+    "Referenzen": "<available on request / names>"
+  }
+}

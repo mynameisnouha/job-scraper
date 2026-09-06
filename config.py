@@ -130,6 +130,22 @@ ARBEITSAGENTUR_PAGE_SIZE = 100
 ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS = _int_env("ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS", 1)
 ARBEITSAGENTUR_REQUEST_DELAY = 0.3  # politeness only; the API imposes no rate limit
 
+# --- Application packs (Step C.1) ---
+# The answers themselves are personal (salary expectation, permit status, notice
+# period) and this repository is public, so only the PATH lives here. Copy
+# application_answers.json.example to this file and fill it in; it is gitignored,
+# like candidate_profile.json.
+APPLICATION_ANSWERS_PATH = "application_answers.json"
+
+# Pre-made CVs, picked by keyword on the job title — no generation, no LLM.
+# First match wins, so put the specific keywords first. Files are resolved inside
+# CV_LIBRARY_DIR. Left empty deliberately: the routing is Nouha's to define, and a
+# guessed mapping would send the wrong CV, which is worse than being asked to pick.
+#   e.g. [("data engineer", "cv_data_engineering.pdf"), ("data", "cv_data_science.pdf")]
+CV_LIBRARY_DIR = "cv"
+CV_KEYWORD_ROUTES = []
+CV_DEFAULT = None  # e.g. "cv_general.pdf"
+
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 

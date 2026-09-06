@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 import calibration
+import application_pack
 import job_view
 import supabase_utils
 from dashboard import found_today
@@ -260,8 +261,8 @@ def render_job_card(job):
             st.markdown(verdict)
         _facts_line(job_view.quick_facts(breakdown))
 
-        actions = st.columns([1, 1, 1.4, 2.6])
-        with actions[2]:
+        actions = st.columns([1, 1, 1.2, 1.4, 1.4])
+        with actions[3]:
             if st.button("No longer accepting", key=f"closed_{job_id}", width="stretch",
                          help="Posting is closed and you never applied — remove it from the queue"):
                 if supabase_utils.mark_job_closed(job_id):
@@ -279,6 +280,28 @@ def render_job_card(job):
         with actions[1]:
             if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
                 mark_applied(job)
+        with actions[2]:
+            if st.button("Pack", key=f"pack_{job_id}", width="stretch",
+                         help="Write answers, checklist, pitch and the routed CV "
+                              "to output/applications/"):
+                build_application_pack(job)
+
+
+def build_application_pack(job):
+    """Write the application pack and report what landed — and what did not.
+
+    Warnings are shown rather than swallowed: a pack missing the CV or the pitch is
+    still useful, but only if you know which part you have to do by hand.
+    """
+    try:
+        result = application_pack.build_pack(job)
+    except OSError as e:
+        st.error(f"Could not write the pack: {e}")
+        return
+
+    flash_saved(f"Pack written to {result['path']}")
+    for warning in result["warnings"]:
+        st.warning(warning)
 
 
 def render_ghost_prompt(jobs):

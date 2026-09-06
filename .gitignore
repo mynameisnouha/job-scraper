@@ -8,3 +8,6 @@ resume.pdf
 verify_pdf.py
 test_resume.pdf
 candidate_profile.json
+application_answers.json
+cv/
+output/

@@ -87,8 +87,10 @@ class TestJobsToApplyPage:
         assert "ML Engineer" in text          # today + score 82
         assert "Data Scientist" not in text   # score 41, below default min of 70
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago
-        # One card survives, carrying its three actions.
-        assert sorted(b.key for b in app.button) == ["apply_j1", "closed_j1", "details_j1"]
+        # One card survives, carrying its four actions.
+        assert sorted(b.key for b in app.button) == [
+            "apply_j1", "closed_j1", "details_j1", "pack_j1",
+        ]
 
     def test_unchecking_today_only_reveals_older_jobs(self, app):
         app.run()
