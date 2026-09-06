@@ -39,6 +39,25 @@ ANSWER_FIELDS: List[Tuple[str, str]] = [
 
 _SALARY_FIGURE = re.compile(r"\d[\d.,]{3,}")
 
+# Text that is still the example rather than a real answer. Worth detecting rather
+# than trusting: an unedited "<e.g. keine — derzeit nicht ...>" reads as a filled-in
+# field at a glance and would go out on a real application.
+_PLACEHOLDER = re.compile(r"^<|>$|\be\.g\.|\byour\b|\bTODO\b|^\s*$", re.IGNORECASE)
+
+
+def is_placeholder(value: Any) -> bool:
+    """True when a value still looks like the shipped example text."""
+    return not isinstance(value, str) or bool(_PLACEHOLDER.search(value.strip()))
+
+
+def unfilled_answers(answers: Dict[str, Any]) -> List[str]:
+    """Which answers are missing or still example text, by label."""
+    unfilled = [label for key, label in ANSWER_FIELDS
+                if key in answers and is_placeholder(answers.get(key))]
+    unfilled += [f"extra: {key}" for key, value in (answers.get("extra") or {}).items()
+                 if is_placeholder(value)]
+    return unfilled
+
 
 def load_answers(path: Optional[str] = None) -> Dict[str, Any]:
     """The standing answers. Returns {} when the file is absent — a pack without
@@ -108,7 +127,12 @@ def build_answers_md(job: Dict[str, Any], breakdown: Dict[str, Any],
     for key, label in ANSWER_FIELDS:
         value = answers.get(key)
         lines.append(f"**{label}**  ")
-        lines.append(f"{value}" if value else "_not set_")
+        if not value:
+            lines.append("_not set_")
+        elif is_placeholder(value):
+            lines.append(f"⚠️ **STILL THE EXAMPLE TEXT — do not send:** {value}")
+        else:
+            lines.append(f"{value}")
         lines.append("")
 
     band = stated_salary(breakdown)
@@ -123,7 +147,9 @@ def build_answers_md(job: Dict[str, Any], breakdown: Dict[str, Any],
                   "Check your Gehaltsvorstellung against it before sending.", ""]
 
     for key, value in (answers.get("extra") or {}).items():
-        lines += [f"**{key}**  ", f"{value}", ""]
+        rendered = (f"⚠️ **STILL THE EXAMPLE TEXT — do not send:** {value}"
+                    if is_placeholder(value) else f"{value}")
+        lines += [f"**{key}**  ", rendered, ""]
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -188,6 +214,10 @@ def build_pack(job: Dict[str, Any], root: Optional[str] = None,
     write("answers.md", build_answers_md(job, breakdown, answers))
     if not answers:
         warnings.append("No application_answers.json — answers.md is a blank template.")
+    else:
+        unfilled = unfilled_answers(answers)
+        if unfilled:
+            warnings.append("Still example text, do not send as-is: " + ", ".join(unfilled))
 
     write("checklist.md", build_checklist_md(job, breakdown))
 

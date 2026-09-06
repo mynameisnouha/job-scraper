@@ -197,3 +197,52 @@ class TestLoadAnswers:
             example = json.load(handle)
         for key, _ in application_pack.ANSWER_FIELDS:
             assert key in example, f"{key} missing from the example file"
+
+
+class TestPlaceholderDetection:
+    """An unedited example value reads as a filled-in field at a glance. Three of
+    them survived the first real edit of the answers file, one untouched entirely."""
+
+    @pytest.mark.parametrize("value", [
+        "<e.g. keine — derzeit nicht in ungekündigter Festanstellung>",
+        "55.000 EUR>",                       # trailing bracket left behind
+        "<your permit status",
+        "e.g. Vollzeit",
+        "",
+        "   ",
+        None,
+    ])
+    def test_example_text_is_detected(self, value):
+        assert application_pack.is_placeholder(value) is True
+
+    @pytest.mark.parametrize("value", [
+        "55.000 – 65.000 EUR brutto/Jahr, verhandelbar je nach Aufgabenumfang",
+        "ab 01.03.2027; für Teilzeit/Werkstudent früher verfügbar",
+        "keine",
+    ])
+    def test_a_real_answer_is_not_flagged(self, value):
+        assert application_pack.is_placeholder(value) is False
+
+    def test_unfilled_answers_are_listed_by_label(self):
+        answers = dict(ANSWERS, kuendigungsfrist="<e.g. keine>")
+        unfilled = application_pack.unfilled_answers(answers)
+        assert any("Kündigungsfrist" in item for item in unfilled)
+        assert not any("Gehaltsvorstellung" in item for item in unfilled)
+
+    def test_placeholder_extras_are_listed_too(self):
+        answers = dict(ANSWERS, extra={"Referenzen": "<available on request>"})
+        assert application_pack.unfilled_answers(answers) == ["extra: Referenzen"]
+
+    def test_the_document_shouts_rather_than_rendering_it_as_an_answer(self):
+        answers = dict(ANSWERS, kuendigungsfrist="<e.g. keine>")
+        text = application_pack.build_answers_md(JOB, {}, answers)
+        assert "STILL THE EXAMPLE TEXT — do not send" in text
+
+    def test_the_pack_warns_about_them(self, tmp_path):
+        answers = dict(ANSWERS, kuendigungsfrist="<e.g. keine>")
+        result = application_pack.build_pack(JOB, root=str(tmp_path), answers=answers)
+        assert any("Still example text" in w for w in result["warnings"])
+
+    def test_a_fully_filled_file_produces_no_such_warning(self, tmp_path):
+        result = application_pack.build_pack(JOB, root=str(tmp_path), answers=ANSWERS)
+        assert not any("example text" in w for w in result["warnings"])
