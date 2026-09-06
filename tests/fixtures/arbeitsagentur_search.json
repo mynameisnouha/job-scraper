@@ -1,0 +1,410 @@
+{
+  "ergebnisliste": [
+    {
+      "stellenangebotsart": "ARBEIT",
+      "stellenangebotsTitel": "Data Scientist (m/w/d)",
+      "quereinstiegGeeignet": false,
+      "arbeitszeitSchichtNachtWochenende": false,
+      "arbeitszeitTeilzeitAbend": false,
+      "arbeitszeitTeilzeitNachmittag": false,
+      "arbeitszeitTeilzeitVormittag": false,
+      "arbeitszeitTeilzeitFlexibel": false,
+      "arbeitszeitVollzeit": true,
+      "eintrittszeitraum": {
+        "von": "2026-09-04"
+      },
+      "verguetungsangabe": "JAHRESGEHALT",
+      "artDerVerguetung": "GEHALTSSPANNE",
+      "gehaltsspanneVon": 65000.0,
+      "gehaltsspanneBis": 95000.0,
+      "vertragsdauer": "KEINE_ANGABE",
+      "istGeringfuegigeBeschaeftigung": false,
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "strasse": "Johanneswerkstraße",
+            "hausnummer": "34",
+            "plz": "33611",
+            "ort": "Bielefeld",
+            "region": "NORDRHEIN_WESTFALEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 52.040159,
+          "laenge": 8.5363814
+        }
+      ],
+      "homeofficemoeglich": true,
+      "homeofficetyp": "NACH_VEREINBARUNG",
+      "veroeffentlichungszeitraum": {
+        "von": "2026-09-04"
+      },
+      "datumErsteVeroeffentlichung": "2026-09-04",
+      "aenderungsdatum": "2026-09-04T11:43:41.935",
+      "externeURL": "https://www.jobvector.de/job/data-scientist-9e7ac7a2671f1076/?utm_source=arbeitsagentur&utm_medium=partner&utm_campaign=tmcfdae_job_jid270572&utm_content=b2c&utm_term=tmf8eca_uic5ddf68b",
+      "hauptberuf": "Data Scientist",
+      "firma": "eWolff GmbH",
+      "referenznummer": "14225-9e7ac7a2671f1076-S",
+      "alleBerufe": [
+        "Data Scientist"
+      ]
+    },
+    {
+      "stellenangebotsart": "ARBEIT",
+      "stellenangebotsTitel": "Data Scientist (m/w/d)",
+      "quereinstiegGeeignet": false,
+      "arbeitszeitSchichtNachtWochenende": false,
+      "arbeitszeitTeilzeitAbend": false,
+      "arbeitszeitTeilzeitNachmittag": false,
+      "arbeitszeitTeilzeitVormittag": false,
+      "arbeitszeitTeilzeitFlexibel": false,
+      "arbeitszeitVollzeit": true,
+      "eintrittszeitraum": {
+        "von": "2026-09-03"
+      },
+      "verguetungsangabe": "KEINE_ANGABEN",
+      "vertragsdauer": "UNBEFRISTET",
+      "istGeringfuegigeBeschaeftigung": false,
+      "stellenlokationen": [
+        {
+          "adresse": {
+            "plz": "01219",
+            "ort": "Dresden",
+            "region": "SACHSEN",
+            "land": "DEUTSCHLAND"
+          },
+          "breite": 51.0209672,
+          "laenge": 13.7648651
+        }
+      ],
+      "homeofficemoeglich": false,
+      "chiffrenummer": "34578707",
+      "veroeffentlichungszeitraum": {
+        "von": "2026-09-03"
+      },
+      "datumErsteVeroeffentlichung": "2026-09-03",
+      "aenderungsdatum": "2026-09-03T07:07:45.092",
+      "externeURL": "https://www.persy.jobs/persy/l/job-jhg0h-b",
+      "hauptberuf": "Data Scientist",
+      "firma": "DIS AG Germany",
+      "referenznummer": "12288-4928936666-S",
+      "alleBerufe": [
+        "Data Scientist"
+      ]
+    }
+  ],
+  "maxErgebnisse": 2,
+  "page": 1,
+  "size": 3,
+  "woOutput": {
+    "bereinigterOrt": "Deutschland",
+    "suchmodus": "LANDSUCHE"
+  },
+  "facetten": {
+    "verguetung": {
+      "counts": {
+        "jahr": 13
+      },
+      "maxCount": 52
+    },
+    "befristung": {
+      "counts": {
+        "1": 7,
+        "2": 15,
+        "3": 30
+      },
+      "maxCount": 52
+    },
+    "externestellenboersen": {
+      "counts": {
+        "false": 21,
+        "true": 31
+      },
+      "maxCount": 52
+    },
+    "behinderung": {
+      "counts": {
+        "false": 45,
+        "true": 1
+      },
+      "maxCount": 52
+    },
+    "pav": {
+      "counts": {
+        "false": 44,
+        "true": 8
+      },
+      "maxCount": 52
+    },
+    "berufsfeld": {
+      "counts": {
+        "Biologie": 1,
+        "Chemie": 1,
+        "Fahrzeug-, Luft-, Raumfahrt- und Schiffbautechnik": 1,
+        "Geologie, Geografie und Meteorologie": 2,
+        "Gesellschaftswissenschaften": 1,
+        "IT-Netzwerktechnik, -Administration, -Organisation": 7,
+        "IT-Systemanalyse, -Anwendungsberatung und -Vertrieb": 1,
+        "Informatik": 32,
+        "Lehr- und Forschungstätigkeit an Hochschulen": 2,
+        "Mathematik und Statistik": 2,
+        "Unternehmensorganisation und -strategie": 1,
+        "Wirtschaftswissenschaften": 1
+      },
+      "maxCount": 52
+    },
+    "topberuf": {
+      "counts": {
+        "Data Scientist": 33,
+        "Datenbankentwickler/in": 5,
+        "Informatiker/in": 3
+      },
+      "scores": {
+        "Data Scientist": 14058533,
+        "Datenbankentwickler/in": 622017,
+        "Informatiker/in": 8460
+      },
+      "maxCount": 52
+    },
+    "arbeitsort": {
+      "maxCount": 52
+    },
+    "veroeffentlichtseit": {
+      "counts": {
+        "1": 1,
+        "14": 91,
+        "28": 151,
+        "7": 52,
+        "alle": 294
+      },
+      "maxCount": 294
+    },
+    "schulbildung": {
+      "counts": {
+        "0": 2
+      },
+      "maxCount": 52
+    },
+    "arbeitsort_plz": {
+      "counts": {
+        "01219": 1,
+        "02979": 1,
+        "10117": 2,
+        "10243": 1,
+        "10557": 1,
+        "14473": 1,
+        "14558": 1,
+        "15537": 1,
+        "22085": 1,
+        "30659": 1,
+        "30938": 3,
+        "33607": 1,
+        "33611": 1,
+        "35043": 1,
+        "39104": 1,
+        "40212": 2,
+        "42113": 1,
+        "42119": 1,
+        "44801": 1,
+        "45128": 3,
+        "45133": 1,
+        "48155": 1,
+        "49074": 1,
+        "50670": 1,
+        "50674": 1,
+        "50676": 1,
+        "53111": 1,
+        "53117": 1,
+        "53129": 1,
+        "56070": 1,
+        "56179": 1,
+        "60313": 1,
+        "60327": 1,
+        "65185": 1,
+        "65529": 1,
+        "68159": 1,
+        "70771": 1,
+        "71332": 1,
+        "73431": 1,
+        "73447": 1,
+        "80331": 2,
+        "80539": 1,
+        "82377": 1,
+        "85077": 1,
+        "85774": 1,
+        "99096": 1
+      },
+      "maxCount": 52
+    },
+    "arbeitgeber": {
+      "counts": {
+        "50Hertz Transmission GmbH AD Berlin": 1,
+        "Airbus Defence and Space GmbH": 1,
+        "Allianz Deutschland AG": 1,
+        "Bayer AG Pharmaceuticals": 1,
+        "Bergische Universität Wuppertal": 1,
+        "Bertrandt AG": 1,
+        "Berufsgenossenschaft Handel und Warenlogistik": 1,
+        "CGM": 2,
+        "CHECK24 Services Personal GmbH": 1,
+        "CTcon": 1,
+        "DIEPA GmbH Filiale Magdeburg": 1,
+        "DIS AG Germany": 2,
+        "Deichmann": 3,
+        "Delivery Hero SE": 1,
+        "Deutsches Institut für Ernährungsforschung Stiftung des öffentl.Rechts": 1,
+        "Dirk Rossmann GmbH": 3,
+        "EVEX Deutschland GmbH": 1,
+        "GESIS - Leibniz-Institut für Sozialwissenschaften": 1,
+        "GFZ Helmholtz-Zentrum für Geoforschung": 1,
+        "Generalverwaltung der Max-Planck-Gesellschaft": 1,
+        "Hessisches Statistisches Landesamt": 1,
+        "IHK Erfurt": 1,
+        "Infomotion GmbH": 1,
+        "Kaufland e-commerce Services GmbH & Co. KG": 1,
+        "LANUK NRW Recklinghausen": 1,
+        "Polizeipräsidium Aalen": 1,
+        "Polizeipräsidium Aalen Land BW": 1,
+        "Roche Diagnostics GmbH": 1,
+        "Rockstar Recruiting AG": 1,
+        "Ruhr-Universität Bochum": 1,
+        "SAP": 2,
+        "SCHICKLER Unternehmensberatung": 1,
+        "Statistisches Bundesamt": 1,
+        "Stellenwert GmbH   Co. KG": 1,
+        "TechMinds GmbH": 1,
+        "Uniklinik Düsseldorf": 1,
+        "Universitätsklinikum Marburg": 1,
+        "VALUNY GmbH": 1,
+        "Vilo-Personal GmbH Leipziger P": 1,
+        "Workwise GmbH": 1,
+        "Zalando SE": 1,
+        "drjve AG": 1,
+        "eWolff GmbH": 1,
+        "h + p hachmeister + partner GmbH": 1,
+        "lise GmbH": 1
+      },
+      "maxCount": 52
+    },
+    "beruf": {
+      "counts": {
+        "Aktuar/in": 1,
+        "Business-Analyst/in": 1,
+        "Chemiker/in": 1,
+        "Data Engineer": 1,
+        "Data Scientist": 33,
+        "Data-Analyst/in": 1,
+        "Datenbankadministrator/in": 1,
+        "Datenbankentwickler/in": 5,
+        "Geograf/in": 1,
+        "Geowissenschaftler/in": 1,
+        "IT-Systemadministrator/in": 2,
+        "Informatiker/in": 3,
+        "Ingenieur/in - Chemietechnik": 1,
+        "Ingenieur/in - Luft- und Raumfahrttechnik": 1,
+        "Ingenieurinformatiker/in": 1,
+        "KI-Engineer": 1,
+        "Neurowissenschaftler/in": 1,
+        "Sozialwissenschaftler/in": 1,
+        "Statistiker/in": 1,
+        "Volkswirt/in": 1,
+        "Wirtschaftsinformatiker/in (Hochschule)": 2,
+        "Wirtschaftsinformatiker/in - IT-Systeme": 1,
+        "Wissenschaftliche/r Mitarbeiter/in": 2,
+        "Ökonom/in": 1
+      },
+      "maxCount": 52
+    },
+    "homeoffice": {
+      "counts": {
+        "prozentual": 1,
+        "nv_false": 1,
+        "nv_true": 11
+      },
+      "maxCount": 52
+    },
+    "angebotsart": {
+      "counts": {
+        "1": 50,
+        "34": 2
+      },
+      "maxCount": 52
+    },
+    "branche": {
+      "counts": {
+        "11": 4,
+        "13": 2,
+        "18": 5,
+        "2": 1,
+        "22": 1,
+        "25": 2,
+        "26": 1,
+        "28": 3,
+        "29": 2,
+        "4": 2,
+        "6": 1,
+        "7": 3,
+        "9": 1
+      },
+      "maxCount": 52
+    },
+    "quereinstieg": {
+      "counts": {
+        "false": 52
+      },
+      "maxCount": 52
+    },
+    "arbeitszeit": {
+      "counts": {
+        "tz": 7,
+        "vz": 37
+      },
+      "maxCount": 52
+    },
+    "eintrittsdatum": {
+      "counts": {
+        "10_01_01-now": 43,
+        "26_09_01-26_10_01": 39,
+        "26_10_01-26_11_01": 3,
+        "26_11_01-26_12_01": 2,
+        "27_01_01-27_02_01": 2
+      },
+      "maxCount": 52
+    },
+    "zeitarbeit": {
+      "counts": {
+        "false": 52,
+        "true": 6
+      },
+      "maxCount": 58
+    },
+    "topberufsfeld": {
+      "counts": {
+        "Informatik": 32,
+        "Mathematik und Statistik": 2,
+        "Geologie, Geografie und Meteorologie": 2,
+        "Wirtschaftswissenschaften": 1,
+        "IT-Netzwerktechnik, -Administration, -Organisation": 7,
+        "Lehr- und Forschungstätigkeit an Hochschulen": 2,
+        "Biologie": 1,
+        "Gesellschaftswissenschaften": 1,
+        "Chemie": 1,
+        "IT-Systemanalyse, -Anwendungsberatung und -Vertrieb": 1,
+        "Unternehmensorganisation und -strategie": 1
+      },
+      "scores": {
+        "Informatik": 365244,
+        "Mathematik und Statistik": 74263,
+        "Geologie, Geografie und Meteorologie": 49601,
+        "Wirtschaftswissenschaften": 33164,
+        "IT-Netzwerktechnik, -Administration, -Organisation": 20798,
+        "Lehr- und Forschungstätigkeit an Hochschulen": 20432,
+        "Biologie": 4153,
+        "Gesellschaftswissenschaften": 2341,
+        "Chemie": 600,
+        "IT-Systemanalyse, -Anwendungsberatung und -Vertrieb": 555,
+        "Unternehmensorganisation und -strategie": 20
+      },
+      "maxCount": 52
+    }
+  }
+}

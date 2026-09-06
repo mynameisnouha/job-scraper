@@ -48,10 +48,9 @@ jobs:
         env:
           REQUESTED: ${{ github.event.inputs.sources }}
         run: |
-          # Default matrix. Add a leg here when a new source lands (Arbeitsagentur
-          # in Step B.0, the ATS adapters in B.2) — scraper.py --source must know
-          # the same name.
-          DEFAULT='["linkedin"]'
+          # Default matrix. Add a leg here when a new source lands (the ATS
+          # adapters in B.2) — scraper.py --source must know the same name.
+          DEFAULT='["linkedin","arbeitsagentur"]'
           if [ -z "$REQUESTED" ]; then
             echo "list=$DEFAULT" >> "$GITHUB_OUTPUT"
           else

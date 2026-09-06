@@ -1,0 +1,52 @@
+{
+  "stellenangebotsart": "ARBEIT",
+  "stellenangebotsTitel": "Data Scientist (m/w/d)",
+  "quereinstiegGeeignet": false,
+  "stellenangebotsBeschreibung": "Wir entwickeln starke Marken in Bielefeld, die weltweit begeistern: ALCINA, Alpecin, Bioniq®, KAREX, Linola, Plantur und Vagisan.\nIn unserer Spezialisten-Einheit eWolff arbeiten wir daran, neue Zielgruppen und Geschäftsmodelle auf digitalen Kanälen zu erschließen oder bereits bestehende Kanäle auf ein neues Level zu heben. Gemeinsam wollen wir global wachsen. Bist du dabei?\n\n\nZur Unterstützung suchen wir eine/n\n\n\n(Senior) Data Engineer (m/w/d)\n\nBaue mit uns die Grundlage für verlässliche Datenprodukte - skalierbar, code-basiert, qualitätsorientiert und nah am Business.\n Du möchtest Datenproduk",
+  "arbeitszeitSchichtNachtWochenende": false,
+  "arbeitszeitTeilzeitAbend": false,
+  "arbeitszeitTeilzeitNachmittag": false,
+  "arbeitszeitTeilzeitVormittag": false,
+  "arbeitszeitTeilzeitFlexibel": false,
+  "arbeitszeitVollzeit": true,
+  "eintrittszeitraum": {
+    "von": "2026-09-04"
+  },
+  "verguetungsangabe": "JAHRESGEHALT",
+  "artDerVerguetung": "GEHALTSSPANNE",
+  "gehaltsspanneVon": 65000.0,
+  "gehaltsspanneBis": 95000.0,
+  "vertragsdauer": "KEINE_ANGABE",
+  "istGeringfuegigeBeschaeftigung": false,
+  "istBehinderungGefordert": false,
+  "stellenlokationen": [
+    {
+      "adresse": {
+        "strasse": "Johanneswerkstraße",
+        "hausnummer": "34",
+        "plz": "33611",
+        "ort": "Bielefeld",
+        "region": "NORDRHEIN_WESTFALEN",
+        "land": "DEUTSCHLAND"
+      },
+      "breite": 52.040159,
+      "laenge": 8.5363814
+    }
+  ],
+  "homeofficemoeglich": true,
+  "homeofficetyp": "NACH_VEREINBARUNG",
+  "istPrivateArbeitsvermittlung": false,
+  "istArbeitnehmerUeberlassung": false,
+  "veroeffentlichungszeitraum": {
+    "von": "2026-09-04"
+  },
+  "datumErsteVeroeffentlichung": "2026-09-04",
+  "aenderungsdatum": "2026-09-04T11:43:41.935",
+  "externeURL": "https://www.jobvector.de/job/data-scientist-9e7ac7a2671f1076/?utm_source=arbeitsagentur&utm_medium=partner&utm_campaign=tmcfdae_job_jid270572&utm_content=b2c&utm_term=tmf8eca_uic5ddf68b",
+  "istBetreut": false,
+  "hauptberuf": "Data Scientist",
+  "firma": "eWolff GmbH",
+  "allianzpartnerUrl": "www.jobvector.de",
+  "allianzpartnerName": "jobvector.de",
+  "referenznummer": "14225-9e7ac7a2671f1076-S"
+}

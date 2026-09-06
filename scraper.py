@@ -900,11 +900,32 @@ def run_careers_future() -> scrape_guard.SourceOutcome:
     return outcome
 
 
-# Every source this script knows how to run. Adding a source (Arbeitsagentur in
-# Step B.0, the ATS adapters in B.2) means adding one entry here and one matrix
-# leg in run_all.yml.
+def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
+    logging.info("\n--- Starting Bundesagentur für Arbeit Job Scraping ---")
+    from scrapers import arbeitsagentur
+
+    outcome = scrape_guard.SourceOutcome(arbeitsagentur.SOURCE)
+    max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get(
+        arbeitsagentur.SOURCE, getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    for query in config.ARBEITSAGENTUR_SEARCH_QUERIES:
+        logging.info(f"Processing Arbeitsagentur Search Query: '{query}'")
+
+        new_jobs = arbeitsagentur.process_query(query, limit=max_jobs_per_search,
+                                                outcome=outcome)
+        if new_jobs:
+            logging.info(f"Saving {len(new_jobs)} new job(s) for query '{query}'")
+            supabase_utils.save_jobs_to_supabase(new_jobs)
+            outcome.record_query(new=len(new_jobs))
+        else:
+            logging.info(f"No new job details were fetched or processed for query '{query}'.")
+    return outcome
+
+
+# Every source this script knows how to run. Adding a source (the ATS adapters in
+# Step B.2) means adding one entry here and one matrix leg in run_all.yml.
 SOURCE_RUNNERS = {
     "linkedin": run_linkedin,
+    "arbeitsagentur": run_arbeitsagentur,
     "careers_future": run_careers_future,
 }
 

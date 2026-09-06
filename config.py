@@ -74,6 +74,37 @@ CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Appl
 CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
 CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 
+# --- Bundesagentur für Arbeit (Jobsuche API) ---
+# Free for employers to post to, which is why it carries the Mittelstand that never
+# reaches LinkedIn. German search terms return materially different (and better)
+# results than their English equivalents, so both forms are listed rather than
+# assuming the English one covers it.
+ARBEITSAGENTUR_SEARCH_QUERIES = [
+    "Data Scientist",
+    "Datenwissenschaftler",
+    "Machine Learning Engineer",
+    "Machine Learning Ingenieur",
+    "KI-Entwickler",
+    "KI Ingenieur",
+    "Künstliche Intelligenz",
+    "Data Engineer",
+    "Dateningenieur",
+    "Softwareentwickler Python",
+    "Python Entwickler",
+    "AI Engineer",
+    "NLP Engineer",
+    "Computer Vision",
+    "MLOps Engineer",
+    "Business Intelligence Entwickler",
+]
+ARBEITSAGENTUR_LOCATION = "Deutschland"
+ARBEITSAGENTUR_PAGE_SIZE = 100
+# Day granularity is all the API offers. 1 suits a pipeline that runs several times
+# a day; raise it to 2-3 as insurance if scheduled runs start getting dropped —
+# dedup absorbs the repeats and no LLM call is made for a job already stored.
+ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS = 1
+ARBEITSAGENTUR_REQUEST_DELAY = 0.3  # politeness only; the API imposes no rate limit
+
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
@@ -83,7 +114,7 @@ MANUAL_JOBS_PATH = "manual_jobs.json"
 CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin"] # "linkedin", "careers_future"
+SCRAPING_SOURCES = ["linkedin", "arbeitsagentur"] # "linkedin", "arbeitsagentur", "careers_future"
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 JOBS_TO_SCORE_PER_RUN = 15
@@ -99,6 +130,9 @@ P_INTERVIEW_MIN_BATCH = 10         # below this many scored jobs, percentiles ar
 P_INTERVIEW_ABSOLUTE_FLOOR = 0.10  # the old absolute rule, kept only as the small-batch fallback
 MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
+    # Higher than LinkedIn's: a JSON API with no politeness delays and no blocking,
+    # so the only cost of a larger number is the screening pass downstream.
+    "arbeitsagentur": 25,
     "careers_future": 10,
 }
 
