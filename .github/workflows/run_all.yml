@@ -12,7 +12,14 @@ on:
     # posting gets roughly four chances to be seen inside its visibility window and
     # a single failed run costs nothing. Per-run caps in config.py are quartered to
     # match, so the daily LLM spend is unchanged.
-    - cron: "0 0,6,12,18 * * *"
+    #
+    # Deliberately NOT on the hour. GitHub queues scheduled runs on shared capacity
+    # and drops them outright under load; the top of the hour is the most contested
+    # minute, and :00 slots are where the delays concentrate. Observed 2026-09-06:
+    # the 00:00 run started at 01:55 and the 06:00 run never fired at all. An odd
+    # minute at odd hours sits outside the crowd. This reduces the odds of a delay;
+    # it cannot eliminate them, so nothing downstream may assume four runs happened.
+    - cron: "17 1,7,13,19 * * *"
 
 permissions:
   actions: read
