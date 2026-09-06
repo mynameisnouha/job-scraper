@@ -335,3 +335,40 @@ class TestScreenGermanLabelling:
 
     def test_no_labels_is_not_a_crash(self):
         assert score_jobs.log_german_distribution([]) == {}
+
+
+class TestScreenFallbackIsBounded:
+    """The fallback promotes jobs to the MOST expensive path in response to an
+    error. Unbounded, a bad screen-model key turns into a bill: 478 unscored jobs
+    at ~EUR0.05 a full score is ~EUR24 triggered by a typo."""
+
+    def test_a_dead_screen_returns_at_most_one_runs_worth(self, monkeypatch):
+        monkeypatch.setattr(config, "JOBS_TO_SCORE_PER_RUN", 15)
+        monkeypatch.setattr(config, "JOBS_TO_SCREEN_PER_RUN", 600)
+        corpus = [{"job_id": f"j{i}", "job_title": "Data Scientist",
+                   "description": "text"} for i in range(478)]
+
+        def limited(limit):
+            return corpus[:limit]
+
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score", limited)
+        # Every screen call fails, as with an invalid API key.
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai", lambda job: None)
+
+        passers = score_jobs.run_screening_phase()
+        assert len(passers) == 15
+
+    def test_it_gives_up_after_three_consecutive_failures(self, monkeypatch):
+        monkeypatch.setattr(config, "JOBS_TO_SCORE_PER_RUN", 15)
+        calls = []
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score",
+                            lambda limit: [{"job_id": f"j{i}", "description": "t"}
+                                           for i in range(100)][:limit])
+
+        def failing(job):
+            calls.append(job["job_id"])
+            return None
+
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai", failing)
+        score_jobs.run_screening_phase()
+        assert len(calls) == 3, "must stop screening, not burn the whole corpus on a dead key"

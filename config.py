@@ -3,6 +3,24 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _int_env(name: str, default: int) -> int:
+    """An env override for a processing cap.
+
+    The values below are the steady state for the scheduled pipeline. A one-off
+    backfill needs different ones for a single run, and editing the committed
+    defaults to get them leaves a window where a scheduled trigger picks up the
+    backfill values instead. An env var is scoped to the run that sets it.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        # A typo in a workflow input must not silently become an unbounded run.
+        raise ValueError(f"{name} must be an integer, got {raw!r}")
+
 # --- DO NOT MODIFY THE BELOW SECTION ---
 
 # =================================================================
@@ -35,7 +53,7 @@ SCREENING_ENABLED = True
 LLM_SCREEN_MODEL = "anthropic/claude-haiku-4-5"
 # Per-RUN, and the pipeline now runs four times a day — these are quartered from
 # their once-a-day values so the daily totals (and the LLM spend) stay put.
-JOBS_TO_SCREEN_PER_RUN = 40
+JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 40)
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
@@ -109,7 +127,7 @@ ARBEITSAGENTUR_PAGE_SIZE = 100
 # Day granularity is all the API offers. 1 suits a pipeline that runs several times
 # a day; raise it to 2-3 as insurance if scheduled runs start getting dropped —
 # dedup absorbs the repeats and no LLM call is made for a job already stored.
-ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS = 1
+ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS = _int_env("ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS", 1)
 ARBEITSAGENTUR_REQUEST_DELAY = 0.3  # politeness only; the API imposes no rate limit
 
 # --- Manual Jobs (any source) ---
@@ -124,7 +142,7 @@ CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 SCRAPING_SOURCES = ["linkedin", "arbeitsagentur"] # "linkedin", "arbeitsagentur", "careers_future"
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
-JOBS_TO_SCORE_PER_RUN = 15
+JOBS_TO_SCORE_PER_RUN = _int_env("JOBS_TO_SCORE_PER_RUN", 15)
 JOBS_TO_CUSTOMIZE_PER_RUN = 3
 RESUME_CUSTOMIZATION_MIN_SCORE = 55  # Only tailor resumes for strong matches; below this, effort is better spent elsewhere
 
@@ -139,7 +157,7 @@ MAX_JOBS_PER_SEARCH = {
     "linkedin": 5,
     # Higher than LinkedIn's: a JSON API with no politeness delays and no blocking,
     # so the only cost of a larger number is the screening pass downstream.
-    "arbeitsagentur": 25,
+    "arbeitsagentur": _int_env("ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH", 25),
     "careers_future": 10,
 }
 

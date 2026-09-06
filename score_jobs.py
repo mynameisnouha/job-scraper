@@ -1,6 +1,7 @@
 import time
 import json
 import logging
+import argparse
 from collections import Counter
 from typing import List, Optional, Dict, Any
 import requests
@@ -273,9 +274,18 @@ def run_screening_phase() -> list:
         if result is None:
             consecutive_errors += 1
             if consecutive_errors >= 3:
-                logging.error("3 consecutive screening failures — likely an LLM auth/config problem with the screen model. "
-                              "Falling back to full scoring without screening.")
-                return supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+                # Bounded deliberately. This fallback exists for a screen model that is
+                # misconfigured while the scoring model still works — and in that case it
+                # promotes jobs to the most expensive path in response to an error. Handing
+                # it the whole unscored corpus would turn a bad API key into a bill: at the
+                # 478-job backfill and ~EUR0.05 a full score, roughly EUR24. It may never
+                # return more than one run's worth of scoring.
+                fallback = supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+                logging.error("3 consecutive screening failures — likely an LLM auth/config problem "
+                              f"with the screen model. Falling back to full scoring for "
+                              f"{len(fallback)} job(s), the per-run scoring cap. The rest stay "
+                              "unscored until the screen works again.")
+                return fallback[:config.JOBS_TO_SCORE_PER_RUN]
             continue
         consecutive_errors = 0
 
@@ -874,8 +884,17 @@ def rescore_jobs_with_custom_resume():
 
 # --- Main Execution ---
 
-def main():
+def main(argv: list | None = None):
     """Main function to score jobs based on the target resume."""
+    parser = argparse.ArgumentParser(description="Screen and score jobs.")
+    parser.add_argument(
+        "--only-initial", action="store_true",
+        help="Run the screen and initial scoring only, skipping the custom-resume "
+             "rescore and manual jobs. Both of those are bounded by "
+             "JOBS_TO_SCORE_PER_RUN, so a backfill that raises that cap would "
+             "silently raise their cost too.",
+    )
+    args = parser.parse_args(argv)
     logging.info("--- Starting Job Scoring Script ---")
     overall_start_time = time.time()
 
@@ -970,6 +989,13 @@ def main():
             logging.info(f"Total initial scoring time: {initial_score_end_time - initial_score_start_time:.2f} seconds")
 
     # # --- Phase 2: Re-scoring with Custom Resumes ---
+    if args.only_initial:
+        logging.info("--- Skipping the custom-resume rescore and manual jobs (--only-initial) ---")
+        overall_end_time = time.time()
+        logging.info("--- Job Scoring Script Finished (initial scoring only) ---")
+        logging.info(f"Total script execution time: {overall_end_time - overall_start_time:.2f} seconds")
+        return
+
     rescore_jobs_with_custom_resume() 
 
     # --- Phase 3: Manual Jobs from JSON file ---

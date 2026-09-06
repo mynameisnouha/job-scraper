@@ -1,3 +1,5 @@
+import pytest
+
 import config
 
 
@@ -39,3 +41,27 @@ class TestConfig:
         assert config.LLM_MAX_RPM > 0
         assert config.LLM_MAX_RETRIES > 0
         assert config.REQUEST_TIMEOUT > 0
+
+
+class TestCapOverrides:
+    """One-off backfills need caps the steady state must not inherit. Editing the
+    committed defaults leaves a window where a scheduled trigger picks them up, so
+    the overrides are env vars scoped to a single run."""
+
+    def test_the_default_is_used_when_unset(self, monkeypatch):
+        monkeypatch.delenv("JOBS_TO_SCORE_PER_RUN", raising=False)
+        assert config._int_env("JOBS_TO_SCORE_PER_RUN", 15) == 15
+
+    def test_an_env_value_wins(self, monkeypatch):
+        monkeypatch.setenv("JOBS_TO_SCORE_PER_RUN", "150")
+        assert config._int_env("JOBS_TO_SCORE_PER_RUN", 15) == 150
+
+    def test_an_empty_value_is_the_default_not_zero(self, monkeypatch):
+        """GitHub passes "" for an omitted input; that must not mean "score nothing"."""
+        monkeypatch.setenv("JOBS_TO_SCORE_PER_RUN", "")
+        assert config._int_env("JOBS_TO_SCORE_PER_RUN", 15) == 15
+
+    def test_a_typo_raises_rather_than_running_unbounded(self, monkeypatch):
+        monkeypatch.setenv("JOBS_TO_SCORE_PER_RUN", "one hundred")
+        with pytest.raises(ValueError):
+            config._int_env("JOBS_TO_SCORE_PER_RUN", 15)

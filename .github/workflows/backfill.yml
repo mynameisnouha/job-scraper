@@ -1,0 +1,107 @@
+name: Backfill (one-off, manual)
+
+# Seeding the corpus is not the same job as the daily pipeline, and it needs
+# different numbers: a wider publication window, a higher per-query limit, and
+# caps raised well past the steady state. Editing those into config.py would leave
+# a window where a scheduled trigger picks up backfill values and quietly runs a
+# 150-job scoring pass, so they arrive as env overrides scoped to this run only
+# (see config._int_env).
+#
+# It also runs here rather than locally because this is where the working
+# ANTHROPIC_API_KEY lives.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Source to scrape"
+        type: choice
+        options: [arbeitsagentur, linkedin, careers_future]
+        default: arbeitsagentur
+      run_scrape:
+        description: "Scrape (free — no LLM calls)"
+        type: boolean
+        default: true
+      run_score:
+        description: "Screen and score (COSTS MONEY — see score_limit)"
+        type: boolean
+        default: false
+      published_since_days:
+        description: "Arbeitsagentur: publication window in days"
+        default: "7"
+      max_jobs_per_search:
+        description: "Arbeitsagentur: max postings kept per query"
+        default: "200"
+      screen_limit:
+        description: "Jobs to screen this run (~EUR0.002 each)"
+        default: "600"
+      score_limit:
+        description: "Jobs to fully score this run (~EUR0.05 each)"
+        default: "150"
+
+permissions:
+  contents: read
+
+# Shares the daily pipeline's group on purpose: a backfill and a scheduled run
+# both write the same tables and would race on dedup. The newcomer waits.
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Show the numbers this run will use"
+        env:
+          JOBS_TO_SCREEN_PER_RUN: ${{ inputs.screen_limit }}
+          JOBS_TO_SCORE_PER_RUN: ${{ inputs.score_limit }}
+          ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS: ${{ inputs.published_since_days }}
+          ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH: ${{ inputs.max_jobs_per_search }}
+        run: |
+          python - <<'PY'
+          import os, config
+          print(f"source                    {os.environ.get('SOURCE', '(see next step)')}")
+          print(f"publication window (days) {config.ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS}")
+          print(f"max per query             {config.MAX_JOBS_PER_SEARCH['arbeitsagentur']}")
+          print(f"screen cap                {config.JOBS_TO_SCREEN_PER_RUN}")
+          print(f"score cap                 {config.JOBS_TO_SCORE_PER_RUN}")
+          print(f"worst-case screen cost    EUR {config.JOBS_TO_SCREEN_PER_RUN * 0.002:.2f}")
+          print(f"worst-case scoring cost   EUR {config.JOBS_TO_SCORE_PER_RUN * 0.05:.2f}")
+          PY
+
+      - name: "Scrape ${{ inputs.source }}"
+        if: ${{ inputs.run_scrape }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS: ${{ inputs.published_since_days }}
+          ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH: ${{ inputs.max_jobs_per_search }}
+        run: python scraper.py --source "${{ inputs.source }}"
+
+      # --only-initial: the custom-resume rescore and manual-jobs phases are also
+      # bounded by JOBS_TO_SCORE_PER_RUN, so a raised cap would silently raise their
+      # cost too. A backfill wants the screen and the initial scoring, nothing else.
+      - name: "Screen and score"
+        if: ${{ inputs.run_score }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || secrets.GEMINI_FIRST_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
+          JOBS_TO_SCREEN_PER_RUN: ${{ inputs.screen_limit }}
+          JOBS_TO_SCORE_PER_RUN: ${{ inputs.score_limit }}
+        run: python score_jobs.py --only-initial
