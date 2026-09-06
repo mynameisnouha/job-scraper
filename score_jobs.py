@@ -179,7 +179,10 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
 {CANDIDATE_PROFILE}
 
 ## RULES — set passes=false if ANY of these apply:
-1. The JD explicitly requires fluent/native German (fließend/verhandlungssicher/muttersprachlich). A JD merely written in German with no stated level does NOT fail.
+1. The JD explicitly requires fluent/native German (fließend/verhandlungssicher/muttersprachlich).
+   The language the ad is WRITTEN IN is not a requirement and never fails this rule. A German-language
+   ad that names no German level passes — most German-language ads name no level at all, and rejecting
+   them would discard most of the German market on a proxy rather than on what the employer asked for.
 2. The JD explicitly requires 4+ years of professional experience.
 3. The role is NOT in data science / machine learning / AI / data or software engineering (e.g. sales, finance, accounting, mechanical engineering, marketing, nursing).
 4. The role is explicitly Senior / Staff / Principal / Lead / Head of.
@@ -337,8 +340,9 @@ Never round up to make a job look more viable than it is.
 - location: on-site/hybrid required somewhere outside Passau/Munich/Berlin/Hamburg/Stuttgart and
   not remote -> cap 30.
 - working_language: if the day-to-day working language, OR the language of the product's users
-  and data, requires German above A2/beginning-B1 level for daily work -> cap 55. A JD merely
-  written in German with English as the stated internal working language does NOT trigger this.
+  and data, requires German above A2/beginning-B1 level for daily work -> cap 55. This needs an
+  explicit demand. A JD merely written in German does NOT trigger it — neither when English is the
+  stated internal working language nor when no language requirement is stated at all ('unstated').
   In practice German employers are frequently more flexible on this than the JD wording implies,
   especially when a candidate's English is native-level fluent (C2) — do not treat a JD written in
   German, or a "German preferred/von Vorteil" line, as proof the role is closed to an English-only
@@ -400,9 +404,23 @@ answer. If the JD is thin, estimate from what's there and say so in calibration_
 — an honest low-confidence estimate is useful, a missing field is not.
 
 ## OUTPUT FIELDS (also fill the standard skills/experience/education fields below for compatibility)
-- german_required: 'C1-fluent' ONLY if fluent/native/verhandlungssicher German is explicitly
-  demanded. 'B2' if intermediate named. 'nice-to-have' if listed as a plus. 'none' if not
-  mentioned or English is the stated working language. 'unclear' otherwise.
+- german_required: what the JD DEMANDS, never what language it is written in. These are
+  different facts and conflating them is a bug: across the current corpus 65% of
+  German-language ads were labelled 'C1-fluent' while only ~35% actually demand strong
+  German, so roughly half of them were capped for no stated reason.
+    * 'C1-fluent'   — fluent/native/verhandlungssicher/muttersprachlich explicitly demanded.
+    * 'B2'          — an intermediate level is named.
+    * 'nice-to-have'— German listed as a plus / "von Vorteil" / "wünschenswert".
+    * 'none'        — English is named as the working language, or German is explicitly not needed.
+    * 'unstated'    — the JD names NO German level. Use this for a German-language ad that
+                      simply never mentions language requirements. It means unknown, not
+                      "no German needed": in Mittelstand a German-language ad usually implies
+                      German is the de-facto working language. Do not cap on it, and do not
+                      upgrade it to 'C1-fluent' because the ad is in German.
+    * 'unclear'     — the wording genuinely contradicts itself or is ambiguous.
+  When you use 'unstated' on a German or mixed-language ad, add a hard_gate entry
+  {{gate: 'working_language', result: 'unknown', negotiable: true}} so the uncertainty is
+  visible instead of silently resolved in either direction.
 - years_experience_required: minimum years explicitly required (0 if not stated / entry-level).
 - jd_language: 'en', 'de', or 'mixed'.
 - visa_sponsorship_mentioned / sponsorship_signal: explicit / implied / absent / explicitly_excluded.
@@ -502,6 +520,17 @@ fixable before the deadline.
         # than LLM arithmetic (the experience ledger, the German gate wording).
         score_before_cap = breakdown.overall_score
         caps = []
+
+        # 'unstated' is explicitly NOT a cap. A German-language ad that demands no
+        # German level is unknown, not disqualifying, and capping it would throw away
+        # most of the Arbeitsagentur inventory (88% German-language) on the strength of
+        # the ad's language rather than the employer's stated requirement. The flag below
+        # records the uncertainty so Phase E can resolve it from rejection latency: fast
+        # rejections concentrated in these postings would mean German was required after all.
+        if breakdown.german_required == "unstated" and breakdown.jd_language in ("de", "mixed"):
+            breakdown.calibration_check["german_requirement_unstated"] = True
+            logging.info(f"  German level unstated on a {breakdown.jd_language}-language JD for "
+                         f"{job_id} — passing it through, uncertainty flagged.")
 
         if breakdown.german_required == "C1-fluent":
             caps.append((55, "JD requires fluent/native German (candidate is A2-B1, but C2 English "

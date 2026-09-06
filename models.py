@@ -146,7 +146,15 @@ class ScoreBreakdown(BaseModel):
     education_score: int = Field(..., ge=0, le=100, description="How well the candidate's education matches")
     language_fit: str = Field(..., description="Language assessment: e.g. 'Full match', 'Partial - B1 German may suffice', 'Mismatch - job requires fluent German'")
     # --- Hard requirements extracted verbatim from the JD (used for gating, not vibes) ---
-    german_required: str = Field("unclear", description="German level the JD actually requires: 'none' (not mentioned / English ok), 'nice-to-have', 'B2', 'C1-fluent' (fluent/native/verhandlungssicher required), or 'unclear'")
+    german_required: str = Field("unstated", description=(
+        "German level the JD ACTUALLY DEMANDS — not the language the ad happens to be "
+        "written in. One of: 'none' (English named as the working language, or German "
+        "explicitly not needed), 'nice-to-have' (a plus / von Vorteil), 'B2' (intermediate "
+        "named), 'C1-fluent' (fluent/native/verhandlungssicher explicitly demanded), "
+        "'unstated' (the JD names no German level at all — common in German-language ads, "
+        "where German is often the de-facto working language but nothing is required), or "
+        "'unclear' (the wording is genuinely ambiguous). 'unstated' is NOT 'none': it means "
+        "unknown-and-worth-asking, and it must never be inferred from the ad's language."))
     years_experience_required: int = Field(0, ge=0, description="Minimum years of professional experience the JD explicitly requires. 0 if not stated or entry-level.")
     jd_language: str = Field("en", description="Language the job description is written in: 'en', 'de', or 'mixed'")
     visa_sponsorship_mentioned: str = Field("unclear", description="Does the JD mention visa/relocation support: 'yes', 'no', or 'unclear'")

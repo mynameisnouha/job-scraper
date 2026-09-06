@@ -138,7 +138,12 @@ def quick_facts(breakdown: Dict[str, Any]) -> List[Tuple[str, str]]:
             pass
 
     german = str(b.get("german_required") or "").strip()
-    if german and german not in ("unclear", "none"):
+    if german == "unstated" and b.get("jd_language") in ("de", "mixed"):
+        # Worth surfacing precisely because it is unknown: the ad is in German and
+        # asks for no level, so the working language is a question to raise with the
+        # recruiter rather than a settled fact either way.
+        facts.append(("German", "not stated (ad in German)"))
+    elif german and german not in ("unclear", "none", "unstated"):
         facts.append(("German", german))
 
     # The scorer fills salary_band with prose like "Not stated — cannot assess

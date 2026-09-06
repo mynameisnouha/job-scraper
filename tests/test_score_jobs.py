@@ -246,3 +246,44 @@ class TestTailoringQueueLog:
         batch[2].overall_score = 80
 
         assert score_jobs.log_tailoring_queue_size(batch) == 2
+
+
+class TestGermanRequirement:
+    """The language an ad is written in is not the level it demands. Conflating them
+    labelled 65% of German-language postings 'C1-fluent' when ~35% actually demand
+    strong German, capping half the German market on a proxy."""
+
+    def _score(self, monkeypatch, **overrides):
+        payload = json.loads(json.dumps(BASE))
+        payload.update(overrides)
+        monkeypatch.setattr(score_jobs.primary_client, "generate_content",
+                            lambda *a, **k: json.dumps(payload))
+        job = {"job_id": "j1", "job_title": "Data Scientist", "company": "Mittelstand GmbH",
+               "level": "Entry", "description": "Wir suchen..."}
+        return score_jobs.get_resume_score_from_ai("resume text", job)
+
+    def test_an_unstated_level_on_a_german_ad_is_not_capped(self, monkeypatch):
+        breakdown = self._score(monkeypatch, german_required="unstated", jd_language="de",
+                                overall_score=72)
+        assert breakdown.overall_score == 72
+        assert breakdown.calibration_check["cap_applied"] is None
+
+    def test_the_uncertainty_is_recorded_rather_than_resolved(self, monkeypatch):
+        breakdown = self._score(monkeypatch, german_required="unstated", jd_language="de")
+        assert breakdown.calibration_check["german_requirement_unstated"] is True
+
+    def test_an_unstated_level_on_an_english_ad_is_not_flagged(self, monkeypatch):
+        breakdown = self._score(monkeypatch, german_required="unstated", jd_language="en")
+        assert "german_requirement_unstated" not in breakdown.calibration_check
+
+    def test_an_explicit_c1_demand_still_caps_at_55(self, monkeypatch):
+        """The honest cap stays exactly as it was."""
+        breakdown = self._score(monkeypatch, german_required="C1-fluent", jd_language="de",
+                                overall_score=72)
+        assert breakdown.overall_score == 55
+        assert breakdown.calibration_check["cap_applied"] == 55
+
+    def test_unstated_is_the_default_rather_than_none(self):
+        """A missing value must not read as 'no German needed'."""
+        from models import ScoreBreakdown
+        assert ScoreBreakdown.model_fields["german_required"].default == "unstated"

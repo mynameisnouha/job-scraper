@@ -79,23 +79,30 @@ CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
 # reaches LinkedIn. German search terms return materially different (and better)
 # results than their English equivalents, so both forms are listed rather than
 # assuming the English one covers it.
+# Measured 2026-09-06 over a 7-day window. "Datenwissenschaftler", "Dateningenieur"
+# and "NLP Engineer" returned zero at both 1 and 7 days and were replaced: nobody in
+# Germany advertises for a Datenwissenschaftler. The lesson is that a German term only
+# helps when it is the term employers actually type — "Künstliche Intelligenz" (100+)
+# and "KI Ingenieur" (48) are the strongest queries here, while literal translations
+# are empty. English terms do appear in German ads, so both forms stay.
 ARBEITSAGENTUR_SEARCH_QUERIES = [
     "Data Scientist",
-    "Datenwissenschaftler",
+    "Data Analyst",
+    "Machine Learning",
     "Machine Learning Engineer",
     "Machine Learning Ingenieur",
-    "KI-Entwickler",
+    "Deep Learning",
+    "KI Entwickler",   # the hyphenated form returns an identical result set
     "KI Ingenieur",
     "Künstliche Intelligenz",
     "Data Engineer",
-    "Dateningenieur",
     "Softwareentwickler Python",
     "Python Entwickler",
     "AI Engineer",
-    "NLP Engineer",
+    "NLP",
     "Computer Vision",
     "MLOps Engineer",
-    "Business Intelligence Entwickler",
+    "Business Intelligence",
 ]
 ARBEITSAGENTUR_LOCATION = "Deutschland"
 ARBEITSAGENTUR_PAGE_SIZE = 100
