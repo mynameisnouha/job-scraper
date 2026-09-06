@@ -236,10 +236,10 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
         unique_offers.append(offer)
 
     try:
-        existing_ids, _ = supabase_utils.get_existing_jobs_from_supabase()
+        existing_ids, existing_company_titles = supabase_utils.get_existing_jobs_from_supabase()
     except Exception as e:
         logging.error(f"Could not read existing jobs; treating everything as new: {e}")
-        existing_ids = set()
+        existing_ids, existing_company_titles = set(), set()
 
     candidates, already_in_db = [], 0
     for offer in unique_offers:
@@ -258,8 +258,22 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
         _filtered("over_per_query_limit", len(candidates) - limit)
         candidates = candidates[:limit]
 
+    def _company_title_key(company, title):
+        return ((company or "").strip().lower(), (title or "").strip().lower())
+
     records = []
     for offer in candidates:
+        # The same role is routinely relisted under a fresh referenznummer, so
+        # reference-number dedup alone is not enough — it is why one YPOG opening
+        # landed in the database three times. Checked before the detail fetch, since
+        # unlike LinkedIn the search payload already carries employer and title.
+        key = _company_title_key(offer.get("firma"), offer.get("stellenangebotsTitel"))
+        if all(key) and key in existing_company_titles:
+            logging.info(f"Skipping repost (company/title already known): "
+                         f"{offer.get('stellenangebotsTitel')} @ {offer.get('firma')}")
+            _filtered("repost_same_company_title")
+            continue
+
         # ARBEIT is a regular job; AUSBILDUNG and the rest are training places.
         if offer.get("stellenangebotsart") and offer["stellenangebotsart"] != "ARBEIT":
             _filtered("not_a_regular_job")
@@ -283,6 +297,19 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
             logging.info(f"Skipping freelance/contract job: {record.get('job_title')}")
             _filtered("freelance")
             continue
+
+        # Re-checked against the normalized values: the detail payload's title can
+        # differ from the search payload's for the same posting.
+        key = _company_title_key(record.get("company"), record.get("job_title"))
+        if all(key) and key in existing_company_titles:
+            logging.info(f"Skipping repost (company/title already known): "
+                         f"{record.get('job_title')} @ {record.get('company')}")
+            _filtered("repost_same_company_title")
+            continue
+        if all(key):
+            # Added as we go, so two relistings inside one run collapse to one row.
+            existing_company_titles.add(key)
+
         records.append(record)
 
     logging.info(f"Arbeitsagentur '{query}': {len(records)} new job(s) ready to save.")

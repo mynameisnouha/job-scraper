@@ -158,7 +158,12 @@ class TestProcessQuery:
         monkeypatch.setattr(arbeitsagentur, "_delay", lambda: None)
         monkeypatch.setattr(arbeitsagentur, "search_jobs",
                             lambda *a, **k: list(SEARCH["ergebnisliste"]))
-        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail", lambda refnr: dict(DETAIL))
+        # A distinct employer per reference number: feeding one identical detail for
+        # every posting would (correctly) trip the repost check and collapse them.
+        employers = {o["referenznummer"]: f"Employer {i}"
+                     for i, o in enumerate(SEARCH["ergebnisliste"])}
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: dict(DETAIL, firma=employers.get(refnr, "Other GmbH")))
         import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), set()))
@@ -220,7 +225,8 @@ class TestProcessQuery:
         assert outcome.filtered_out["over_per_query_limit"] == 1
         assert outcome.unaccounted == 0
 
-    def test_a_duplicate_within_one_response_is_only_counted_once(self, wired, monkeypatch):
+    def test_a_repeated_reference_number_is_only_counted_once(self, wired, monkeypatch):
+        """Same refnr twice in one response: deduped before it reaches `fetched`."""
         doubled = SEARCH["ergebnisliste"] + [dict(SEARCH["ergebnisliste"][0])]
         monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: doubled)
 
@@ -235,3 +241,88 @@ class TestProcessQuery:
         outcome = scrape_guard.SourceOutcome("arbeitsagentur")
         assert arbeitsagentur.process_query("Data Scientist", outcome=outcome) == []
         assert outcome.status == scrape_guard.BROKEN
+
+
+class TestRepostDedup:
+    """Arbeitsagentur relists the same role under a fresh referenznummer, so
+    reference-number dedup alone lets duplicates through — one YPOG opening reached
+    the database three times that way, and two of the copies were applied to."""
+
+    @pytest.fixture
+    def wired(self, monkeypatch):
+        monkeypatch.setattr(arbeitsagentur, "_delay", lambda: None)
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail", lambda refnr: dict(DETAIL))
+        return None
+
+    def _relisted(self):
+        """The same posting under two different reference numbers."""
+        first = dict(OFFER, referenznummer="ref-1", firma="YPOG",
+                     stellenangebotsTitel="AI/ML Engineer (m/w/d)")
+        second = dict(OFFER, referenznummer="ref-2", firma="YPOG",
+                      stellenangebotsTitel="AI/ML Engineer (m/w/d)")
+        return [first, second]
+
+    def test_a_relisting_inside_one_run_is_collapsed(self, wired, monkeypatch):
+        monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: self._relisted())
+        import supabase_utils
+        monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
+                            lambda: (set(), set()))
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: dict(DETAIL, firma="YPOG",
+                                               stellenangebotsTitel="AI/ML Engineer (m/w/d)"))
+
+        outcome = scrape_guard.SourceOutcome("arbeitsagentur")
+        records = arbeitsagentur.process_query("AI Engineer", outcome=outcome)
+        outcome.record_query(new=len(records))
+
+        assert len(records) == 1
+        assert outcome.filtered_out["repost_same_company_title"] == 1
+        assert outcome.unaccounted == 0
+
+    def test_a_role_already_in_the_database_is_not_refetched(self, wired, monkeypatch):
+        monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: self._relisted()[:1])
+        import supabase_utils
+        monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
+                            lambda: (set(), {("ypog", "ai/ml engineer (m/w/d)")}))
+        fetched = []
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: fetched.append(refnr) or dict(DETAIL))
+
+        outcome = scrape_guard.SourceOutcome("arbeitsagentur")
+        records = arbeitsagentur.process_query("AI Engineer", outcome=outcome)
+
+        assert records == []
+        assert fetched == [], "the repost check must run before the detail request"
+        assert outcome.filtered_out["repost_same_company_title"] == 1
+
+    def test_a_title_that_only_differs_in_the_detail_payload_is_still_caught(self, wired, monkeypatch):
+        """The search and detail payloads disagree on the title for some postings."""
+        offer = dict(OFFER, referenznummer="ref-9", firma="YPOG",
+                     stellenangebotsTitel="Some Other Title")
+        monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: [offer])
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: dict(DETAIL, firma="YPOG",
+                                               stellenangebotsTitel="AI/ML Engineer (m/w/d)"))
+        import supabase_utils
+        monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
+                            lambda: (set(), {("ypog", "ai/ml engineer (m/w/d)")}))
+
+        outcome = scrape_guard.SourceOutcome("arbeitsagentur")
+        assert arbeitsagentur.process_query("AI Engineer", outcome=outcome) == []
+        assert outcome.filtered_out["repost_same_company_title"] == 1
+
+    def test_different_roles_at_the_same_employer_both_survive(self, wired, monkeypatch):
+        offers = [dict(OFFER, referenznummer="r1", firma="SAP", stellenangebotsTitel="Data Scientist"),
+                  dict(OFFER, referenznummer="r2", firma="SAP", stellenangebotsTitel="Data Engineer")]
+        monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: offers)
+        titles = {"r1": "Data Scientist", "r2": "Data Engineer"}
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: dict(DETAIL, firma="SAP",
+                                               stellenangebotsTitel=titles[refnr]))
+        import supabase_utils
+        monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
+                            lambda: (set(), set()))
+
+        outcome = scrape_guard.SourceOutcome("arbeitsagentur")
+        records = arbeitsagentur.process_query("Data", outcome=outcome)
+        assert len(records) == 2
