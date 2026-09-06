@@ -47,9 +47,13 @@ def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
                     existing_ids.add(str(job_id))
 
                 if company and job_title:
-                    normalized_company = company.strip().lower()
-                    normalized_title = job_title.strip().lower()
-                    existing_company_title_keys.add((normalized_company, normalized_title))
+                    # dedup's normalization, not a bare lower(): the same posting
+                    # arrives as "YPOG GmbH"/"AI/ML Engineer (m/w/d)" from one source
+                    # and "YPOG"/"AI/ML Engineer" from another, and a raw lowercase
+                    # key treats those as two different jobs. See dedup.py.
+                    key = (dedup.normalize_company(company), dedup.normalize_title(job_title))
+                    if all(key):
+                        existing_company_title_keys.add(key)
 
             offset += batch_size
 
@@ -74,7 +78,7 @@ def save_jobs_to_supabase(jobs_data: list):
         "job_id", "company", "job_title", "level", "location", "description",
         "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
         "is_active", "status", "job_state", "scraped_at", "last_checked",
-        "customized_resume_id", "resume_link", "score_breakdown",
+        "customized_resume_id", "resume_link", "score_breakdown", "alt_sources",
     }
 
     processed_jobs_data = []

@@ -8,6 +8,7 @@ import config
 import user_agents
 import supabase_utils
 import scrape_guard
+import dedup
 from markdownify import markdownify as md
 import json
 import re
@@ -522,7 +523,8 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
                 logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
                 _filtered("freelance")
                 continue
-            company_title_key = ((details.get('company') or '').strip().lower(), (details.get('job_title') or '').strip().lower())
+            company_title_key = (dedup.normalize_company(details.get('company')),
+                                 dedup.normalize_title(details.get('job_title')))
             if all(company_title_key) and company_title_key in company_title_set:
                 logging.info(f"Skipping repost (company/title already in DB): {details.get('job_title')} @ {details.get('company')} (ID: {job_id})")
                 _filtered("repost_same_company_title")

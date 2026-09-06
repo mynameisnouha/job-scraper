@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 import config
+import dedup
 
 SEARCH_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
 DETAIL_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/{}"
@@ -259,7 +260,9 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
         candidates = candidates[:limit]
 
     def _company_title_key(company, title):
-        return ((company or "").strip().lower(), (title or "").strip().lower())
+        # Same normalization the rest of the pipeline uses, so a repost is caught
+        # whichever source it arrives from. See dedup.py.
+        return dedup.normalize_company(company), dedup.normalize_title(title)
 
     records = []
     for offer in candidates:

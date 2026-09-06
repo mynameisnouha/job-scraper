@@ -10,8 +10,14 @@ import pathlib
 import pytest
 import requests
 
+import dedup
 import scrape_guard
 from scrapers import arbeitsagentur
+
+
+def _key(company, title):
+    """The company/title key exactly as the pipeline builds it."""
+    return dedup.normalize_company(company), dedup.normalize_title(title)
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 SEARCH = json.loads((FIXTURES / "arbeitsagentur_search.json").read_text(encoding="utf-8"))
@@ -283,7 +289,7 @@ class TestRepostDedup:
         monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: self._relisted()[:1])
         import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
-                            lambda: (set(), {("ypog", "ai/ml engineer (m/w/d)")}))
+                            lambda: (set(), {_key("YPOG", "AI/ML Engineer (m/w/d)")}))
         fetched = []
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
                             lambda refnr: fetched.append(refnr) or dict(DETAIL))
@@ -305,7 +311,7 @@ class TestRepostDedup:
                                                stellenangebotsTitel="AI/ML Engineer (m/w/d)"))
         import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
-                            lambda: (set(), {("ypog", "ai/ml engineer (m/w/d)")}))
+                            lambda: (set(), {_key("YPOG", "AI/ML Engineer (m/w/d)")}))
 
         outcome = scrape_guard.SourceOutcome("arbeitsagentur")
         assert arbeitsagentur.process_query("AI Engineer", outcome=outcome) == []
