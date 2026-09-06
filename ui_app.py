@@ -9,6 +9,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+import apply_queue
 import calibration
 import application_pack
 import job_view
@@ -106,39 +107,59 @@ def render_today_page():
     search = st.text_input("Search", key="search_jobs",
                            placeholder="Filter by job title or company…")
 
-    controls = st.columns([1.5, 1.5, 2])
+    controls = st.columns([1.3, 1.5, 1.5, 1.6])
     with controls[0]:
         today_only = st.checkbox("Found today only", value=True)
     with controls[1]:
         min_score = st.slider("Min score", 0, 100, 70, step=5)
     with controls[2]:
-        show_n = st.number_input("Max shown", min_value=5, max_value=200, value=25, step=5)
+        sort_by = st.radio("Sort by", apply_queue.SORT_MODES, horizontal=True,
+                           key="sort_mode",
+                           format_func=lambda m: "Score" if m == "score" else "Least effort",
+                           help="Least effort sorts by the scorer's estimated hours, "
+                                "so a short evening can be spent on applications that fit in it.")
+    with controls[3]:
+        focus = st.checkbox("Focus mode", value=True, key="focus_mode",
+                            help="One job at a time, keyboard-driven. Uncheck for the full list.")
 
     total = len(jobs)
     if today_only:
         jobs = [j for j in jobs if found_today(j)]
     jobs = [j for j in jobs if (j.get("resume_score") or 0) >= min_score]
     jobs = [j for j in jobs if matches_search(j, search)]
-    jobs = sorted(jobs, key=lambda j: j.get("resume_score") or 0, reverse=True)
-
-    matched = len(jobs)
-    jobs = jobs[: int(show_n)]
-    st.caption(f"Showing {len(jobs)} of {matched} matching ({total} scored jobs total). "
-               "Rendering every job at once is slow — narrow with the filters above.")
+    jobs = apply_queue.sort_jobs(jobs, sort_by)
 
     if not jobs:
         st.info("No jobs match these filters. Try clearing the search, unchecking "
                 "'Found today only', or lowering the min score.")
         return
 
-    for job in jobs:
-        render_job_card(job)
+    # Changing the filters or the sort is an explicit "re-shuffle the queue",
+    # so the cursor goes back to the top. Only an incidental refresh — a scrape
+    # run landing, a job leaving — keeps your place.
+    signature = (sort_by, today_only, min_score, (search or "").strip().lower())
+    if st.session_state.get("queue_signature") != signature:
+        st.session_state["queue_signature"] = signature
+        st.session_state["cursor_job"] = None
+        st.session_state["cursor_idx"] = 0
+
+    if focus:
+        render_focus_queue(jobs, total)
+        visible = jobs
+    else:
+        show_n = st.number_input("Max shown", min_value=5, max_value=200, value=25, step=5)
+        matched = len(jobs)
+        visible = jobs[: int(show_n)]
+        st.caption(f"Showing {len(visible)} of {matched} matching ({total} scored jobs total). "
+                   "Rendering every job at once is slow — narrow with the filters above.")
+        for job in visible:
+            render_job_card(job)
 
     # Re-opened on every rerun so widgets inside the dialog keep working.
     # A job filtered out of the list closes it rather than stranding it open.
     open_job_id = st.session_state.get("open_job")
     if open_job_id:
-        open_job = next((j for j in jobs if j.get("job_id") == open_job_id), None)
+        open_job = next((j for j in visible if j.get("job_id") == open_job_id), None)
         if open_job:
             job_details_dialog(open_job)
         else:
@@ -165,6 +186,155 @@ def mark_applied(job):
         st.error("Failed to mark applied — check logs.")
 
 
+def skip_job(job, reason):
+    """
+    Take a job out of the queue without applying. Soft — the row survives, and
+    the reason is the label that makes the skip worth something later.
+    """
+    job_id = job.get("job_id")
+    title = job.get("job_title") or job_id
+    if supabase_utils.dismiss_job(job_id, reason):
+        st.session_state["last_skipped"] = {"job_id": job_id, "title": title}
+        flash_saved(f"Skipped: {title} ({apply_queue.SKIP_REASON_LABELS.get(reason, reason)})")
+        st.rerun()
+    else:
+        st.error("Failed to skip — has supabase_setup/add_dismissal.sql been run?")
+
+
+def move_cursor(jobs, index):
+    """Point the queue at a different job, by position."""
+    index = apply_queue.clamp_cursor(index, len(jobs))
+    st.session_state["cursor_idx"] = index
+    st.session_state["cursor_job"] = jobs[index].get("job_id") if jobs else None
+    st.rerun()
+
+
+def keyboard_shortcuts():
+    """
+    Bind the single-key shortcuts to the buttons already on the page.
+
+    Streamlit has no key-binding API, so this listens on the parent document and
+    clicks the control whose label starts with the matching "[x] " prefix. The
+    label is the binding — nothing here can drift out of sync with a renamed
+    button, it just stops matching, and the mouse still works. Typing in any
+    field is left alone.
+    """
+    keys = "".join(f'"{key}",' for key, _ in apply_queue.SHORTCUTS)
+    st.iframe(
+        f"""
+        <script>
+        const keys = [{keys}];
+        const doc = window.parent.document;
+        if (!doc.__jobQueueKeysBound) {{
+            doc.__jobQueueKeysBound = true;
+            doc.addEventListener("keydown", (e) => {{
+                if (e.metaKey || e.ctrlKey || e.altKey) return;
+                const tag = (doc.activeElement || {{}}).tagName;
+                if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+                if (!keys.includes(e.key)) return;
+                const wanted = "[" + e.key + "]";
+                const controls = doc.querySelectorAll("button, a");
+                for (const el of controls) {{
+                    if ((el.innerText || "").trim().startsWith(wanted)) {{
+                        e.preventDefault();
+                        el.click();
+                        return;
+                    }}
+                }}
+            }});
+        }}
+        </script>
+        """,
+        # No visible output — the iframe exists only to host the key listener.
+        height=1,
+    )
+
+
+def render_focus_queue(jobs, total):
+    """
+    One job at a time, in rank order, driven from the keyboard.
+
+    At 50-100 applications a week the list view is the wrong shape: it re-reads
+    the same headers on every pass and offers no answer to "where did I stop".
+    The cursor is anchored to a job id rather than a position, because the queue
+    refreshes underneath you — four scrape runs a day, and every apply or skip
+    removes a row.
+    """
+    index = apply_queue.resume_cursor(jobs, st.session_state.get("cursor_job"),
+                                      st.session_state.get("cursor_idx", 0))
+    st.session_state["cursor_idx"] = index
+    job = jobs[index]
+    st.session_state["cursor_job"] = job.get("job_id")
+    job_id = job.get("job_id")
+
+    st.caption(f"**{index + 1} of {len(jobs)}** in the queue · {total} scored jobs total")
+    st.progress((index + 1) / len(jobs))
+
+    with st.container(border=True):
+        render_job_body(job)
+
+        st.divider()
+        actions = st.columns([1.4, 1.2, 1.6, 1, 1])
+        with actions[0]:
+            if st.button("[a] Mark applied", key=f"focus_apply_{job_id}",
+                         type="primary", width="stretch"):
+                mark_applied(job)
+        with actions[1]:
+            if st.button("[s] Skip", key=f"focus_skip_{job_id}", width="stretch",
+                         help="Removes it from the queue for good. The row stays — a skip "
+                              "is a label, not a delete."):
+                skip_job(job, st.session_state.get("skip_reason") or "not_interested")
+        with actions[2]:
+            st.selectbox("Skip reason", apply_queue.SKIP_REASONS, key="skip_reason",
+                         format_func=lambda r: apply_queue.SKIP_REASON_LABELS[r],
+                         label_visibility="collapsed")
+        with actions[3]:
+            url = job.get("job_url")
+            if url:
+                st.link_button("[o] Open", url, width="stretch")
+            else:
+                st.button("[o] Open", key=f"focus_open_{job_id}", disabled=True,
+                          width="stretch", help="This posting has no URL.")
+        with actions[4]:
+            if st.button("[p] Pack", key=f"focus_pack_{job_id}", width="stretch",
+                         help="Write answers, checklist, pitch and the routed CV "
+                              "to output/applications/"):
+                build_application_pack(job)
+
+    nav = st.columns([1, 1, 4])
+    with nav[0]:
+        if st.button("[k] Previous", key="focus_prev", width="stretch", disabled=index == 0):
+            move_cursor(jobs, index - 1)
+    with nav[1]:
+        if st.button("[j] Next", key="focus_next", width="stretch",
+                     disabled=index >= len(jobs) - 1):
+            move_cursor(jobs, index + 1)
+
+    render_undo_skip()
+    st.caption("Keys: " + " · ".join(f"**{key}** {label.lower()}"
+                                     for key, label in apply_queue.SHORTCUTS))
+    keyboard_shortcuts()
+
+
+def render_undo_skip():
+    """One-step undo, because `s` is one keystroke away from the wrong job."""
+    last = st.session_state.get("last_skipped")
+    if not last:
+        return
+    cols = st.columns([3, 1])
+    with cols[0]:
+        st.caption(f"Last skipped: {last['title']}")
+    with cols[1]:
+        if st.button("Undo skip", key="undo_skip", width="stretch"):
+            if supabase_utils.undismiss_job(last["job_id"]):
+                st.session_state.pop("last_skipped", None)
+                st.session_state["cursor_job"] = last["job_id"]
+                flash_saved(f"Restored: {last['title']}")
+                st.rerun()
+            else:
+                st.error("Could not restore that job — check logs.")
+
+
 def _bullets(heading, items):
     if not items:
         return
@@ -182,9 +352,12 @@ def close_details():
     st.session_state.pop("open_job", None)
 
 
-@st.dialog("Job details", width="large", on_dismiss=close_details)
-def job_details_dialog(job):
-    """Everything needed to actually write the application, one click deep."""
+def render_job_body(job):
+    """
+    The full picture for one job — everything needed to actually write the
+    application. Shared by the detail dialog and the focus queue, which show the
+    same thing and differ only in what surrounds it.
+    """
     breakdown = job.get("score_breakdown") or {}
     title = job.get("job_title") or "N/A"
     company = job.get("company") or "N/A"
@@ -230,6 +403,10 @@ def job_details_dialog(job):
     if note:
         st.caption(note)
 
+
+@st.dialog("Job details", width="large", on_dismiss=close_details)
+def job_details_dialog(job):
+    render_job_body(job)
     st.divider()
     if st.button("Mark applied", key=f"dlg_apply_{job.get('job_id')}", type="primary"):
         close_details()
@@ -285,6 +462,11 @@ def render_job_card(job):
                          help="Write answers, checklist, pitch and the routed CV "
                               "to output/applications/"):
                 build_application_pack(job)
+        with actions[4]:
+            if st.button("Skip", key=f"skip_{job_id}", width="stretch",
+                         help="Not applying to this one — take it out of the queue. "
+                              "The row stays; use Focus mode to record why."):
+                skip_job(job, "not_interested")
 
 
 def build_application_pack(job):

@@ -197,25 +197,39 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
     try:
         logging.info(f"Fetching up to {limit} top-scored jobs to apply for...")
 
-        def _query(columns: str):
-            return supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select(columns)\
-                           .eq("is_active", True)\
-                           .eq("status", "new")\
-                           .not_.is_("resume_score", None)\
-                           .order("resume_score", desc=True)\
-                           .limit(limit)\
-                           .execute()
+        def _query(columns: str, exclude_dismissed: bool = True):
+            query = supabase.table(config.SUPABASE_TABLE_NAME)\
+                            .select(columns)\
+                            .eq("is_active", True)\
+                            .eq("status", "new")\
+                            .not_.is_("resume_score", None)
+            # Dismissed jobs stay in the table but never come back to the queue.
+            if exclude_dismissed:
+                query = query.is_("dismissed_at", None)
+            return query.order("resume_score", desc=True)\
+                        .limit(limit)\
+                        .execute()
 
         base_cols = "job_id, job_title, company, resume_score, job_url, provider, posted_at, scraped_at"
         try:
-            response = _query(base_cols + ", score_breakdown, why_me_pitch")
+            response = _query(base_cols + ", score_breakdown, why_me_pitch, dismissed_at")
         except Exception as inner_e:
             err = str(inner_e)
-            if "score_breakdown" in err or "why_me_pitch" in err:
+            if "dismissed_at" in err:
+                logging.warning("Dismissal columns missing (run supabase_setup/add_dismissal.sql). "
+                                "Fetching without them — dismissed jobs will keep reappearing.")
+                try:
+                    response = _query(base_cols + ", score_breakdown, why_me_pitch",
+                                      exclude_dismissed=False)
+                except Exception as retry_e:
+                    if "score_breakdown" in str(retry_e) or "why_me_pitch" in str(retry_e):
+                        response = _query(base_cols, exclude_dismissed=False)
+                    else:
+                        raise
+            elif "score_breakdown" in err or "why_me_pitch" in err:
                 logging.warning("Optional column(s) missing (run supabase_setup/add_score_breakdown.sql "
                                 "and add_why_me_pitch.sql). Fetching without them.")
-                response = _query(base_cols)
+                response = _query(base_cols + ", dismissed_at")
             else:
                 raise
 
@@ -572,6 +586,69 @@ def mark_job_closed(job_id: str) -> bool:
         return False
     except Exception as e:
         logging.error(f"Error marking job {job_id} as closed: {e}")
+        return False
+
+
+VALID_SKIP_REASONS = {
+    "not_interested", "wrong_seniority", "location", "german_level",
+    "visa_sponsorship", "salary_too_low", "already_applied_elsewhere",
+    "duplicate_posting", "other",
+}
+
+
+def dismiss_job(job_id: str, reason: Optional[str] = None) -> bool:
+    """
+    Takes a job out of the apply queue without applying to it.
+
+    A soft dismissal: the row stays, `status` stays `new`, and `is_active` is
+    untouched. Only `dismissed_at` changes, which is what the queue filters on.
+    Keeping the row is the point — a high-scoring job dismissed on sight is the
+    scorer and the human disagreeing, and that is a measurable signal.
+
+    Needs supabase_setup/add_dismissal.sql; fails soft (and loudly) without it.
+    """
+    if not job_id:
+        logging.error("No job_id provided to dismiss.")
+        return False
+    if reason is not None and reason not in VALID_SKIP_REASONS:
+        logging.error(f"Invalid dismissal reason '{reason}' for job {job_id}.")
+        return False
+
+    payload = {"dismissed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    if reason is not None:
+        payload["dismissal_reason"] = reason
+
+    try:
+        logging.info(f"Dismissing job {job_id} (reason={reason or 'none given'})...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .update(payload)                           .eq("job_id", job_id)                           .execute()
+        if response.data:
+            logging.info(f"Successfully dismissed job {job_id}.")
+            return True
+        logging.warning(f"Dismiss for job_id {job_id} affected no rows.")
+        return False
+    except Exception as e:
+        if "dismissed_at" in str(e) or "dismissal_reason" in str(e):
+            logging.warning("Dismissal columns missing — run supabase_setup/add_dismissal.sql.")
+        else:
+            logging.error(f"Error dismissing job {job_id}: {e}")
+        return False
+
+
+def undismiss_job(job_id: str) -> bool:
+    """Puts a dismissed job back in the queue — the undo for a mis-keyed skip."""
+    if not job_id:
+        logging.error("No job_id provided to undismiss.")
+        return False
+
+    try:
+        logging.info(f"Restoring dismissed job {job_id} to the queue...")
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .update({"dismissed_at": None, "dismissal_reason": None})                           .eq("job_id", job_id)                           .execute()
+        if response.data:
+            return True
+        logging.warning(f"Undismiss for job_id {job_id} affected no rows.")
+        return False
+    except Exception as e:
+        logging.error(f"Error undismissing job {job_id}: {e}")
         return False
 
 
