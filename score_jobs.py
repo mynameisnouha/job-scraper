@@ -1,6 +1,7 @@
 import time
 import json
 import logging
+from collections import Counter
 from typing import List, Optional, Dict, Any
 import requests
 import io
@@ -189,6 +190,16 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
 
 Otherwise passes=true. rough_score is a quick 0-100 fit estimate; reason is one short sentence.
 
+## ALSO EXTRACT (for every job, whether it passes or fails)
+- jd_language: 'en', 'de' or 'mixed' — the language the ad is WRITTEN in.
+- german_required: the level the ad DEMANDS. These are different facts; do not infer one
+  from the other. 'C1-fluent' only when fluent/native/verhandlungssicher is explicitly
+  demanded; 'B2' when an intermediate level is named; 'nice-to-have' when German is a plus
+  ("von Vorteil", "wünschenswert"); 'none' when English is named as the working language
+  or German is explicitly not needed; 'unstated' when the ad names no German level at all —
+  the usual case for a German-language ad, and NOT the same as 'none'; 'unclear' only when
+  the wording genuinely contradicts itself.
+
 ## JOB
 Title: {job_details.get('job_title', 'N/A')}
 Company: {job_details.get('company', 'N/A')}
@@ -208,6 +219,31 @@ Level: {job_details.get('level', 'N/A')}
         return None
 
 
+def log_german_distribution(labels: List[tuple]) -> Dict[str, int]:
+    """Log how the screened corpus splits on the German requirement.
+
+    Screening is the only pass that sees every job, so it is the only place this
+    can be measured without bias. The number decides how much of the German market
+    is actually reachable: a high 'C1-fluent' share means the inventory is closed
+    regardless of fit, while a high 'unstated' share means a large part of the queue
+    is provisional until real outcomes resolve it.
+    """
+    if not labels:
+        return {}
+    by_level = Counter(level for _, level in labels)
+    total = len(labels)
+    logging.info("--- German requirement across %d screened job(s) ---", total)
+    for level, count in by_level.most_common():
+        logging.info(f"    {level:14s} {count:4d}  ({100 * count / total:.0f}%)")
+    german_ads = [level for language, level in labels if language in ("de", "mixed")]
+    if german_ads:
+        demanding = sum(1 for level in german_ads if level in ("C1-fluent", "B2"))
+        logging.info(f"    of {len(german_ads)} German-language ad(s), {demanding} "
+                     f"({100 * demanding / len(german_ads):.0f}%) actually name a level — "
+                     f"the rest are written in German without demanding it.")
+    return dict(by_level)
+
+
 def run_screening_phase() -> list:
     """
     Screens up to JOBS_TO_SCREEN_PER_RUN unscored jobs with the cheap model.
@@ -224,6 +260,7 @@ def run_screening_phase() -> list:
     passers = []
     screened_out = 0
     consecutive_errors = 0
+    screen_labels = []  # (jd_language, german_required) for every job screened
 
     for job in jobs:
         job_id = job.get('job_id')
@@ -231,6 +268,8 @@ def run_screening_phase() -> list:
             continue
 
         result = screen_job_with_ai(job)
+        if result is not None:
+            screen_labels.append((result.jd_language, result.german_required))
         if result is None:
             consecutive_errors += 1
             if consecutive_errors >= 3:
@@ -251,6 +290,11 @@ def run_screening_phase() -> list:
                 "recommendation": "skip",
                 "reasoning": f"Screened out: {result.reason}",
                 "key_gaps": [result.reason],
+                # Kept even on a screen-out: these rows never reach full scoring, so
+                # without this the corpus-wide language picture would only ever describe
+                # the jobs that passed — a biased sample of exactly the wrong kind.
+                "german_required": result.german_required,
+                "jd_language": result.jd_language,
                 "screen_only": True,
             }
             logging.info(f"  SCREEN FAIL  ({capped:3d}) {job.get('job_title')} — {result.reason}")
@@ -259,6 +303,7 @@ def run_screening_phase() -> list:
 
     logging.info(f"--- Screening done: {len(passers)} passed, {screened_out} screened out, "
                  f"{len(jobs) - len(passers) - screened_out} errored (will retry next run) ---")
+    log_german_distribution(screen_labels)
     return passers[:config.JOBS_TO_SCORE_PER_RUN]
 
 

@@ -97,6 +97,7 @@ class TestFormatResume:
 # --- Batch-relative P(interview) gate (step 0.1) ------------------------------
 
 import json
+import logging
 
 import pytest
 
@@ -287,3 +288,50 @@ class TestGermanRequirement:
         """A missing value must not read as 'no German needed'."""
         from models import ScoreBreakdown
         assert ScoreBreakdown.model_fields["german_required"].default == "unstated"
+
+
+class TestScreenGermanLabelling:
+    """The screen is the only pass that sees every job, so it is where the German
+    distribution has to be measured — jobs that fail the screen never reach the
+    full scorer, and measuring only the passers samples the wrong population."""
+
+    def test_the_label_survives_a_screen_out(self, monkeypatch):
+        from models import ScreenResult
+        written = {}
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score",
+                            lambda limit: [{"job_id": "j1", "job_title": "Data Scientist",
+                                            "description": "Wir suchen..."}])
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai",
+                            lambda job: ScreenResult(passes=False, rough_score=30,
+                                                     reason="Not a data role",
+                                                     german_required="unstated", jd_language="de"))
+
+        def capture(job_id, score, resume_score_stage=None, score_breakdown=None):
+            written.update(score_breakdown or {})
+            return True
+
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", capture)
+        score_jobs.run_screening_phase()
+
+        assert written["german_required"] == "unstated"
+        assert written["jd_language"] == "de"
+        assert written["screen_only"] is True
+
+    def test_the_distribution_counts_every_level(self, caplog):
+        labels = [("de", "unstated")] * 6 + [("de", "C1-fluent")] * 3 + [("en", "none")]
+        with caplog.at_level(logging.INFO):
+            counts = score_jobs.log_german_distribution(labels)
+
+        assert counts == {"unstated": 6, "C1-fluent": 3, "none": 1}
+        assert "10 screened job(s)" in caplog.text
+
+    def test_german_language_ads_are_reported_separately_from_german_demands(self, caplog):
+        labels = [("de", "unstated")] * 6 + [("de", "C1-fluent")] * 3 + [("en", "none")]
+        with caplog.at_level(logging.INFO):
+            score_jobs.log_german_distribution(labels)
+
+        # 9 German-language ads, 3 of which name a level.
+        assert "of 9 German-language ad(s), 3 (33%)" in caplog.text
+
+    def test_no_labels_is_not_a_crash(self):
+        assert score_jobs.log_german_distribution([]) == {}

@@ -73,6 +73,16 @@ class ScreenResult(BaseModel):
     passes: bool = Field(..., description="True if the job clears all hard gates and deserves a full detailed evaluation")
     rough_score: int = Field(..., ge=0, le=100, description="Quick fit estimate 0-100")
     reason: str = Field(..., description="One short sentence: why it passes or fails")
+    # Required, not optional-with-default: every screened job gets a language reading,
+    # including the ones that never reach full scoring. Screening is the only pass that
+    # sees the whole corpus, so it is the only place the German-requirement distribution
+    # can be measured — and that distribution decides how much of the German market is
+    # actually reachable.
+    german_required: str = Field(..., description=(
+        "German level the JD DEMANDS, never the language it is written in: 'none', "
+        "'nice-to-have', 'B2', 'C1-fluent', 'unstated' (no level named at all — the "
+        "usual case for a German-language ad), or 'unclear'"))
+    jd_language: str = Field(..., description="Language the ad is written in: 'en', 'de', or 'mixed'")
 
 class PitchOutput(BaseModel):
     pitch: str = Field(..., description="3-4 sentence first-person pitch mapping the candidate's strongest evidence to the job's top requirements")
