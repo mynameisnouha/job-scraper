@@ -11,8 +11,9 @@ import os
 from pydantic import ValidationError
 
 import config
-import supabase_utils
-from llm_client import primary_client, screen_client
+from scoring import notify
+from db import supabase_utils
+from scoring.llm_client import primary_client, screen_client
 from models import ScoreBreakdown, ScreenResult, PitchOutput
 
 # --- Setup Logging ---
@@ -778,7 +779,7 @@ def extract_text_from_pdf_url(pdf_url: str) -> Optional[str]:
             logging.info(f"Successfully extracted text resume from URL: {pdf_url[:70]}...")
             return text
 
-        logging.info(f"Successfully downloaded PDF. Extracting text...")
+        logging.info("Successfully downloaded PDF. Extracting text...")
         text = ""
         with io.BytesIO(response.content) as pdf_file:
             with pdfplumber.open(pdf_file) as pdf:
@@ -939,6 +940,7 @@ def main(argv: list | None = None):
             successful_initial_scores = 0
             failed_initial_scores = 0
             scored_this_run = []  # (job_id, breakdown) for the batch-relative gate below
+            alertable = []  # the same jobs, in the shape notify.py wants
 
             # 4. Loop Through Jobs and Score Them
             for i, job in enumerate(jobs_to_score_initially):
@@ -956,6 +958,17 @@ def main(argv: list | None = None):
                                                        score_breakdown=breakdown.model_dump()):
                         successful_initial_scores += 1
                         scored_this_run.append((job_id, breakdown))
+                        # The breakdown is held by reference: the batch-relative
+                        # downgrade below mutates it in place, so the alert goes
+                        # out with the final recommendation, not a pre-gate one.
+                        alertable.append({
+                            "job_id": job_id,
+                            "job_title": job.get("job_title"),
+                            "company": job.get("company"),
+                            "job_url": job.get("job_url"),
+                            "resume_score": breakdown.overall_score,
+                            "score_breakdown": breakdown,
+                        })
                         # Strong matches get a "why me" pitch for the application message / Anschreiben
                         if breakdown.overall_score >= 70 and breakdown.recommendation in ("apply_now", "apply_after_fixes"):
                             pitch = generate_why_me_pitch(default_resume_text, job, breakdown)
@@ -974,6 +987,12 @@ def main(argv: list | None = None):
             # once every job in the batch has a score.
             finalize_batch_recommendations(scored_this_run, resume_score_stage="initial")
             log_tailoring_queue_size([b for _, b in scored_this_run])
+
+            # Last, and never fatal: the jobs are already saved, so a mail server
+            # being unreachable costs the alert and nothing else.
+            for entry in alertable:
+                entry["score_breakdown"] = entry["score_breakdown"].model_dump()
+            notify.notify_matches(alertable)
 
             if successful_initial_scores == 0 and failed_initial_scores > 0:
                 logging.error(
@@ -1000,7 +1019,7 @@ def main(argv: list | None = None):
 
     # --- Phase 3: Manual Jobs from JSON file ---
     # Imported here (not at module top) to avoid a circular import with manual_jobs.
-    import manual_jobs
+    from scoring import manual_jobs
     if default_resume_text:
         manual_success, manual_failed = manual_jobs.process_manual_jobs(default_resume_text)
         if manual_success + manual_failed > 0:

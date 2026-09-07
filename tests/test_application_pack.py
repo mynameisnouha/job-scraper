@@ -10,7 +10,7 @@ from datetime import date
 
 import pytest
 
-import application_pack
+from review import application_pack
 
 JOB = {
     "job_id": "arbeitsagentur_123-S",

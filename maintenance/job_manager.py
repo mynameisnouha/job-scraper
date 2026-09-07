@@ -7,8 +7,8 @@ import logging
 
 # Import shared modules
 import config
-import user_agents
-from supabase_utils import supabase, cleanup_orphaned_customized_resumes as _cleanup_orphaned_customized_resumes # Use the initialized Supabase client
+from sources import user_agents
+from db.supabase_utils import supabase, cleanup_orphaned_customized_resumes as _cleanup_orphaned_customized_resumes # Use the initialized Supabase client
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -217,11 +217,10 @@ async def check_linkedin_job_activity():
 
 
         if active_checked_job_ids:
-            update_active = supabase.table(config.SUPABASE_TABLE_NAME)\
+            supabase.table(config.SUPABASE_TABLE_NAME)\
                 .update({"last_checked": now_str})\
                 .in_("job_id", active_checked_job_ids)\
                 .execute()
-            # Add logging for update_active response count/data
             logging.info(f"Updated last_checked for {len(active_checked_job_ids)} active jobs.")
 
     except Exception as e:

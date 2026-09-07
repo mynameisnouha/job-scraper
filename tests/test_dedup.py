@@ -6,7 +6,7 @@ numbers — was applied to twice, and left a fourth copy in the queue.
 """
 import pytest
 
-import dedup
+from sources import dedup
 
 LINKEDIN = {
     "job_id": "4123456789",
@@ -185,10 +185,10 @@ class TestMerge:
 
     def test_an_unapplied_survivor_gets_upgraded_to_the_direct_url(self):
         only_linkedin_survives = dict(LINKEDIN, resume_score=99)
-        aggregator_only = dict(ARBEITSAGENTUR, provider="careers_future",
+        aggregator_only = dict(ARBEITSAGENTUR, provider="some_job_board",
                                job_url="https://aggregator.example/x")
         merged = dedup.merge_group([only_linkedin_survives, aggregator_only])
-        # LinkedIn outranks careers_future here, so no upgrade is available.
+        # An unranked source sorts below LinkedIn, so no upgrade is available.
         assert merged["apply_url"] is None
 
         with_ats = dedup.merge_group([dict(LINKEDIN, application_stage=None), ATS])

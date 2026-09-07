@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-import supabase_utils
+from db import supabase_utils
 
 
 class TestUpdateApplicationStage:
@@ -156,7 +156,7 @@ class TestDismissJob:
         assert captured["payload"] == {"dismissed_at": None, "dismissal_reason": None}
 
     def test_the_ui_and_the_db_agree_on_the_reason_vocabulary(self):
-        import apply_queue
+        from review import apply_queue
         assert set(apply_queue.SKIP_REASONS) == supabase_utils.VALID_SKIP_REASONS
 
 

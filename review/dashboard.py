@@ -2,8 +2,7 @@ import html
 import logging
 from datetime import datetime
 
-import config
-import supabase_utils
+from db import supabase_utils
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

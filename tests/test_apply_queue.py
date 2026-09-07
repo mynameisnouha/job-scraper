@@ -1,4 +1,6 @@
-import apply_queue
+from datetime import datetime, timedelta, timezone
+
+from review import apply_queue
 
 
 def job(job_id, score=None, effort=None, **extra):
@@ -78,3 +80,57 @@ class TestVocabulary:
         keys = [key for key, _ in apply_queue.SHORTCUTS]
         assert len(keys) == len(set(keys))
         assert all(len(key) == 1 for key in keys)
+
+
+NOW = datetime(2026, 9, 7, 12, 0, tzinfo=timezone.utc)
+
+
+def found(delta, **extra):
+    return job("x", 80, scraped_at=(NOW - delta).isoformat(), **extra)
+
+
+class TestDateWindow:
+    def test_every_window_has_a_label(self):
+        assert set(apply_queue.DATE_WINDOW_KEYS) == set(apply_queue.DATE_WINDOW_LABELS)
+
+    def test_window_keeps_what_is_inside_it_and_drops_the_rest(self):
+        assert apply_queue.within_window(found(timedelta(hours=3)), "24h", NOW)
+        assert not apply_queue.within_window(found(timedelta(days=2)), "24h", NOW)
+        assert apply_queue.within_window(found(timedelta(days=2)), "3d", NOW)
+
+    def test_any_time_keeps_everything_including_undated_jobs(self):
+        assert apply_queue.within_window(found(timedelta(days=400)), "all", NOW)
+        assert apply_queue.within_window(job("x", 80), "all", NOW)
+
+    def test_an_undated_job_is_not_smuggled_into_a_bounded_window(self):
+        """No stamp is not the same as fresh — only 'Any time' shows those."""
+        assert not apply_queue.within_window(job("x", 80), "24h", NOW)
+        assert not apply_queue.within_window(job("x", 80, scraped_at="not a date"), "7d", NOW)
+
+    def test_clock_skew_counts_as_brand_new(self):
+        assert apply_queue.within_window(found(timedelta(minutes=-5)), "24h", NOW)
+
+    def test_a_naive_stamp_is_read_as_utc(self):
+        naive = job("x", 80, scraped_at="2026-09-07T11:00:00")
+        assert apply_queue.within_window(naive, "24h", NOW)
+
+
+class TestFormatFound:
+    def test_under_a_day_shows_the_hour_and_the_elapsed_time(self):
+        label = apply_queue.format_found(found(timedelta(hours=3)), NOW)
+        assert label.endswith("3h ago")
+        assert ":" in label.split(" · ")[0]
+
+    def test_minutes_while_it_is_still_that_fresh(self):
+        assert apply_queue.format_found(found(timedelta(minutes=42)), NOW).endswith("42m ago")
+        assert apply_queue.format_found(found(timedelta(seconds=20)), NOW).endswith("just now")
+
+    def test_past_a_day_only_the_date_survives(self):
+        """The hour stops meaning anything once you are a day late to a posting."""
+        expected = (NOW - timedelta(days=3)).astimezone().strftime("%Y-%m-%d")
+        assert apply_queue.format_found(found(timedelta(days=3)), NOW) == expected
+        assert "ago" not in apply_queue.format_found(found(timedelta(hours=25)), NOW)
+
+    def test_no_stamp_means_no_label_rather_than_a_guess(self):
+        assert apply_queue.format_found(job("x", 80), NOW) is None
+        assert apply_queue.format_found(job("x", 80, scraped_at="whenever"), NOW) is None

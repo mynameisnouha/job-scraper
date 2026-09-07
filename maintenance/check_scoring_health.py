@@ -16,7 +16,7 @@ import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-import supabase_utils
+from db import supabase_utils
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s - %(message)s")
 

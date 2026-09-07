@@ -5,11 +5,11 @@ a cache that never hits looks identical to one that does, except on the bill.
 import logging
 from types import SimpleNamespace
 
-from llm_client import LLMClient
+from scoring.llm_client import LLMClient
 
 
 def log_for(usage, cache_system=True, caplog=None):
-    with caplog.at_level(logging.INFO, logger="llm_client"):
+    with caplog.at_level(logging.INFO, logger="scoring.llm_client"):
         LLMClient._log_usage(SimpleNamespace(usage=usage), cache_system)
     return " ".join(r.message for r in caplog.records)
 

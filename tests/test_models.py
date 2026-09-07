@@ -5,8 +5,8 @@ from pydantic import ValidationError
 
 from models import (
     Resume, Education, Experience, Project, Certification, Links,
-    SummaryOutput, SkillsOutput, ExperienceListOutput, SingleExperienceOutput,
-    ProjectListOutput, SingleProjectOutput, ValidationResponse, ScoreBreakdown,
+    SummaryOutput, SkillsOutput, SingleExperienceOutput,
+    SingleProjectOutput, ScoreBreakdown,
     CompetitiveContext, DimensionScores, InterviewProbability,
 )
 
@@ -145,11 +145,6 @@ class TestModels:
     def test_skills_output(self):
         s = SkillsOutput(skills=["Python", "Java"])
         assert len(s.skills) == 2
-
-    def test_validation_response(self):
-        v = ValidationResponse(is_valid=True, reason="OK")
-        assert v.is_valid is True
-        assert v.reason == "OK"
 
     def test_score_breakdown_defaults(self):
         s = ScoreBreakdown(

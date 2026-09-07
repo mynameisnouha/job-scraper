@@ -1,4 +1,4 @@
-import check_scoring_health as csh
+from maintenance import check_scoring_health as csh
 
 COMPLETE = {
     "competitive_context": {"p_first_round_interview": {"as_is": 0.1, "after_fixes": 0.2}},

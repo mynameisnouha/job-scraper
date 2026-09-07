@@ -5,10 +5,8 @@ import os
 from typing import Optional
 
 import config
-import supabase_utils
-from llm_client import primary_client
-from models import ScoreBreakdown
-from score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
+from db import supabase_utils
+from scoring.score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

@@ -8,8 +8,8 @@ import logging
 
 import pytest
 
-import scrape_guard
-from scrape_guard import BROKEN, NO_NEW, OK, SourceOutcome
+from sources import scrape_guard
+from sources.scrape_guard import BROKEN, NO_NEW, OK, SourceOutcome
 
 
 def outcome(source="linkedin", fetched=0, new=0):

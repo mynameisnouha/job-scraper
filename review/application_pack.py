@@ -156,7 +156,7 @@ def build_answers_md(job: Dict[str, Any], breakdown: Dict[str, Any],
 
 def build_checklist_md(job: Dict[str, Any], breakdown: Dict[str, Any]) -> str:
     """The fixable-before-applying items for this job, as tickable tasks."""
-    import job_view  # local import: keeps this module importable without Streamlit deps
+    from review import job_view  # local import: keeps this module importable without Streamlit deps
 
     lines = [f"# Before sending — {job.get('company') or 'Unknown company'}", ""]
 

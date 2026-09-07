@@ -1,4 +1,4 @@
-from score_jobs import format_resume_to_text
+from scoring.score_jobs import format_resume_to_text
 
 
 class TestFormatResume:
@@ -102,7 +102,7 @@ import logging
 import pytest
 
 import config
-import score_jobs
+from scoring import score_jobs
 from models import ScoreBreakdown
 
 BASE = {

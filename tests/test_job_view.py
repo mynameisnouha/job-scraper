@@ -1,4 +1,4 @@
-import job_view
+from review import job_view
 
 FULL = {
     "one_line_verdict": "Strong LLM evidence, undercut by A2 German.",

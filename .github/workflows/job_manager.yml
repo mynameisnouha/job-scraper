@@ -33,4 +33,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # Add other secrets if job_manager.py needs them (e.g., proxies if used differently)
-        run: python job_manager.py # Execute the job manager script
+        run: python -m maintenance.job_manager # Execute the job manager script

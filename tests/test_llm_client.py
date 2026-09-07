@@ -1,4 +1,4 @@
-from llm_client import RateLimiter
+from scoring.llm_client import RateLimiter
 
 
 class TestRateLimiter:
@@ -21,9 +21,9 @@ class TestRateLimiter:
 
 class TestLLMClientImports:
     def test_llm_client_import(self):
-        from llm_client import LLMClient
+        from scoring.llm_client import LLMClient
         assert LLMClient is not None
 
     def test_primary_client_exists(self):
-        from llm_client import primary_client
+        from scoring.llm_client import primary_client
         assert primary_client is not None

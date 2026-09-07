@@ -1,5 +1,6 @@
 from supabase import create_client, Client
 import config # Import configuration
+from sources import dedup  # normalization shared with the scrapers; see get_existing_jobs_from_supabase
 from typing import Optional, Any, Dict
 from models import Resume
 import datetime # Import datetime module
@@ -715,36 +716,6 @@ def verify_job_score_update(job_id: str, expected_score: int, expected_stage: st
         return False
 
 
-def get_job_by_id(job_id: str) -> dict | None:
-    """
-    Fetches a single job record from the Supabase 'jobs' table based on job_id.
-    """
-    if not job_id:
-        logging.error("No job_id provided to fetch job details.")
-        return None
-    if not hasattr(config, 'SUPABASE_TABLE_NAME') or not config.SUPABASE_TABLE_NAME:
-        logging.error("SUPABASE_TABLE_NAME is not defined in config.py")
-        return None
-
-    try:
-        logging.info(f"Fetching job details for job_id: {job_id} from table '{config.SUPABASE_TABLE_NAME}'")
-        response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select("company, job_title, level, description")\
-                           .eq("job_id", job_id) \
-                           .limit(1)\
-                           .execute() # Assuming 'job_id' is the column name
-
-        if response.data:
-            logging.info(f"Successfully fetched job data for job_id: {job_id}.")
-            return response.data[0] # Return the first matching job
-        else:
-            logging.warning(f"No job found for job_id: {job_id}")
-            return None
-
-    except Exception as e:
-        logging.error(f"Error fetching job data from Supabase for job_id {job_id}: {e}")
-        return None
-
 def upload_customized_resume_to_storage(file_content: bytes, destination_path: str) -> Optional[str]:
     """
     Uploads the generated resume PDF (as bytes) to Supabase Storage.
@@ -771,7 +742,7 @@ def upload_customized_resume_to_storage(file_content: bytes, destination_path: s
         # Use upsert=True if you want to overwrite if a file with the same name exists,
         # otherwise False (or omit) to potentially get an error if it exists.
         # Ensure your destination_path includes job_id or similar for uniqueness.
-        upload_response = supabase.storage.from_(config.SUPABASE_STORAGE_BUCKET)\
+        supabase.storage.from_(config.SUPABASE_STORAGE_BUCKET)\
             .upload(
                 path=destination_path,
                 file=file_content,

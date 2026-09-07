@@ -5,8 +5,8 @@ import time
 import uuid
 
 import config
-import supabase_utils
-from score_jobs import format_resume_to_text, get_resume_score_from_ai, finalize_batch_recommendations
+from db import supabase_utils
+from scoring.score_jobs import get_resume_score_from_ai, finalize_batch_recommendations
 
 logger = logging.getLogger(__name__)
 

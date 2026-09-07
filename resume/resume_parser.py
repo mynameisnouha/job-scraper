@@ -3,7 +3,7 @@ import pdfplumber
 import config
 import json
 import models
-from llm_client import primary_client
+from scoring.llm_client import primary_client
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -69,9 +69,8 @@ def main():
     Downloads the resume PDF from Supabase Storage, parses it with AI, 
     and saves the structured data to both local file and Supabase DB.
     """
-    import io
     import os
-    import supabase_utils
+    from db import supabase_utils
 
     pdf_file_path = "./resume.pdf"
 

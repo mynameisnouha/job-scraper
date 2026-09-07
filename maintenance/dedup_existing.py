@@ -15,8 +15,8 @@ import os
 from datetime import datetime, timezone
 
 import config
-import dedup
-import supabase_utils
+from sources import dedup
+from db import supabase_utils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 

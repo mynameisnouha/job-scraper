@@ -6,8 +6,8 @@ quietly run a source another leg is already scraping.
 import pytest
 
 import config
-import scrape_guard
-import scraper
+from sources import scrape_guard
+from sources import scraper
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def ran(monkeypatch):
 
     monkeypatch.setattr(scraper, "SOURCE_RUNNERS", {
         "linkedin": runner("linkedin"),
-        "careers_future": runner("careers_future"),
+        "arbeitsagentur": runner("arbeitsagentur"),
     })
     return calls
 
@@ -36,12 +36,12 @@ class TestSourceDispatch:
         assert ran == ["linkedin"]
 
     def test_the_other_source_is_selectable_too(self, ran):
-        scraper.main(["--source", "careers_future"])
-        assert ran == ["careers_future"]
+        scraper.main(["--source", "arbeitsagentur"])
+        assert ran == ["arbeitsagentur"]
 
     def test_the_flag_is_repeatable(self, ran):
-        scraper.main(["--source", "linkedin", "--source", "careers_future"])
-        assert ran == ["linkedin", "careers_future"]
+        scraper.main(["--source", "linkedin", "--source", "arbeitsagentur"])
+        assert ran == ["linkedin", "arbeitsagentur"]
 
     def test_a_repeated_source_runs_once(self, ran):
         scraper.main(["--source", "linkedin", "--source", "linkedin"])
@@ -50,18 +50,18 @@ class TestSourceDispatch:
     def test_an_explicit_source_overrides_the_config(self, ran, monkeypatch):
         """A matrix leg gets the source it asked for, whatever SCRAPING_SOURCES says."""
         monkeypatch.setattr(config, "SCRAPING_SOURCES", ["linkedin"])
-        scraper.main(["--source", "careers_future"])
-        assert ran == ["careers_future"]
+        scraper.main(["--source", "arbeitsagentur"])
+        assert ran == ["arbeitsagentur"]
 
     def test_no_flag_runs_every_configured_source(self, ran, monkeypatch):
-        monkeypatch.setattr(config, "SCRAPING_SOURCES", ["linkedin", "careers_future"])
+        monkeypatch.setattr(config, "SCRAPING_SOURCES", ["linkedin", "arbeitsagentur"])
         scraper.main([])
-        assert ran == ["linkedin", "careers_future"]
+        assert ran == ["linkedin", "arbeitsagentur"]
 
     def test_config_order_is_respected(self, ran, monkeypatch):
-        monkeypatch.setattr(config, "SCRAPING_SOURCES", ["careers_future", "linkedin"])
+        monkeypatch.setattr(config, "SCRAPING_SOURCES", ["arbeitsagentur", "linkedin"])
         scraper.main([])
-        assert ran == ["careers_future", "linkedin"]
+        assert ran == ["arbeitsagentur", "linkedin"]
 
     def test_an_unrunnable_configured_source_is_skipped_not_fatal(self, ran, monkeypatch):
         monkeypatch.setattr(config, "SCRAPING_SOURCES", ["linkedin", "indeed"])

@@ -8,7 +8,8 @@ rather than in the Streamlit layer, so it can be tested without a browser.
 
 Streamlit-free on purpose, like calibration.py and job_view.py.
 """
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 # Why a job left the queue without an application. These are labels, not
 # bookkeeping: "I skipped every job needing C1 German" is a finding, and it only
@@ -49,6 +50,95 @@ SHORTCUTS = [
 ]
 
 SORT_MODES = ["score", "effort"]
+
+# How far back the queue reaches, newest-first. A posting's value decays fast —
+# the first applicants are read first — so "when was this found" is a filter, not
+# a decoration. None means no lower bound.
+DATE_WINDOWS: List[Tuple[str, Optional[timedelta]]] = [
+    ("24h", timedelta(hours=24)),
+    ("3d", timedelta(days=3)),
+    ("7d", timedelta(days=7)),
+    ("30d", timedelta(days=30)),
+    ("all", None),
+]
+
+DATE_WINDOW_LABELS = {
+    "24h": "Last 24 hours",
+    "3d": "Last 3 days",
+    "7d": "Last 7 days",
+    "30d": "Last 30 days",
+    "all": "Any time",
+}
+
+DATE_WINDOW_KEYS = [key for key, _ in DATE_WINDOWS]
+
+
+def scraped_at(job: Dict[str, Any]) -> Optional[datetime]:
+    """The moment this posting was found, as an aware datetime, or None."""
+    raw = job.get("scraped_at")
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def job_age(job: Dict[str, Any], now: Optional[datetime] = None) -> Optional[timedelta]:
+    """How long ago the posting was found. None when there is no usable stamp."""
+    found = scraped_at(job)
+    if found is None:
+        return None
+    now = now or datetime.now(timezone.utc)
+    return now - found
+
+
+def within_window(job: Dict[str, Any], window: str,
+                  now: Optional[datetime] = None) -> bool:
+    """
+    Is this job inside the chosen date window?
+
+    A job with no timestamp is kept only by "Any time" — dropping it silently
+    from every other window would hide real postings, but so would pretending an
+    unknown date is a fresh one.
+    """
+    span = dict(DATE_WINDOWS).get(window)
+    if span is None:
+        return True
+    age = job_age(job, now)
+    if age is None:
+        return False
+    # A negative age is clock skew between the scraper and here — that job is
+    # brand new, not out of range.
+    return age <= span
+
+
+def format_found(job: Dict[str, Any], now: Optional[datetime] = None) -> Optional[str]:
+    """
+    When the posting was found, phrased for how it will be used.
+
+    Under a day old the clock time is what matters — "found 09:12, three hours
+    ago" tells you whether you are early to it — so the hour is shown alongside
+    the elapsed time. Past a day the hour is noise and only the date is kept.
+    """
+    found = scraped_at(job)
+    if found is None:
+        return None
+    age = job_age(job, now)
+    local = found.astimezone()
+    if age is None or age >= timedelta(hours=24) or age < timedelta(0):
+        return local.strftime("%Y-%m-%d")
+    minutes = int(age.total_seconds() // 60)
+    if minutes < 1:
+        elapsed = "just now"
+    elif minutes < 60:
+        elapsed = f"{minutes}m ago"
+    else:
+        elapsed = f"{minutes // 60}h ago"
+    return f"{local.strftime('%H:%M')} · {elapsed}"
 
 
 def effort_hours(job: Dict[str, Any]) -> Optional[float]:

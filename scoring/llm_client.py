@@ -5,7 +5,7 @@ Provides a unified interface for 400+ LLMs with built-in rate limiting,
 exponential backoff, and daily budget tracking.
 
 Usage:
-    from llm_client import primary_client
+    from scoring.llm_client import primary_client
 
     response = primary_client.generate_content(
         prompt="Hello!",
@@ -20,7 +20,7 @@ import time
 import random
 import logging
 import threading
-from typing import Optional, Any, Type
+from typing import Optional, Type
 
 import litellm
 from pydantic import BaseModel

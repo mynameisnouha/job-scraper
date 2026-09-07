@@ -16,7 +16,7 @@ on:
       source:
         description: "Source to scrape"
         type: choice
-        options: [arbeitsagentur, linkedin, careers_future]
+        options: [arbeitsagentur, linkedin]
         default: arbeitsagentur
       run_scrape:
         description: "Scrape (free — no LLM calls)"
@@ -87,7 +87,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ARBEITSAGENTUR_PUBLISHED_SINCE_DAYS: ${{ inputs.published_since_days }}
           ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH: ${{ inputs.max_jobs_per_search }}
-        run: python scraper.py --source "${{ inputs.source }}"
+        run: python -m sources.scraper --source "${{ inputs.source }}"
 
       # --only-initial: the custom-resume rescore and manual-jobs phases are also
       # bounded by JOBS_TO_SCORE_PER_RUN, so a raised cap would silently raise their
@@ -104,4 +104,4 @@ jobs:
           CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
           JOBS_TO_SCREEN_PER_RUN: ${{ inputs.screen_limit }}
           JOBS_TO_SCORE_PER_RUN: ${{ inputs.score_limit }}
-        run: python score_jobs.py --only-initial
+        run: python -m scoring.score_jobs --only-initial

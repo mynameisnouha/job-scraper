@@ -10,9 +10,9 @@ import pathlib
 import pytest
 import requests
 
-import dedup
-import scrape_guard
-from scrapers import arbeitsagentur
+from sources import dedup
+from sources import scrape_guard
+from sources import arbeitsagentur
 
 
 def _key(company, title):
@@ -170,7 +170,7 @@ class TestProcessQuery:
                      for i, o in enumerate(SEARCH["ergebnisliste"])}
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
                             lambda refnr: dict(DETAIL, firma=employers.get(refnr, "Other GmbH")))
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), set()))
 
@@ -185,7 +185,7 @@ class TestProcessQuery:
         assert outcome.unaccounted == 0
 
     def test_jobs_already_stored_are_counted_not_refetched(self, wired, monkeypatch):
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(
             supabase_utils, "get_existing_jobs_from_supabase",
             lambda: ({"arbeitsagentur_14225-9e7ac7a2671f1076-S"}, set()))
@@ -270,7 +270,7 @@ class TestRepostDedup:
 
     def test_a_relisting_inside_one_run_is_collapsed(self, wired, monkeypatch):
         monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: self._relisted())
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), set()))
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
@@ -287,7 +287,7 @@ class TestRepostDedup:
 
     def test_a_role_already_in_the_database_is_not_refetched(self, wired, monkeypatch):
         monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: self._relisted()[:1])
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), {_key("YPOG", "AI/ML Engineer (m/w/d)")}))
         fetched = []
@@ -309,7 +309,7 @@ class TestRepostDedup:
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
                             lambda refnr: dict(DETAIL, firma="YPOG",
                                                stellenangebotsTitel="AI/ML Engineer (m/w/d)"))
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), {_key("YPOG", "AI/ML Engineer (m/w/d)")}))
 
@@ -325,7 +325,7 @@ class TestRepostDedup:
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
                             lambda refnr: dict(DETAIL, firma="SAP",
                                                stellenangebotsTitel=titles[refnr]))
-        import supabase_utils
+        from db import supabase_utils
         monkeypatch.setattr(supabase_utils, "get_existing_jobs_from_supabase",
                             lambda: (set(), set()))
 

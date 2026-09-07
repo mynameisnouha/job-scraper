@@ -1,5 +1,5 @@
-import rescore_degraded
-import supabase_utils
+from maintenance import rescore_degraded
+from db import supabase_utils
 
 COMPLETE = {
     "competitive_context": {"p_first_round_interview": {"as_is": 0.1, "after_fixes": 0.2}},

@@ -1,8 +1,11 @@
-"""CLI to mark a job as applied. Usage: python mark_applied.py <job_id> [job_id ...]"""
+"""CLI to mark a job as applied.
+
+Usage: python -m maintenance.mark_applied <job_id> [job_id ...]
+"""
 import logging
 import sys
 
-import supabase_utils
+from db import supabase_utils
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -10,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def main():
     job_ids = sys.argv[1:]
     if not job_ids:
-        print("Usage: python mark_applied.py <job_id> [job_id ...]")
+        print("Usage: python -m maintenance.mark_applied <job_id> [job_id ...]")
         sys.exit(1)
 
     for job_id in job_ids:

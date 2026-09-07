@@ -4,14 +4,15 @@ These catch the errors that only show up when Streamlit actually executes the
 script: bad indentation in a callback, a widget key collision, an index error on
 a selectbox, a column referenced before it exists.
 """
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-import apply_queue
-import calibration
-import supabase_utils
+from review import apply_queue
+from review import calibration
+from db import supabase_utils
 
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest  # noqa: E402
@@ -95,18 +96,25 @@ class TestJobsToApplyPage:
         text = " ".join(m.value for m in list_app.markdown)
         assert "ML Engineer" in text          # today + score 82
         assert "Data Scientist" not in text   # score 41, below default min of 70
-        assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago
+        assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago,
+                                              # outside the default 24h window
         # One card survives, carrying its five actions.
         assert sorted(b.key for b in list_app.button) == [
             "apply_j1", "closed_j1", "details_j1", "pack_j1", "skip_j1",
         ]
 
-    def test_unchecking_today_only_reveals_older_jobs(self, list_app):
+    def test_widening_the_date_window_reveals_older_jobs(self, list_app):
         list_app.run()
-        list_app.checkbox[0].set_value(False).run()
+        list_app.selectbox(key="date_window").set_value("30d").run()
         text = " ".join(m.value for m in list_app.markdown)
         assert "Vision Engineer" in text
         assert not list_app.exception
+
+    def test_card_shows_when_the_job_was_found(self, list_app):
+        """Under a day old, the clock time is shown alongside the elapsed time."""
+        list_app.run()
+        captions = " ".join(c.value for c in list_app.caption)
+        assert re.search(r"Found \d{2}:\d{2} · (just now|\d+[mh] ago)", captions)
 
     def test_lowering_min_score_reveals_weaker_jobs(self, list_app):
         list_app.run()
@@ -326,7 +334,7 @@ class TestFocusQueue:
         app.run()
         app.checkbox(key="focus_mode")  # stays on
         app.slider[0].set_value(0).run()          # let the weaker jobs in
-        app.checkbox[0].set_value(False).run()    # and the older ones
+        app.selectbox(key="date_window").set_value("30d").run()  # and the older ones
         assert "Vision Engineer" in " ".join(m.value for m in app.markdown)  # score 90, first
         app.button("focus_next").click().run()
         assert "ML Engineer" in " ".join(m.value for m in app.markdown)      # score 82

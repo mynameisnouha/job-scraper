@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-import score_jobs
+from scoring import score_jobs
 from models import ScoreBreakdown
 
 VALID = {

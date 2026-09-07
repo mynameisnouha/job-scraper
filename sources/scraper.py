@@ -5,12 +5,11 @@ import time
 import random 
 import logging
 import config
-import user_agents
-import supabase_utils
-import scrape_guard
-import dedup
+from sources import user_agents
+from db import supabase_utils
+from sources import scrape_guard
+from sources import dedup
 from markdownify import markdownify as md
-import json
 import re
 import sys
 import argparse
@@ -138,21 +137,6 @@ def convert_html_to_markdown(html: str) -> str | None:
     except Exception as e:
         logging.error(f"Error during HTML to Markdown conversion: {e}")
         return None
-
-def _get_careers_future_job_company_name(job_item: dict) -> str | None:
-    """Helper to extract company name, preferring hiringCompany."""
-    if not isinstance(job_item, dict):
-        return None
-    
-    hiring_company = job_item.get('hiringCompany')
-    if isinstance(hiring_company, dict) and hiring_company.get('name'):
-        return hiring_company['name']
-    
-    posted_company = job_item.get('postedCompany')
-    if isinstance(posted_company, dict) and posted_company.get('name'):
-        return posted_company['name']
-        
-    return None
 
 # --- LinkedIn Scraping Logic ---
 def _fetch_linkedin_job_ids(search_query: str, location: str,
@@ -550,315 +534,6 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
     logging.info(f"--- Finished Phase 2: Successfully fetched details for {processed_count} new job(s) ---")
     return detailed_new_jobs
 
-def _fetch_careers_future_jobs(search_query: str) -> list:
-    """
-    Fetches job items from CareersFuture based on the provided search query.
-    This involves:
-    1. Getting skill suggestions based on the search query.
-    2. Using these skill UUIDs to search for jobs.
-    3. Handling pagination to retrieve all job results.
-    4. Returning a list of all collected job item dictionaries.
-
-    Args:
-        search_query (str): The job title or keywords to search for.
-
-    Returns:
-        list: A list of job item dictionaries. Returns an empty list if an error occurs
-              or if no jobs are found.
-    """
-
-
-    careers_future_suggestions_api_url = "https://api.mycareersfuture.gov.sg/v2/skills/suggestions"
-    careers_future_search_api_base_url =  "https://api.mycareersfuture.gov.sg/v2/search"
-
-    skillUuids = []
-
-    # --- 1. Get Skill Suggestions ---
-    skills_suggestions_payload = {'jobTitle': search_query}
-
-    try:
-        logging.info(f"Fetching skill suggestions for query: '{search_query}' from {careers_future_suggestions_api_url}")
-        skills_suggestions_response = requests.post(
-            careers_future_suggestions_api_url, 
-            data=skills_suggestions_payload,
-            timeout=config.REQUEST_TIMEOUT
-            )
-
-        skills_suggestions_response.raise_for_status()
-        skills_data = skills_suggestions_response.json()
-        skills_list = skills_data.get('skills', [])
-        skillUuids = [skill_dict['uuid'] for skill_dict in skills_list if 'uuid' in skill_dict]
-        logging.info(f"Successfully retrieved {len(skillUuids)} skill UUIDs for '{search_query}'.")
-        if not skillUuids:
-            logging.warning(f"No skill UUIDs found for query '{search_query}'. Job search will proceed without specific skill filtering.")
-
-
-    except requests.exceptions.HTTPError as http_err:
-        status_code = http_err.response.status_code if http_err.response is not None else 'N/A'
-        response_text = http_err.response.text if http_err.response is not None else 'N/A'
-        logging.error(f"HTTP error during skill suggestions: {http_err} - Status: {status_code}")
-        logging.debug(f"Skill suggestions error response content: {response_text[:500]}") 
-        return []
-    except requests.exceptions.RequestException as req_err: 
-        logging.error(f"Request exception during skill suggestions: {req_err}")
-        return []
-    except json.JSONDecodeError:
-        content_for_log = skills_suggestions_response.text if 'skills_suggestions_response' in locals() and skills_suggestions_response else "N/A"
-        logging.error(f"Could not decode JSON response for skill suggestions. Content: {content_for_log[:500]}")
-        return []
-
-    # --- 2. Search for Jobs and Handle Pagination ---
-    all_job_items = []
-    total_api_calls_for_search = 0
-
-    # Initial search URL with default limit and page
-    current_search_url = f"{careers_future_search_api_base_url}?limit=100&page=0"
-    search_payload = {
-        'sessionId':"",
-        'search': search_query,
-        'categories':config.CAREERS_FUTURE_SEARCH_CATEGORIES,
-        'employmentTypes': config.CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES,
-        'postingCompany' : [],
-        'sortBy': ["new_posting_date"],
-        'skillUuids': skillUuids,
-
-    }
-
-    try:
-        while current_search_url:
-            total_api_calls_for_search += 1
-            logging.info(f"Job search API call {total_api_calls_for_search}: POST to {current_search_url}")
-        
-            search_response = requests.post(current_search_url, json=search_payload, timeout=config.REQUEST_TIMEOUT)
-            search_response.raise_for_status()
-            search_results_data  = search_response.json()
-
-            current_page_jobs = search_results_data.get('results', [])
-            all_job_items.extend(current_page_jobs)
-
-            logging.info(f"Retrieved {len(current_page_jobs)} job items from this page. Total items collected: {len(all_job_items)}.")
-
-            # Log total results reported by API 
-            if 'total' in search_results_data and total_api_calls_for_search == 1:
-                logging.info(f"API reports total potential jobs matching criteria: {search_results_data['total']}")
-            
-            # Get the next page URL. The API provides a full URL.
-            next_page_link_info = search_results_data.get("_links", {}).get("next", {})
-            current_search_url = next_page_link_info.get("href") if next_page_link_info else None 
-
-            if current_search_url:
-                logging.debug(f"Next page URL for job search: {current_search_url}")
-            else:
-                logging.info("No more job pages to fetch.")
-
-        logging.info(f"Completed job search. Total API calls made for search: {total_api_calls_for_search}.")
-    
-    except requests.exceptions.HTTPError as http_err:
-        status_code = http_err.response.status_code if http_err.response is not None else 'N/A'
-        response_text = http_err.response.text if http_err.response is not None else 'N/A'
-        logging.error(f"HTTP error during job search: {http_err} - Status: {status_code}")
-        logging.debug(f"Job search error response content: {response_text[:500]}")
-    except requests.exceptions.RequestException as req_err:
-        logging.error(f"Request exception during job search: {req_err}")
-    except json.JSONDecodeError:
-        content_for_log = search_response.text if 'search_response' in locals() and search_response else "N/A"
-        logging.error(f"Could not decode JSON response during job search. Content: {content_for_log[:500]}")
-
-    # --- 3. Return all collected job items ---
-    if not all_job_items:
-        logging.info(f"No job items were collected for query '{search_query}'.")
-        return [] 
-
-    logging.info(f"Returning {len(all_job_items)} total job items for query '{search_query}'.")
-    return all_job_items
-
-def _fetch_careers_future_job_details(job_id: str) -> dict | None:
-    """
-    Fetch job details from CareersFuture based on the provided job ID.
-
-    Args:
-        job_id (str): The UUID of the job to fetch details for.
-
-    Returns:
-        dict | None: A dictionary containing the job details if successful,
-                      None otherwise.
-    """
-    if not job_id:
-        logging.warning("Job ID is missing or empty. Cannot fetch details.")
-        return None
-
-    api_url = f"https://api.mycareersfuture.gov.sg/v2/jobs/{job_id}"
-    
-    logging.info(f"Attempting to fetch job details for ID: {job_id} from URL: {api_url}")
-
-    try:
-        response = requests.get(api_url, timeout=config.REQUEST_TIMEOUT) 
-
-        response.raise_for_status()
-
-        job_data = response.json()
-        logging.info(f"Successfully fetched and parsed job details for ID: {job_id}")
-
-        raw_description_html = job_data.get('description', '')
-        # Convert HTML description directly to Markdown (no LLM needed)
-        markdown_description = None 
-        if raw_description_html.strip(): 
-            markdown_description = convert_html_to_markdown(raw_description_html)
-        else:
-            logging.warning(f"Raw description was empty for Careers Future job ID {job_id}. Skipping conversion.") 
-
-        job_details = {
-            'job_id': job_data.get('uuid'),
-            'company': _get_careers_future_job_company_name(job_data),
-            'job_title': job_data.get('title'),
-            'location': 'Singapore',
-            'level': job_data.get('positionLevels', [{'position': 'Not applicable'}])[0].get('position', 'Not applicable'),
-            'provider': 'careers_future',
-            'description': markdown_description, 
-            'posted_at': job_data.get('metadata', {}).get('createdAt', ''),
-            'job_url': f"https://www.mycareersfuture.gov.sg/job/{job_id}",
-        }
-
-        return job_details
-
-    except requests.exceptions.HTTPError as http_err:
-        status_code = http_err.response.status_code if http_err.response is not None else 'N/A'
-        response_text = http_err.response.text if http_err.response is not None else 'N/A'
-        if status_code == 404:
-            logging.warning(f"Job details not found (404) for ID: {job_id} at {api_url}.")
-        else:
-            logging.error(f"HTTP error occurred while fetching job details for ID '{job_id}': {http_err} - Status: {status_code}")
-            logging.debug(f"Error response content: {response_text[:500]}") 
-    except requests.exceptions.ConnectionError as conn_err:
-        logging.error(f"Connection error occurred while fetching job details for ID '{job_id}': {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        logging.error(f"Timeout error occurred while fetching job details for ID '{job_id}': {timeout_err}")
-    except requests.exceptions.RequestException as req_err: 
-        logging.error(f"An error occurred during the request for job details for ID '{job_id}': {req_err}")
-    except json.JSONDecodeError:
-        content_for_log = response.text if 'response' in locals() and response else "N/A"
-        logging.error(f"Failed to decode JSON response for job details for ID '{job_id}'. Content: {content_for_log[:500]}")
-    
-    return None # Return None in case of any error
-
-def process_careers_future_query(search_query: str, limit: int = None,
-                                 outcome: "scrape_guard.SourceOutcome | None" = None) -> list:
-    """
-    Fetch jobs from CareersFuture and return them as a list of dictionaries.
-    """
-    # 1. Fetch all potential job items from CareersFuture search
-    careers_future_jobs = _fetch_careers_future_jobs(search_query)
-    if not careers_future_jobs:
-        logging.info("No job items found in Phase 1. Skipping detail fetching.")
-        return []
-
-    def _filtered(reason, count=1):
-        if outcome is not None:
-            outcome.record_filtered(reason, count)
-
-    # 2. Fetch existing job identifiers from Supabase
-    logging.info("Phase 2: Fetching existing job identifiers from Supabase...")
-    try:
-        job_ids_set_supabase, company_title_set_supabase = supabase_utils.get_existing_jobs_from_supabase()
-        logging.info(f"Phase 2: Supabase returned {len(job_ids_set_supabase)} existing IDs and {len(company_title_set_supabase)} company/title pairs.")
-    except Exception as e:
-        logging.error(f"Failed to fetch existing jobs from Supabase: {e}")
-        logging.warning("Proceeding without Supabase data; all fetched jobs will be considered new.")
-        job_ids_set_supabase = set()
-        company_title_set_supabase = set()
-
-    # 3. Filter the fetched jobs
-    logging.info("Phase 3: Filtering fetched jobs against Supabase data...")
-    new_job_ids_to_process = []
-    skipped_by_id_count = 0
-    skipped_by_combo_count = 0
-
-    for job_item in careers_future_jobs:
-        if not isinstance(job_item, dict):
-            logging.warning(f"Skipping invalid job item (not a dict): {str(job_item)[:100]}")
-            _filtered("malformed_item")
-            continue
-
-        job_uuid = str(job_item.get('uuid'))
-
-        # Check 1: Does the UUID already exist in Supabase?
-        if job_uuid and job_uuid in job_ids_set_supabase:
-            logging.debug(f"Skipping job (ID exists in Supabase): UUID='{job_uuid}', Title='{job_item.get('title', 'N/A')}'")
-            skipped_by_id_count += 1
-            continue # Skip this job
-
-        # Prepare for Check 2: Company & Title combination
-        company_name = _get_careers_future_job_company_name(job_item)
-        job_title = job_item.get('title')
-
-        normalized_company = None
-        normalized_title = None
-
-        if company_name:
-            normalized_company = company_name.strip().lower()
-        if job_title:
-            normalized_title = job_title.strip().lower()
-        
-        if normalized_company and normalized_title:
-            company_title_key = (normalized_company, normalized_title)
-            if company_title_key in company_title_set_supabase:
-                logging.debug(f"Skipping job (Company/Title combo exists in Supabase): UUID='{job_uuid}', Company='{normalized_company}', Title='{normalized_title}'")
-                skipped_by_combo_count +=1
-                continue 
-        elif job_uuid: 
-            logging.debug(f"Job UUID='{job_uuid}' has no company/title for combo check. Will be added if ID is new.")
-        else: 
-             logging.warning(f"Job item has no UUID and insufficient company/title for matching: {str(job_item)[:100]}")
-
-
-        new_job_ids_to_process.append(job_uuid) 
-
-    # The buckets partition `fetched`: dedup drops, filter drops, and saves.
-    if outcome is not None:
-        outcome.record_query(fetched=len(careers_future_jobs),
-                             already_in_db=skipped_by_id_count + skipped_by_combo_count)
-
-    # 4. Fetch details ONLY for the genuinely new job IDs
-    if limit is not None and len(new_job_ids_to_process) > limit:
-        logging.info(f"Truncating new_job_ids_to_process from {len(new_job_ids_to_process)} to {limit} to stay within source limit.")
-        _filtered("over_per_query_limit", len(new_job_ids_to_process) - limit)
-        new_job_ids_to_process = new_job_ids_to_process[:limit]
-
-    logging.info(f"Phase 4: Fetching Job Details for {len(new_job_ids_to_process)} New Jobs ---")
-    detailed_new_jobs = []
-    processed_count = 0
-
-    for job_id in new_job_ids_to_process:
-        details = _fetch_careers_future_job_details(job_id)
-        if details:
-            if is_internship_role(details.get('job_title'), details.get('level')):
-                logging.info(f"Skipping internship/thesis job: {details.get('job_title')} (ID: {job_id})")
-                _filtered("internship")
-                continue
-            if is_freelance_role(details.get('job_title'), details.get('level')):
-                logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
-                _filtered("freelance")
-                continue
-            description = details.get('description')
-            if description and description.strip():
-                if 'job_id' in details and details['job_id'] is not None:
-                    detailed_new_jobs.append(details)
-                    processed_count += 1
-                else:
-                    logging.warning(f"Fetched details for {job_id} but missing 'job_id' key. Skipping.")
-                    _filtered("missing_job_id")
-            else:
-                logging.warning(f"Skipping job ID {job_id} due to missing or empty description.") 
-                _filtered("no_description")
-        else:
-            logging.warning(f"Skipping job ID {job_id} as detail fetching failed or returned no data.") 
-            _filtered("detail_fetch_failed")
-
-
-
-    logging.info(f"--- Finished Phase 4: Successfully fetched details for {processed_count} new job(s) ---")
-    return detailed_new_jobs
-
 # --- Per-source runners --------------------------------------------------------
 # One function per source, so a matrix leg can run exactly one of them (`--source`)
 # and the daily run can still run them all. Each returns its SourceOutcome.
@@ -883,28 +558,9 @@ def run_linkedin() -> scrape_guard.SourceOutcome:
     return outcome
 
 
-def run_careers_future() -> scrape_guard.SourceOutcome:
-    logging.info("\n--- Starting Careers Future Job Scraping ---")
-    outcome = scrape_guard.SourceOutcome("careers_future")
-    max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get("careers_future", getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
-    for query in config.CAREERS_FUTURE_SEARCH_QUERIES:
-        logging.info(f"\n{'='*20} Processing Careers Future Search Query: '{query}' {'='*20}")
-
-        new_careers_future_job_details = process_careers_future_query(query, limit=max_jobs_per_search,
-                                                                      outcome=outcome)
-
-        if new_careers_future_job_details:
-            logging.info(f"\n--- Saving {len(new_careers_future_job_details)} new job(s) for query '{query}' ---")
-            supabase_utils.save_jobs_to_supabase(new_careers_future_job_details)
-            outcome.record_query(new=len(new_careers_future_job_details))
-        else:
-            logging.info(f"\nNo new job details were fetched or processed for query '{query}'.")
-    return outcome
-
-
 def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
     logging.info("\n--- Starting Bundesagentur für Arbeit Job Scraping ---")
-    from scrapers import arbeitsagentur
+    from sources import arbeitsagentur
 
     outcome = scrape_guard.SourceOutcome(arbeitsagentur.SOURCE)
     max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get(
@@ -928,7 +584,6 @@ def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
 SOURCE_RUNNERS = {
     "linkedin": run_linkedin,
     "arbeitsagentur": run_arbeitsagentur,
-    "careers_future": run_careers_future,
 }
 
 

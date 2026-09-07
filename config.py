@@ -21,6 +21,13 @@ def _int_env(name: str, default: int) -> int:
         # A typo in a workflow input must not silently become an unbounded run.
         raise ValueError(f"{name} must be an integer, got {raw!r}")
 
+def _bool_env(name: str, default: bool) -> bool:
+    """An on/off switch that a workflow can flip without a commit."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
 # --- DO NOT MODIFY THE BELOW SECTION ---
 
 # =================================================================
@@ -88,10 +95,6 @@ LINKEDIN_JOB_POSTING_DATE = "r86400" # r86400=Past 24h, r604800=Past week
 LINKEDIN_F_WT = "1%2C2%2C3" # 1=Onsite, 2=Remote, 3=Hybrid (URL-encoded comma list; single value like "3" also works)
 LINKEDIN_F_E = "2%2C3" # Experience level: 1=Internship, 2=Entry level, 3=Associate, 4=Mid-Senior, 5=Director
 
-CAREERS_FUTURE_SEARCH_QUERIES = ["IT Support", "Full Stack Web Developer", "Application Support", "Cybersecurity Analyst", "fresher developer"]
-CAREERS_FUTURE_SEARCH_CATEGORIES = ["Information Technology"]
-CAREERS_FUTURE_SEARCH_EMPLOYMENT_TYPES = ["Full Time"]
-
 # --- Bundesagentur für Arbeit (Jobsuche API) ---
 # Free for employers to post to, which is why it carries the Mittelstand that never
 # reaches LinkedIn. German search terms return materially different (and better)
@@ -146,6 +149,29 @@ CV_LIBRARY_DIR = "cv"
 CV_KEYWORD_ROUTES = []
 CV_DEFAULT = None  # e.g. "cv_general.pdf"
 
+# --- Email alerts for strong matches ---
+# The pipeline runs unattended four times a day; without a nudge, a job scored at
+# 09:00 is not seen until the evening, and being early to a posting is most of the
+# advantage. One mail per run, only when that run produced a match at or above the
+# threshold — silence means there was nothing worth the interruption.
+#
+# Credentials come from the environment (GitHub secrets / .env), never from here:
+# this repository is public. Any SMTP provider works — Gmail with an App Password,
+# Outlook, Resend, SendGrid, Postmark.
+EMAIL_ALERTS_ENABLED = _bool_env("EMAIL_ALERTS_ENABLED", False)
+EMAIL_ALERT_MIN_SCORE = _int_env("EMAIL_ALERT_MIN_SCORE", 70)
+# How many jobs the mail lists in full before falling back to a count. The mail is
+# a nudge to open the queue, not the queue itself.
+EMAIL_ALERT_MAX_JOBS = _int_env("EMAIL_ALERT_MAX_JOBS", 10)
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = _int_env("SMTP_PORT", 587)
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+# Default the envelope to the authenticated mailbox: for the single-user case they
+# are the same address, and most providers reject a From they do not own anyway.
+EMAIL_FROM = os.environ.get("EMAIL_FROM") or os.environ.get("SMTP_USER")
+EMAIL_TO = os.environ.get("EMAIL_TO")
+
 # --- Manual Jobs (any source) ---
 MANUAL_JOBS_PATH = "manual_jobs.json"
 
@@ -155,7 +181,7 @@ MANUAL_JOBS_PATH = "manual_jobs.json"
 CANDIDATE_PROFILE_PATH = "candidate_profile.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin", "arbeitsagentur"] # "linkedin", "arbeitsagentur", "careers_future"
+SCRAPING_SOURCES = ["linkedin", "arbeitsagentur"]
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 JOBS_TO_SCORE_PER_RUN = _int_env("JOBS_TO_SCORE_PER_RUN", 15)
@@ -174,7 +200,6 @@ MAX_JOBS_PER_SEARCH = {
     # Higher than LinkedIn's: a JSON API with no politeness delays and no blocking,
     # so the only cost of a larger number is the screening pass downstream.
     "arbeitsagentur": _int_env("ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH", 25),
-    "careers_future": 10,
 }
 
 # =================================================================

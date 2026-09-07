@@ -1,4 +1,4 @@
-from scraper import convert_html_to_markdown, _get_careers_future_job_company_name
+from sources.scraper import convert_html_to_markdown
 
 
 class TestConvertHtmlToMarkdown:
@@ -41,34 +41,13 @@ class TestConvertHtmlToMarkdown:
         assert "Item 2" in result
 
 
-class TestGetCareersFutureCompanyName:
-    def test_hiring_company(self):
-        job = {"hiringCompany": {"name": "Acme Corp"}}
-        assert _get_careers_future_job_company_name(job) == "Acme Corp"
-
-    def test_posted_company_fallback(self):
-        job = {"postedCompany": {"name": "Beta Inc"}}
-        assert _get_careers_future_job_company_name(job) == "Beta Inc"
-
-    def test_hiring_company_preferred(self):
-        job = {
-            "hiringCompany": {"name": "Acme Corp"},
-            "postedCompany": {"name": "Recruiter Co"},
-        }
-        assert _get_careers_future_job_company_name(job) == "Acme Corp"
-
-    def test_no_company(self):
-        assert _get_careers_future_job_company_name({}) is None
-        assert _get_careers_future_job_company_name(None) is None
-
-
 # --- Zero-yield diagnostics on the LinkedIn fetch path (step A.0) -------------
 
 import pytest
 import requests
 
-import scraper
-import scrape_guard
+from sources import scraper
+from sources import scrape_guard
 
 
 def _response(status_code, body):

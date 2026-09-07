@@ -44,7 +44,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python check_scoring_health.py --days 30
+        run: python -m maintenance.check_scoring_health --days 30
 
       - name: Rescore degraded jobs
         env:
@@ -56,7 +56,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
         run: |
-          python rescore_degraded.py \
+          python -m maintenance.rescore_degraded \
             --limit ${{ github.event.inputs.limit }} \
             ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
 
@@ -65,4 +65,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python check_scoring_health.py --days 30
+        run: python -m maintenance.check_scoring_health --days 30

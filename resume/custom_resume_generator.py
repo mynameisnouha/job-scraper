@@ -1,52 +1,25 @@
+import asyncio
+import json
 import logging
-import io # Import io
-import supabase_utils
-import config # Assuming config holds necessary configurations like a default email
-from pydantic import BaseModel, Field, ValidationError # Import pydantic
-from typing import List, Optional, Dict, Any # Import typing helpers
-import json # Import json for parsing LLM output
-import pdf_generator 
-import re
-import asyncio 
-from llm_client import primary_client
-from models import (
-    Education, Experience, Project, Certification, Links, Resume,
-    SummaryOutput, SkillsOutput, ExperienceListOutput, SingleExperienceOutput,
-    ProjectListOutput, SingleProjectOutput, ValidationResponse
-)
-import time
 import os
+import re
+import time
+from typing import Any, Dict
+
+from pydantic import ValidationError
+
+import config
+from db import supabase_utils
+from scoring.llm_client import primary_client
+# The PDF layout in pdf_generator.py is parked, not wired in: this module exports
+# compact text instead (see process_single_job). Nothing here imports it.
+from models import (
+    Resume, SummaryOutput, SkillsOutput, SingleExperienceOutput, SingleProjectOutput,
+)
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- LLM Personalization Function ---
-def extract_json_from_text(text: str) -> str:
-    """
-    Extracts and returns the first valid JSON string found in the text.
-    Strips markdown formatting (e.g., ```json ... ```), extra whitespace, etc.
-    """
-
-    # First, try to find JSON inside markdown code blocks
-    fenced_match = re.search(r"```(?:json)?\s*(\[\s*{.*?}\s*\]|\[.*?\]|\{.*?\})\s*```", text, re.DOTALL)
-    if fenced_match:
-        json_candidate = fenced_match.group(1).strip()
-    else:
-        # If no fenced block, try to find the first raw JSON object or array
-        loose_match = re.search(r"(\[\s*{.*?}\s*\]|\[.*?\]|\{.*?\})", text, re.DOTALL)
-        if loose_match:
-            json_candidate = loose_match.group(1).strip()
-        else:
-            # Fallback to the entire string if nothing found
-            json_candidate = text.strip()
-
-    # Optional: validate it's parsable
-    try:
-        parsed = json.loads(json_candidate)
-        return json.dumps(parsed, indent=2)  # return clean, pretty version
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to extract valid JSON: {e}\nRaw candidate:\n{json_candidate}")
-
-
 async def personalize_section_with_llm(
     section_name: str,
     section_content: Any,
@@ -105,7 +78,7 @@ async def personalize_section_with_llm(
     **Resume Section to Enhance:** {section_name}
     """
 
-    system_prompt = f"""
+    system_prompt = """
     You are an expert resume writer and a precise JSON generation assistant.
     Your primary function is to enhance specified sections of a resume to better align with a target job description, based on the provided resume context and original section content.
 
@@ -630,7 +603,7 @@ async def run_job_processing_cycle():
         return
 
     if not raw_resume_details:
-        logging.error(f"Could not load valid base resume details. Aborting cycle.")
+        logging.error("Could not load valid base resume details. Aborting cycle.")
         return
 
     # Parse raw details into Pydantic model

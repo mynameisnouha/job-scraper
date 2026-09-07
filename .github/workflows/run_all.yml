@@ -84,7 +84,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scraper.py --source "${{ matrix.source }}"
+        run: python -m sources.scraper --source "${{ matrix.source }}"
 
   # ── Stage 2: score ────────────────────────────────────────────────────────
   # !cancelled() rather than success(): whatever did land still deserves scoring.
@@ -111,7 +111,17 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
-        run: python score_jobs.py
+          # Email alert for strong matches. Unset secrets simply mean no mail —
+          # score_jobs.py logs the reason and carries on.
+          EMAIL_ALERTS_ENABLED: ${{ vars.EMAIL_ALERTS_ENABLED }}
+          EMAIL_ALERT_MIN_SCORE: ${{ vars.EMAIL_ALERT_MIN_SCORE }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python -m scoring.score_jobs
 
       - name: Customize Resumes
         env:
@@ -121,7 +131,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: python custom_resume_generator.py
+        run: python -m resume.custom_resume_generator
 
   # ── Stage 3: manage ───────────────────────────────────────────────────────
   # Same !cancelled() reasoning as score: a red scrape leg must not cost the
@@ -143,13 +153,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python job_manager.py
+        run: python -m maintenance.job_manager
 
       - name: Generate Dashboard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python dashboard.py
+        run: python -m review.dashboard
 
       - name: Upload Dashboard
         uses: actions/upload-artifact@v4

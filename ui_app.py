@@ -9,12 +9,11 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-import apply_queue
-import calibration
-import application_pack
-import job_view
-import supabase_utils
-from dashboard import found_today
+from review import apply_queue
+from review import calibration
+from review import application_pack
+from review import job_view
+from db import supabase_utils
 
 # Categorical slot 1 from the validated reference palette, stepped per mode.
 # Single-series charts only — magnitude, so one hue, never a rainbow.
@@ -87,6 +86,17 @@ def matches_search(job, term):
     return needle in haystack
 
 
+def found_label(job):
+    """
+    "Found …" for a job, or None when the row carries no scrape timestamp.
+
+    Under 24 hours old this carries the clock time as well as the elapsed hours,
+    because being early to a posting is most of the advantage.
+    """
+    found = apply_queue.format_found(job)
+    return f"Found {found}" if found else None
+
+
 def score_badge(score):
     if score is None:
         return "unscored"
@@ -109,7 +119,12 @@ def render_today_page():
 
     controls = st.columns([1.3, 1.5, 1.5, 1.6])
     with controls[0]:
-        today_only = st.checkbox("Found today only", value=True)
+        date_window = st.selectbox("Found within", apply_queue.DATE_WINDOW_KEYS,
+                                   key="date_window",
+                                   format_func=lambda w: apply_queue.DATE_WINDOW_LABELS[w],
+                                   help="A posting's value decays fast — the first "
+                                        "applicants are read first. Jobs with no scrape "
+                                        "timestamp only show under 'Any time'.")
     with controls[1]:
         min_score = st.slider("Min score", 0, 100, 70, step=5)
     with controls[2]:
@@ -123,21 +138,20 @@ def render_today_page():
                             help="One job at a time, keyboard-driven. Uncheck for the full list.")
 
     total = len(jobs)
-    if today_only:
-        jobs = [j for j in jobs if found_today(j)]
+    jobs = [j for j in jobs if apply_queue.within_window(j, date_window)]
     jobs = [j for j in jobs if (j.get("resume_score") or 0) >= min_score]
     jobs = [j for j in jobs if matches_search(j, search)]
     jobs = apply_queue.sort_jobs(jobs, sort_by)
 
     if not jobs:
-        st.info("No jobs match these filters. Try clearing the search, unchecking "
-                "'Found today only', or lowering the min score.")
+        st.info("No jobs match these filters. Try clearing the search, widening "
+                "'Found within', or lowering the min score.")
         return
 
     # Changing the filters or the sort is an explicit "re-shuffle the queue",
     # so the cursor goes back to the top. Only an incidental refresh — a scrape
     # run landing, a job leaving — keeps your place.
-    signature = (sort_by, today_only, min_score, (search or "").strip().lower())
+    signature = (sort_by, date_window, min_score, (search or "").strip().lower())
     if st.session_state.get("queue_signature") != signature:
         st.session_state["queue_signature"] = signature
         st.session_state["cursor_job"] = None
@@ -369,6 +383,10 @@ def render_job_body(job):
     if url:
         st.markdown(f"[Open posting ↗]({url})")
 
+    found = found_label(job)
+    if found:
+        st.caption(found)
+
     verdict = job_view.summary(breakdown)
     if verdict:
         st.markdown(verdict)
@@ -436,6 +454,9 @@ def render_job_card(job):
         verdict = job_view.summary(breakdown)
         if verdict:
             st.markdown(verdict)
+        found = found_label(job)
+        if found:
+            st.caption(found)
         _facts_line(job_view.quick_facts(breakdown))
 
         actions = st.columns([1, 1, 1.2, 1.4, 1.4])

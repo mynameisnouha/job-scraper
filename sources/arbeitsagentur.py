@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 import config
-import dedup
+from sources import dedup
 
 SEARCH_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
 DETAIL_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/{}"
@@ -213,8 +213,8 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
     Mirrors process_linkedin_query: the caller saves what comes back and records
     the saved count, so the counters partition `fetched` (see scrape_guard).
     """
-    import supabase_utils  # local import: keeps this module importable without credentials
-    from scraper import is_freelance_role, is_internship_role
+    from db import supabase_utils  # local import: keeps this module importable without credentials
+    from sources.scraper import is_freelance_role, is_internship_role
 
     def _filtered(reason, count=1):
         if outcome is not None:

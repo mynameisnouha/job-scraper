@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 class Education(BaseModel):
     degree: str = ""
@@ -53,21 +52,11 @@ class SummaryOutput(BaseModel):
 class SkillsOutput(BaseModel):
     skills: List[str]
 
-class ExperienceListOutput(BaseModel):
-    experience: List[Experience]
-
 class SingleExperienceOutput(BaseModel):
     experience: Experience
 
-class ProjectListOutput(BaseModel):
-    projects: List[Project]
-
 class SingleProjectOutput(BaseModel):
     project: Project
-
-class ValidationResponse(BaseModel):
-    is_valid: bool
-    reason: str
 
 class ScreenResult(BaseModel):
     passes: bool = Field(..., description="True if the job clears all hard gates and deserves a full detailed evaluation")
