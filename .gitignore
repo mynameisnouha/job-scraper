@@ -11,3 +11,5 @@ candidate_profile.json
 application_answers.json
 cv/
 output/
+profile_facts.json
+clustering/cache/cv_profile.json

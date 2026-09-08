@@ -98,9 +98,9 @@ class TestJobsToApplyPage:
         assert "Data Scientist" not in text   # score 41, below default min of 70
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago,
                                               # outside the default 24h window
-        # One card survives, carrying its five actions.
+        # One card survives, carrying its six actions.
         assert sorted(b.key for b in list_app.button) == [
-            "apply_j1", "closed_j1", "details_j1", "pack_j1", "skip_j1",
+            "apply_j1", "closed_j1", "details_j1", "pack_j1", "skip_j1", "tailor_j1",
         ]
 
     def test_widening_the_date_window_reveals_older_jobs(self, list_app):

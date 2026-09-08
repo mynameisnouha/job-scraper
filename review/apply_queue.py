@@ -45,6 +45,7 @@ SHORTCUTS = [
     ("s", "Skip"),
     ("o", "Open posting"),
     ("p", "Pack"),
+    ("c", "Tailor CV"),
     ("j", "Next"),
     ("k", "Previous"),
 ]

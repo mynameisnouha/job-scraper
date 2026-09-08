@@ -245,6 +245,25 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
         logging.error(f"Error fetching top-scored jobs to apply for from Supabase: {e}")
         return []
 
+def get_job_with_description(job_id: str) -> Optional[Dict[str, Any]]:
+    """One job including its full description.
+
+    The apply-queue query deliberately leaves `description` out — it is the
+    largest column in the table and rendering a list of them would pull megabytes
+    for nothing. Anything that has to reason about what a posting actually says
+    (CV tailoring, the gap interview) needs it, so it is fetched one row at a time
+    here instead of widening the queue query for every caller.
+    """
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .select("job_id, job_title, company, location, level, "
+                                   "description, job_url, resume_score, score_breakdown, "
+                                   "provider, why_me_pitch")                           .eq("job_id", job_id)                           .limit(1)                           .execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        logging.error(f"Error fetching job {job_id} with description: {e}")
+        return None
+
+
 def get_applied_jobs(limit: int) -> list:
     """
     Fetches jobs already marked as applied (status = 'applied'), most recent first.

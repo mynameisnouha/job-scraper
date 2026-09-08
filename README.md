@@ -60,8 +60,8 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
   evening. Filter by how recently a job was found, minimum score, or a search
   over title and company.
 - **Focus mode.** One job at a time, driven from the keyboard: `a` applied,
-  `s` skip, `o` open the posting, `p` build the application pack, `j`/`k` to
-  move. The cursor is anchored to a job, not a position, so it survives the
+  `s` skip, `o` open the posting, `p` build the application pack, `c` tailor a
+  CV for it, `j`/`k` to move. The cursor is anchored to a job, not a position, so it survives the
   queue refreshing underneath you. ([review/apply_queue.py](review/apply_queue.py))
 - **Skips carry a reason** — "German level too high", "no visa sponsorship" —
   because "I skipped every job needing C1" is a finding, not bookkeeping. One-step
@@ -79,6 +79,24 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
   Interview rate by score band and a Brier score, with unresolved applications
   excluded — you haven't heard back yet, which is not the same as a no.
   ([review/calibration.py](review/calibration.py))
+- **CV Archetypes page.** The postings worth applying to, grouped into a handful
+  of role archetypes — one base CV each, instead of one generic CV for
+  everything. Per archetype: how many postings, the best score, the skills to
+  lead with ranked by how over-represented they are, what the roles actually
+  are, and the covered jobs. Reads the artefacts written by
+  `python -m clustering.run`; the page never clusters or calls an LLM itself.
+  ([clustering/](clustering/))
+- **Your CV against each archetype.** `python -m clustering.cv_fit` maps your CV
+  onto the same skill vocabulary as the postings, then reports per archetype what
+  you cover, what is true of you but missing from the CV, and what is genuinely
+  absent — each gap weighted by how many postings actually ask for it.
+  ([clustering/cv_fit.py](clustering/cv_fit.py))
+- **Generate CV page.** Reachable from any job in the queue via **Tailor CV**
+  (or `c` in Focus mode). Pick one posting and get a tailored CV and Anschreiben,
+  written only from a fact base about you — every line cites the fact it rests
+  on, so nothing can be invented — then argued over by a simulated hiring manager
+  until the objections stop being new. Asks you about gaps first, and keeps the
+  answers. ([tailor/](tailor/))
 
 ### Staying on top of it
 
@@ -241,7 +259,7 @@ Streamlit UI, which is rendered headlessly.
 
 ## Project structure
 
-Six packages, each answering one question. Only three Python files sit at the
+Eight packages, each answering one question. Only three Python files sit at the
 root, and each is there for a reason.
 
 ```
@@ -266,6 +284,27 @@ resume/            your CV
     resume_parser.py             PDF → structured data
     custom_resume_generator.py   per-job tailoring → compact text export
     pdf_generator.py             ReportLab layout (parked — nothing calls it yet)
+
+tailor/            one posting → a CV and cover letter (see tailor/README.md)
+    facts.py           the fact base: what is true about you, atomised and tiered
+    interview.py       asks about gaps the posting needs and the base cannot answer
+    writer.py          composes CV + Anschreiben, every line citing facts
+    verify.py          deterministic honesty checks — citations, numbers, phrasing
+    judge.py           the hiring manager: objections, never a score
+    loop.py            write → verify → judge → revise, and when to stop
+    documents.py       the document shapes, and rendering them to text
+    store.py           saved applications, and the non-claim personal details
+
+clustering/        postings → a few CV archetypes (see clustering/README.md)
+    corpus.py          gates the scored jobs down to the ones worth a CV
+    schema.py          the closed vocabulary a posting is normalised into
+    extract.py         one cheap LLM call per posting, cached by job_id
+    features.py        blocked, weighted, rarity-scaled feature space
+    cluster.py         PCA + k-means, with bootstrap stability and per-job margins
+    report.py          centroids read back as shares and lift over the corpus
+    cv_fit.py          scores your CV against each archetype: what is there, what is not
+    results.py         loads a finished run for the Streamlit page
+    run.py             `python -m clustering.run`
 
 review/            everything behind the Streamlit app
     apply_queue.py       ordering, cursor, date windows, skip reasons
