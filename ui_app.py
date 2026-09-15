@@ -2,31 +2,35 @@
 Streamlit UI for reviewing jobs and logging application outcomes without
 touching the Supabase table editor or the static dashboard.html.
 
+Five screens, grouped by how often they are opened: the queue and the CV
+writer every day, the applications every week, calibration and the archetypes
+once a month. The look — one palette, pills, surface cards — lives in
+review/theme.py; this file decides what goes on each screen.
+
 Run with: streamlit run ui_app.py
 """
+import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import streamlit as st
 
 from review import apply_queue
+from review import application_view
 from review import calibration
 from review import application_pack
 from review import job_view
+from review import theme as T
 from clustering import results as cluster_results
 from tailor import facts as tailor_facts
+from tailor import harvest as tailor_harvest
 from tailor import interview as tailor_interview
 from tailor import loop as tailor_loop
 from tailor import settings as tailor_settings
 from tailor import store as tailor_store
 from tailor import documents as tailor_documents
 from db import supabase_utils
-
-# Categorical slot 1 from the validated reference palette, stepped per mode.
-# Single-series charts only — magnitude, so one hue, never a rainbow.
-SERIES_LIGHT = "#2a78d6"
-SERIES_DARK = "#3987e5"
 
 STAGE_LABELS = {
     "applied": "Applied",
@@ -44,8 +48,59 @@ REJECTION_REASONS = [
     "", "years_experience", "german_level", "visa", "other_candidate",
     "role_filled", "no_reason_given", "other",
 ]
+REJECTION_LABELS = {
+    "": "Reason not given yet",
+    "years_experience": "Years required",
+    "german_level": "German level",
+    "visa": "No sponsorship",
+    "other_candidate": "Another candidate",
+    "role_filled": "Role filled",
+    "no_reason_given": "No reason given",
+    "other": "Other",
+}
 
-st.set_page_config(page_title="Job Scraper", layout="wide")
+REC_LABELS = {
+    "apply_now": "Apply now",
+    "apply_after_fixes": "Apply after fixes",
+    "apply_if_gate_negotiable": "If the gate is negotiable",
+    "skip": "Scorer says skip",
+}
+
+# The sidebar, grouped by cadence. The id is the session key; the label is what
+# the button says.
+PAGES = [
+    ("Every day", [("queue", "Jobs to apply"), ("tailor", "Write my CV")]),
+    ("Every week", [("apps", "Where I applied")]),
+    ("Every month", [("cal", "Is the score right?"), ("arch", "Which CV to use")]),
+]
+DEFAULT_PAGE = "queue"
+
+# The bar a scored posting has to clear to be worth an evening. Also the
+# queue's default minimum score, so the two agree.
+SCORE_BAR = 70
+
+st.set_page_config(page_title="Job Hunt", layout="wide", initial_sidebar_state="expanded")
+
+# Filled once per script run. Streamlit re-executes this file top to bottom on
+# every interaction, so this is a per-run memo, not a cache: the sidebar and
+# the page both need the queue and must not query it twice.
+_RUN = {}
+
+
+def load_queue():
+    if "queue" not in _RUN:
+        _RUN["queue"] = supabase_utils.get_top_scored_jobs_to_apply(999)
+    return _RUN["queue"]
+
+
+def load_applied():
+    if "applied" not in _RUN:
+        _RUN["applied"] = supabase_utils.get_applied_jobs_with_outcomes(999)
+    return _RUN["applied"]
+
+
+def html(fragment):
+    st.markdown(fragment, unsafe_allow_html=True)
 
 
 def fmt_date(value):
@@ -71,16 +126,6 @@ def consume_flash():
     return st.session_state.pop("flash", None)
 
 
-def series_color():
-    """The single series hue, stepped for whichever theme the viewer is using."""
-    try:
-        if st.get_option("theme.base") == "dark":
-            return SERIES_DARK
-    except Exception:
-        pass
-    return SERIES_LIGHT
-
-
 def pct(value):
     return "—" if value is None else f"{value * 100:.0f}%"
 
@@ -96,27 +141,22 @@ def matches_search(job, term):
 
 def found_label(job):
     """
-    "Found …" for a job, or None when the row carries no scrape timestamp.
+    "found …" for a job, or None when the row carries no scrape timestamp.
 
     Under 24 hours old this carries the clock time as well as the elapsed hours,
     because being early to a posting is most of the advantage.
     """
     found = apply_queue.format_found(job)
-    return f"Found {found}" if found else None
+    return f"found {found}" if found else None
 
 
-def score_badge(score):
-    if score is None:
-        return "unscored"
-    if score >= 75:
-        return f":green[{score}/100]"
-    if score >= 50:
-        return f":orange[{score}/100]"
-    return f":red[{score}/100]"
+def go(page):
+    """Switch screens. Applied before the sidebar is drawn, on the next run."""
+    st.session_state["page"] = page
 
 
 def tailor_this_job(job):
-    """Send a job to the Generate CV page, already selected.
+    """Send a job to the Write my CV page, already selected.
 
     Deliberately a hand-off rather than generating in place. A run is several
     LLM calls over a few minutes, and Streamlit reruns the whole script per
@@ -125,75 +165,198 @@ def tailor_this_job(job):
     adds information rather than rearranging it — the part actually worth having.
     """
     st.session_state["tailor_job_id"] = job.get("job_id")
-    # Not written to "nav" directly: that key belongs to the sidebar radio, and
-    # Streamlit refuses to let a widget's key be reassigned once the widget has
-    # been instantiated — which it has, since the sidebar is built before any
-    # page renders. main() applies this on the next run, before the radio exists.
-    st.session_state["pending_nav"] = "Generate CV"
+    go("tailor")
     st.rerun()
 
 
-def render_today_page():
-    st.header("Jobs to Apply")
-    jobs = supabase_utils.get_top_scored_jobs_to_apply(999)
+def close_posting(job):
+    """Mark a posting closed: it is gone, rather than declined.
+
+    Kept separate from Skip on purpose. A skip records a judgement you made and
+    is evidence about the scorer; a closed posting is the world changing
+    underneath the queue and says nothing about fit. Collapsing the two would
+    quietly poison the skip-reason data.
+    """
+    job_id = job.get("job_id")
+    if supabase_utils.mark_job_closed(job_id):
+        flash_saved(f"Closed: {job.get('job_title') or job_id}")
+        st.rerun()
+    else:
+        st.error("Failed to close — check logs.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Sidebar
+# ═══════════════════════════════════════════════════════════════════════════
+
+def nav_counts():
+    """The badges: how many things each screen is asking you to look at."""
+    queue = load_queue()
+    applied = load_applied()
+    summary = cluster_results.load_summary() or {}
+    return {
+        "queue": len(queue),
+        "apps": application_view.counts(applied)["chase"],
+        "arch": summary.get("chosen_k") or 0,
+    }
+
+
+def render_sidebar():
+    with st.sidebar:
+        html(T.brand())
+        counts = nav_counts()
+        current = st.session_state.get("page", DEFAULT_PAGE)
+        for group, items in PAGES:
+            html(f'<div class="jh-navlabel">{T.esc(group)}</div>')
+            for page_id, label in items:
+                n = counts.get(page_id)
+                text = f"{label} `{n}`" if n else label
+                if st.button(text, key=f"nav_{page_id}", width="stretch",
+                             type="primary" if page_id == current else "secondary"):
+                    go(page_id)
+                    st.rerun()
+
+        pulse = supabase_utils.get_scrape_pulse(bar=SCORE_BAR)
+        when = ""
+        if pulse and pulse.get("last_scraped_at"):
+            when = apply_queue.format_found({"scraped_at": pulse["last_scraped_at"]}) or ""
+        html('<div style="height:18px"></div>' + T.pulse_card(pulse, when))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Jobs to apply
+# ═══════════════════════════════════════════════════════════════════════════
+
+# What each filter hides, and how to stop it hiding anything. The strip under
+# the controls shows these counts so a short queue never reads as an empty
+# market — it reads as "12 postings under your bar, 194 older than a day".
+FILTER_KEYS = {
+    "min_score": {"default": SCORE_BAR, "open": 0},
+    "date_window": {"default": apply_queue.DEFAULT_DATE_WINDOW, "open": "all"},
+    "role_type": {"default": "all", "open": "all"},
+    "german_max": {"default": "any", "open": "any"},
+}
+
+
+def init_filters():
+    for key, spec in FILTER_KEYS.items():
+        st.session_state.setdefault(key, spec["default"])
+    st.session_state.setdefault("queue_view", "focus")
+    st.session_state.setdefault("sort_mode", "score")
+
+
+def open_filter(key):
+    """Callback for a strip chip: stop this filter hiding anything."""
+    st.session_state[key] = FILTER_KEYS[key]["open"]
+
+
+def hidden_by_filters(jobs):
+    """(filter key, label, count) for every filter currently hiding something."""
+    out = []
+    window = st.session_state["date_window"]
+    if window != "all":
+        n = sum(1 for j in jobs if not apply_queue.within_window(j, window))
+        span = apply_queue.DATE_WINDOW_LABELS[window].replace("Last ", "")
+        out.append(("date_window", f"Older than {span}", n))
+    bar = st.session_state["min_score"]
+    if bar > 0:
+        n = sum(1 for j in jobs if (j.get("resume_score") or 0) < bar)
+        out.append(("min_score", f"Score under {bar}", n))
+    role = st.session_state["role_type"]
+    if role != "all":
+        n = sum(1 for j in jobs if not apply_queue.matches_role_type(j, role))
+        out.append(("role_type", "Programmes" if role == "roles" else "Standard roles", n))
+    german = st.session_state["german_max"]
+    if german != "any":
+        n = sum(1 for j in jobs if not apply_queue.matches_german(j, german))
+        out.append(("german_max", "German above B2" if german == "B2" else "Any German", n))
+    return [(k, label, n) for k, label, n in out if n]
+
+
+def render_queue_page():
+    jobs = load_queue()
     if not jobs:
+        html(T.page_header("Jobs to apply", "Nothing scored is waiting."))
         st.info("No scored jobs ready for application right now.")
         return
 
-    search = st.text_input("Search", key="search_jobs",
-                           placeholder="Filter by job title or company…")
-
-    controls = st.columns([1.3, 1.5, 1.5, 1.6])
-    with controls[0]:
-        date_window = st.selectbox("Found within", apply_queue.DATE_WINDOW_KEYS,
-                                   key="date_window",
-                                   format_func=lambda w: apply_queue.DATE_WINDOW_LABELS[w],
-                                   help="A posting's value decays fast — the first "
-                                        "applicants are read first. Jobs with no scrape "
-                                        "timestamp only show under 'Any time'.")
-    with controls[1]:
-        min_score = st.slider("Min score", 0, 100, 70, step=5)
-    with controls[2]:
-        sort_by = st.radio("Sort by", apply_queue.SORT_MODES, horizontal=True,
-                           key="sort_mode",
-                           format_func=lambda m: "Score" if m == "score" else "Least effort",
-                           help="Least effort sorts by the scorer's estimated hours, "
-                                "so a short evening can be spent on applications that fit in it.")
-    with controls[3]:
-        focus = st.checkbox("Focus mode", value=True, key="focus_mode",
-                            help="One job at a time, keyboard-driven. Uncheck for the full list.")
-
+    init_filters()
     total = len(jobs)
+    all_scores = [j.get("resume_score") for j in jobs if j.get("resume_score") is not None]
+    fresh = sum(1 for j in jobs if apply_queue.within_window(j, "24h"))
+
+    head = st.columns([3, 1.6], vertical_alignment="bottom")
+    with head[0]:
+        html(T.page_header(
+            "Jobs to apply",
+            f"{total} scored postings waiting. <b>{fresh} arrived in the last day.</b>"))
+    with head[1]:
+        st.radio("View", ["list", "focus"], key="queue_view", horizontal=True,
+                 format_func=lambda v: f"All {total}" if v == "list" else "One at a time",
+                 label_visibility="collapsed")
+
+    controls = st.columns([2.4, 2.2, 1.1], vertical_alignment="center")
+    with controls[0]:
+        st.radio("Sort by", apply_queue.SORT_MODES, key="sort_mode", horizontal=True,
+                 format_func=lambda m: apply_queue.SORT_MODE_LABELS[m],
+                 label_visibility="collapsed")
+    with controls[1]:
+        search = st.text_input("Search", key="search_jobs", placeholder="Title or company",
+                               label_visibility="collapsed")
+    with controls[2]:
+        with st.popover("Filters", width="stretch"):
+            st.selectbox("Found within", apply_queue.DATE_WINDOW_KEYS, key="date_window",
+                         format_func=lambda w: apply_queue.DATE_WINDOW_LABELS[w],
+                         help="A posting's value decays fast — the first applicants are "
+                              "read first. Jobs with no scrape timestamp only show under "
+                              "'Any time'.")
+            st.slider("Min score", 0, 100, step=5, key="min_score")
+            st.selectbox("Show", apply_queue.ROLE_TYPES, key="role_type",
+                         format_func=lambda r: apply_queue.ROLE_TYPE_LABELS[r],
+                         help="Graduate/trainee programmes have one intake a year and an "
+                              "assessment centre; standard roles have a recruiter reading "
+                              "CVs this week. Work them in separate sittings.")
+            st.selectbox("German", apply_queue.GERMAN_FILTERS, key="german_max",
+                         format_func=lambda g: apply_queue.GERMAN_FILTER_LABELS[g],
+                         help="What the ad demands, not the language it is written in. "
+                              "Ads that name no level are kept under every setting but "
+                              "'No German demanded'.")
+
+    render_hidden_strip(jobs)
+
+    date_window = st.session_state["date_window"]
+    min_score = st.session_state["min_score"]
+    role_type = st.session_state["role_type"]
+    german_max = st.session_state["german_max"]
+    sort_by = st.session_state["sort_mode"]
+
     jobs = [j for j in jobs if apply_queue.within_window(j, date_window)]
+    jobs = [j for j in jobs if apply_queue.matches_role_type(j, role_type)]
+    jobs = [j for j in jobs if apply_queue.matches_german(j, german_max)]
     jobs = [j for j in jobs if (j.get("resume_score") or 0) >= min_score]
     jobs = [j for j in jobs if matches_search(j, search)]
     jobs = apply_queue.sort_jobs(jobs, sort_by)
 
     if not jobs:
-        st.info("No jobs match these filters. Try clearing the search, widening "
-                "'Found within', or lowering the min score.")
+        st.info("No jobs match these filters. Try clearing the search, or open one of "
+                "the filters above.")
         return
 
     # Changing the filters or the sort is an explicit "re-shuffle the queue",
     # so the cursor goes back to the top. Only an incidental refresh — a scrape
     # run landing, a job leaving — keeps your place.
-    signature = (sort_by, date_window, min_score, (search or "").strip().lower())
+    signature = (sort_by, date_window, min_score, role_type, german_max,
+                 (search or "").strip().lower())
     if st.session_state.get("queue_signature") != signature:
         st.session_state["queue_signature"] = signature
         st.session_state["cursor_job"] = None
         st.session_state["cursor_idx"] = 0
 
-    if focus:
-        render_focus_queue(jobs, total)
+    if st.session_state["queue_view"] == "focus":
+        render_focus_queue(jobs, all_scores)
         visible = jobs
     else:
-        show_n = st.number_input("Max shown", min_value=5, max_value=200, value=25, step=5)
-        matched = len(jobs)
-        visible = jobs[: int(show_n)]
-        st.caption(f"Showing {len(visible)} of {matched} matching ({total} scored jobs total). "
-                   "Rendering every job at once is slow — narrow with the filters above.")
-        for job in visible:
-            render_job_card(job)
+        visible = render_job_list(jobs, all_scores, sort_by)
 
     # Re-opened on every rerun so widgets inside the dialog keep working.
     # A job filtered out of the list closes it rather than stranding it open.
@@ -206,16 +369,45 @@ def render_today_page():
             close_details()
 
 
-REC_LABELS = {
-    "apply_now": ":green-badge[Apply now]",
-    "apply_after_fixes": ":blue-badge[Apply after fixes]",
-    "apply_if_gate_negotiable": ":orange-badge[If gate negotiable]",
-    "skip": ":red-badge[Skip]",
-}
+def render_hidden_strip(jobs):
+    """What the filters are hiding, each removable with one click."""
+    hidden = hidden_by_filters(jobs)
+    with st.container(key="hidden-strip"):
+        cols = st.columns([1.3] + [1.4] * len(hidden) + [max(0.2, 5 - 1.4 * len(hidden))],
+                          vertical_alignment="center")
+        with cols[0]:
+            html(f'<span style="font-size:13px;color:{T.BLUE[900]};font-weight:600">'
+                 'Hidden right now:</span>')
+        if not hidden:
+            with cols[1]:
+                html(f'<span style="font-size:13px;color:{T.BLUE[800]}">Nothing — you\'re '
+                     'seeing every scored posting.</span>')
+        for col, (key, label, n) in zip(cols[1:], hidden):
+            with col:
+                st.button(f"{label} · **{n}** ×", key=f"drop_{key}", on_click=open_filter,
+                          args=(key,), help="Show these", width="stretch")
+
+
+def render_job_list(jobs, all_scores, sort_by):
+    show_n = int(st.session_state.get("show_n", 20))
+    visible = jobs[:show_n]
+    for job in visible:
+        render_job_card(job, all_scores)
+
+    foot = st.columns([3, 1], vertical_alignment="center")
+    with foot[0]:
+        html(f'<span style="font-size:14px;color:{T.NEUTRAL[700]}">Showing {len(visible)} of '
+             f'{len(jobs)} · sorted by {T.esc(apply_queue.SORT_MODE_LABELS[sort_by].lower())}'
+             '</span>')
+    with foot[1]:
+        if len(jobs) > show_n and st.button("Load 20 more", key="load_more", width="stretch"):
+            st.session_state["show_n"] = show_n + 20
+            st.rerun()
+    return visible
 
 
 def mark_applied(job):
-    """Shared by the overview card and the detail dialog."""
+    """Shared by the list card, the focus card and the detail dialog."""
     job_id = job.get("job_id")
     title = job.get("job_title") or job_id
     if supabase_utils.mark_job_applied(job_id):
@@ -235,10 +427,172 @@ def skip_job(job, reason):
     title = job.get("job_title") or job_id
     if supabase_utils.dismiss_job(job_id, reason):
         st.session_state["last_skipped"] = {"job_id": job_id, "title": title}
+        st.session_state.pop("skipping", None)
         flash_saved(f"Skipped: {title} ({apply_queue.SKIP_REASON_LABELS.get(reason, reason)})")
         st.rerun()
     else:
         st.error("Failed to skip — has supabase_setup/add_dismissal.sql been run?")
+
+
+def start_skip(job):
+    st.session_state["skipping"] = job.get("job_id")
+    st.rerun()
+
+
+def render_skip_panel(job):
+    """
+    The reason, asked at the moment of the decision. "I skipped every job
+    needing C1 German" is a finding, and it only exists if the reason was
+    recorded when the skip happened. Digits are the keyboard path.
+    """
+    if st.session_state.get("skipping") != job.get("job_id"):
+        return
+    job_id = job.get("job_id")
+    with st.container(key="skip-panel"):
+        html('<div style="font-size:13.5px;font-weight:600;margin-bottom:6px">'
+             'Why are you skipping this one?</div>')
+        with st.container(horizontal=True, gap="small"):
+            for n, reason in enumerate(apply_queue.SKIP_REASONS, start=1):
+                if st.button(f"{apply_queue.SKIP_REASON_SHORT[reason]} `{n}`",
+                             key=f"skipreason_{job_id}_{reason}", width="content",
+                             help=apply_queue.SKIP_REASON_LABELS[reason]):
+                    skip_job(job, reason)
+        if st.button("Cancel", key=f"skipcancel_{job_id}", type="tertiary"):
+            st.session_state.pop("skipping", None)
+            st.rerun()
+
+
+def render_overflow(job, prefix, with_keys=False):
+    """
+    One primary, one secondary, one overflow — same order everywhere. The
+    overflow holds the actions that are not a decision about the job.
+    """
+    job_id = job.get("job_id")
+    url = job.get("job_url")
+
+    def k(key):
+        return f" `{key}`" if with_keys else ""
+
+    with st.popover("⋯", help="More actions"):
+        if prefix == "list":
+            if st.button("Full breakdown", key=f"details_{job_id}", width="stretch"):
+                # Held in session_state rather than opened inline: a widget click
+                # inside the dialog reruns the script, and an inline-opened dialog
+                # would vanish mid-interaction.
+                st.session_state["open_job"] = job_id
+                st.rerun()
+        if url:
+            st.link_button(f"Open posting{k('o')}", url, width="stretch")
+        else:
+            st.button(f"Open posting{k('o')}", key=f"{prefix}_open_{job_id}", disabled=True,
+                      width="stretch", help="This posting has no URL.")
+        if st.button(f"Build application pack{k('p')}", key=f"{prefix}_pack_{job_id}",
+                     width="stretch",
+                     help="Write answers, checklist, pitch and the routed CV to "
+                          "output/applications/"):
+            build_application_pack(job)
+        if st.button(f"Tailor a CV for this{k('c')}", key=f"{prefix}_tailor_{job_id}",
+                     width="stretch",
+                     help="Write a CV and Anschreiben for this posting, from your fact base."):
+            tailor_this_job(job)
+        html('<div class="jh-divider"></div>')
+        if st.button("No longer accepting", key=f"{prefix}_closed_{job_id}", width="stretch",
+                     help="The posting is closed and you never applied — take it out of "
+                          "the queue. Distinct from Skip, which records that you decided "
+                          "against it."):
+            close_posting(job)
+
+
+def card_facts(job, breakdown):
+    """The chip row: German first, then effort, odds, source and the verdict word."""
+    facts = job_view.quick_facts(breakdown)
+    rec = breakdown.get("recommendation")
+    if rec in REC_LABELS and rec != "apply_now":
+        facts.append(("Scorer", REC_LABELS[rec]))
+    elif rec == "apply_now":
+        facts.append(("Scorer", "Apply now"))
+    return facts
+
+
+def render_job_card(job, all_scores):
+    """
+    One row of the list: the verdict on the left, the argument in the middle,
+    the decision on the right. The full breakdown stays behind the overflow so
+    the list stays scannable.
+    """
+    breakdown = job.get("score_breakdown") or {}
+    job_id = job.get("job_id")
+
+    with st.container(border=True):
+        cols = st.columns([1.1, 6.4, 2.6], vertical_alignment="top")
+        with cols[0]:
+            html(T.score_disc(job.get("resume_score"), all_scores))
+        with cols[1]:
+            html(T.title_block(job.get("job_title") or "N/A", job.get("company") or "N/A",
+                               found_label(job), is_program=apply_queue.is_program(job))
+                 + '<div style="height:10px"></div>'
+                 + T.verdict(job_view.summary(breakdown))
+                 + '<div style="height:10px"></div>'
+                 + T.fact_chips(breakdown, card_facts(job, breakdown)))
+            render_skip_panel(job)
+        with cols[2]:
+            actions = st.columns([1.3, 1.1, 0.7])
+            with actions[0]:
+                if st.button("Apply", key=f"apply_{job_id}", type="primary", width="stretch",
+                             help="Mark applied and move it to Where I applied."):
+                    mark_applied(job)
+            with actions[1]:
+                if st.button("Skip", key=f"skip_{job_id}", width="stretch",
+                             help="Not applying to this one — take it out of the queue. "
+                                  "The row stays; you'll be asked why."):
+                    start_skip(job)
+            with actions[2]:
+                render_overflow(job, "list")
+
+
+def render_job_body(job, all_scores=()):
+    """
+    The full picture for one job — everything needed to actually write the
+    application. Shared by the detail dialog and the focus queue, which show the
+    same thing and differ only in what surrounds it.
+    """
+    breakdown = job.get("score_breakdown") or {}
+    zone = st.columns([1.1, 6], vertical_alignment="top")
+    with zone[0]:
+        html(T.score_disc(job.get("resume_score"), all_scores, size=92))
+    with zone[1]:
+        html(T.title_block(job.get("job_title") or "N/A", job.get("company") or "N/A",
+                           found_label(job), url=job.get("job_url"),
+                           is_program=apply_queue.is_program(job), size=34)
+             + '<div style="height:12px"></div>'
+             + T.verdict(job_view.summary(breakdown), size=19))
+
+    html(T.gate_row(breakdown, card_facts(job, breakdown)))
+    html('<div style="height:8px"></div>'
+         + T.two_up(T.tinted_list("Lead with", job_view.pros(breakdown), "blue"),
+                    T.tinted_list("They'll push back on", job_view.cons(breakdown), "purple")))
+    wins = job_view.quick_wins(breakdown)
+    if wins:
+        effort = next((v for k, v in job_view.quick_facts(breakdown) if k == "Effort"), None)
+        html('<div style="height:8px"></div>' + T.fix_list(wins, effort))
+
+
+def render_side_rail(job):
+    """Pitch, context and the key legend — what you need while typing."""
+    breakdown = job.get("score_breakdown") or {}
+    pitch = job.get("why_me_pitch")
+    with st.container(key="pitch-card"):
+        html(T.kicker("Pitch — ready to paste", T.BLUE[800]))
+        if pitch:
+            st.code(pitch, language=None, wrap_lines=True)
+        else:
+            html(f'<div style="font-size:13.5px;color:{T.BLUE[800]}">No pitch stored for this '
+                 'posting yet — the scorer writes one on the next pass.</div>')
+    with st.container(border=True):
+        html(T.context_list(job_view.context_facts(breakdown) + job_view.competition(breakdown),
+                            job_view.confidence_note(breakdown)))
+    with st.container(border=True):
+        html(T.key_legend(apply_queue.SHORTCUTS))
 
 
 def move_cursor(jobs, index):
@@ -254,17 +608,24 @@ def keyboard_shortcuts():
     Bind the single-key shortcuts to the buttons already on the page.
 
     Streamlit has no key-binding API, so this listens on the parent document and
-    clicks the control whose label starts with the matching "[x] " prefix. The
-    label is the binding — nothing here can drift out of sync with a renamed
-    button, it just stops matching, and the mouse still works. Typing in any
-    field is left alone.
+    clicks the control whose label ends in the key's code chip — "Skip `s`". The
+    label is the binding: nothing here can drift out of sync with a renamed
+    button, it just stops matching, and the mouse still works. Keys that live in
+    the overflow menu open it first. Typing in any field is left alone.
     """
-    keys = "".join(f'"{key}",' for key, _ in apply_queue.SHORTCUTS)
+    keys = [key for key, _ in apply_queue.SHORTCUTS] + [str(n) for n in range(1, 10)]
     st.iframe(
         f"""
         <script>
-        const keys = [{keys}];
+        const keys = {keys!r};
         const doc = window.parent.document;
+        const find = (key) => {{
+            for (const el of doc.querySelectorAll("button, a")) {{
+                const text = (el.innerText || "").trim();
+                if (text === key || text.endsWith(" " + key)) return el;
+            }}
+            return null;
+        }};
         if (!doc.__jobQueueKeysBound) {{
             doc.__jobQueueKeysBound = true;
             doc.addEventListener("keydown", (e) => {{
@@ -272,15 +633,14 @@ def keyboard_shortcuts():
                 const tag = (doc.activeElement || {{}}).tagName;
                 if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
                 if (!keys.includes(e.key)) return;
-                const wanted = "[" + e.key + "]";
-                const controls = doc.querySelectorAll("button, a");
-                for (const el of controls) {{
-                    if ((el.innerText || "").trim().startsWith(wanted)) {{
-                        e.preventDefault();
-                        el.click();
-                        return;
-                    }}
-                }}
+                e.preventDefault();
+                const hit = find(e.key);
+                if (hit) {{ hit.click(); return; }}
+                // Not on the page: it may sit in the overflow menu. Open that, retry.
+                const more = find("⋯");
+                if (!more) return;
+                more.click();
+                setTimeout(() => {{ const later = find(e.key); if (later) later.click(); }}, 250);
             }});
         }}
         </script>
@@ -290,7 +650,7 @@ def keyboard_shortcuts():
     )
 
 
-def render_focus_queue(jobs, total):
+def render_focus_queue(jobs, all_scores):
     """
     One job at a time, in rank order, driven from the keyboard.
 
@@ -306,58 +666,50 @@ def render_focus_queue(jobs, total):
     job = jobs[index]
     st.session_state["cursor_job"] = job.get("job_id")
     job_id = job.get("job_id")
+    left = len(jobs) - index - 1
+    hours = sum(apply_queue.effort_hours(j) or 0 for j in jobs[index + 1:])
+    pace = f" · about {hours:.0f}h of applications" if hours else ""
 
-    st.caption(f"**{index + 1} of {len(jobs)}** in the queue · {total} scored jobs total")
-    st.progress((index + 1) / len(jobs))
+    main, rail = st.columns([1.9, 1], gap="medium")
+    with main:
+        top = st.columns([1.2, 5, 2.4], vertical_alignment="center")
+        with top[0]:
+            html(f'<span style="font-family:{T.FONT_HEADING};font-size:15px">'
+                 f'{index + 1} of {len(jobs)}</span>')
+        with top[1]:
+            st.progress((index + 1) / len(jobs))
+        with top[2]:
+            html(f'<span style="font-size:13px;color:{T.NEUTRAL[700]}">{left} left{pace}</span>')
 
-    with st.container(border=True):
-        render_job_body(job)
+        with st.container(border=True):
+            render_job_body(job, all_scores)
+            render_skip_panel(job)
+            html('<div style="height:6px;border-bottom:1px solid var(--jh-divider);'
+                 'margin-bottom:12px"></div>')
+            actions = st.columns([1.7, 1, 0.6, 1.6, 0.6, 0.6], vertical_alignment="center")
+            with actions[0]:
+                if st.button("Mark applied `a`", key=f"focus_apply_{job_id}",
+                             type="primary", width="stretch"):
+                    mark_applied(job)
+            with actions[1]:
+                if st.button("Skip `s`", key=f"focus_skip_{job_id}", width="stretch",
+                             help="Removes it from the queue for good. The row stays — a skip "
+                                  "is a label, not a delete."):
+                    start_skip(job)
+            with actions[2]:
+                render_overflow(job, "focus", with_keys=True)
+            with actions[4]:
+                if st.button("`k`", key="focus_prev", width="stretch", disabled=index == 0,
+                             help="Previous"):
+                    move_cursor(jobs, index - 1)
+            with actions[5]:
+                if st.button("`j`", key="focus_next", width="stretch",
+                             disabled=index >= len(jobs) - 1, help="Next"):
+                    move_cursor(jobs, index + 1)
 
-        st.divider()
-        actions = st.columns([1.4, 1.2, 1.6, 1, 1, 1.1])
-        with actions[0]:
-            if st.button("[a] Mark applied", key=f"focus_apply_{job_id}",
-                         type="primary", width="stretch"):
-                mark_applied(job)
-        with actions[1]:
-            if st.button("[s] Skip", key=f"focus_skip_{job_id}", width="stretch",
-                         help="Removes it from the queue for good. The row stays — a skip "
-                              "is a label, not a delete."):
-                skip_job(job, st.session_state.get("skip_reason") or "not_interested")
-        with actions[2]:
-            st.selectbox("Skip reason", apply_queue.SKIP_REASONS, key="skip_reason",
-                         format_func=lambda r: apply_queue.SKIP_REASON_LABELS[r],
-                         label_visibility="collapsed")
-        with actions[3]:
-            url = job.get("job_url")
-            if url:
-                st.link_button("[o] Open", url, width="stretch")
-            else:
-                st.button("[o] Open", key=f"focus_open_{job_id}", disabled=True,
-                          width="stretch", help="This posting has no URL.")
-        with actions[4]:
-            if st.button("[p] Pack", key=f"focus_pack_{job_id}", width="stretch",
-                         help="Write answers, checklist, pitch and the routed CV "
-                              "to output/applications/"):
-                build_application_pack(job)
-        with actions[5]:
-            if st.button("[c] Tailor CV", key=f"focus_tailor_{job_id}", width="stretch",
-                         help="Write a CV and Anschreiben for this posting, from your "
-                              "fact base."):
-                tailor_this_job(job)
-
-    nav = st.columns([1, 1, 4])
-    with nav[0]:
-        if st.button("[k] Previous", key="focus_prev", width="stretch", disabled=index == 0):
-            move_cursor(jobs, index - 1)
-    with nav[1]:
-        if st.button("[j] Next", key="focus_next", width="stretch",
-                     disabled=index >= len(jobs) - 1):
-            move_cursor(jobs, index + 1)
-
-    render_undo_skip()
-    st.caption("Keys: " + " · ".join(f"**{key}** {label.lower()}"
-                                     for key, label in apply_queue.SHORTCUTS))
+        render_undo_skip()
+    with rail:
+        render_side_rail(job)
     keyboard_shortcuts()
 
 
@@ -366,7 +718,7 @@ def render_undo_skip():
     last = st.session_state.get("last_skipped")
     if not last:
         return
-    cols = st.columns([3, 1])
+    cols = st.columns([3, 1], vertical_alignment="center")
     with cols[0]:
         st.caption(f"Last skipped: {last['title']}")
     with cols[1]:
@@ -380,151 +732,46 @@ def render_undo_skip():
                 st.error("Could not restore that job — check logs.")
 
 
-def _bullets(heading, items):
-    if not items:
-        return
-    st.markdown(f"**{heading}**")
-    for item in items:
-        st.markdown(f"- {item}")
-
-
-def _facts_line(facts):
-    if facts:
-        st.caption(" · ".join(f"**{label}** {value}" for label, value in facts))
-
-
 def close_details():
     st.session_state.pop("open_job", None)
 
 
-def render_job_body(job):
-    """
-    The full picture for one job — everything needed to actually write the
-    application. Shared by the detail dialog and the focus queue, which show the
-    same thing and differ only in what surrounds it.
-    """
+def close_applied_details():
+    st.session_state.pop("open_applied_job", None)
+
+
+def render_dialog_body(job):
+    """The breakdown plus the pitch and context the side rail would show."""
     breakdown = job.get("score_breakdown") or {}
-    title = job.get("job_title") or "N/A"
-    company = job.get("company") or "N/A"
-    url = job.get("job_url")
-
-    st.markdown(f"### {title}")
-    rec = REC_LABELS.get(breakdown.get("recommendation"), "")
-    st.markdown(f"{company} &nbsp; {score_badge(job.get('resume_score'))} &nbsp; {rec}")
-    if url:
-        st.markdown(f"[Open posting ↗]({url})")
-
-    found = found_label(job)
-    if found:
-        st.caption(found)
-
-    verdict = job_view.summary(breakdown)
-    if verdict:
-        st.markdown(verdict)
-    _facts_line(job_view.quick_facts(breakdown))
-
-    st.divider()
-    left, right = st.columns(2)
-    with left:
-        _bullets("Lead with", job_view.pros(breakdown))
-    with right:
-        _bullets("They'll push back on", job_view.cons(breakdown))
-
-    wins = job_view.quick_wins(breakdown)
-    if wins:
-        st.divider()
-        _bullets("Before applying", wins)
-
+    render_job_body(job)
     pitch = job.get("why_me_pitch")
     if pitch:
-        st.divider()
-        st.markdown("**Pitch**")
-        st.markdown(pitch)
-
-    context = job_view.context_facts(breakdown)
-    rivals = job_view.competition(breakdown)
-    if context or rivals:
-        st.divider()
-        for label, value in context + rivals:
-            st.markdown(f"**{label}** — {value}")
-
+        html('<div style="height:8px"></div>' + T.kicker("Pitch — ready to paste", T.BLUE[800]))
+        st.code(pitch, language=None, wrap_lines=True)
+    context = job_view.context_facts(breakdown) + job_view.competition(breakdown)
     note = job_view.confidence_note(breakdown)
-    if note:
-        st.caption(note)
+    if context or note:
+        html('<div style="height:8px"></div>' + T.context_list(context, note))
+
+
+@st.dialog("Application details", width="large", on_dismiss=close_applied_details)
+def applied_details_dialog(job):
+    """The same breakdown the queue shows, for a job you have already applied to.
+
+    A separate dialog rather than a flag on the other one: the queue's version
+    ends in "Mark applied", which is meaningless here and actively confusing
+    next to a stage selector that already says Interview or Rejected.
+    """
+    render_dialog_body(job)
 
 
 @st.dialog("Job details", width="large", on_dismiss=close_details)
 def job_details_dialog(job):
-    render_job_body(job)
-    st.divider()
+    render_dialog_body(job)
+    html('<div style="height:8px"></div>')
     if st.button("Mark applied", key=f"dlg_apply_{job.get('job_id')}", type="primary"):
         close_details()
         mark_applied(job)
-
-
-def render_job_card(job):
-    """
-    Overview only — enough to decide whether this one is worth a closer look.
-    The full breakdown lives behind Details so the list stays scannable.
-    """
-    breakdown = job.get("score_breakdown") or {}
-    job_id = job.get("job_id")
-    title = job.get("job_title") or "N/A"
-    company = job.get("company") or "N/A"
-    url = job.get("job_url")
-
-    with st.container(border=True):
-        head = st.columns([6, 1.1])
-        with head[0]:
-            heading = f"**[{title}]({url})**" if url else f"**{title}**"
-            rec = REC_LABELS.get(breakdown.get("recommendation"), "")
-            st.markdown(f"{heading} — {company} &nbsp; {rec}")
-        with head[1]:
-            st.markdown(score_badge(job.get("resume_score")))
-
-        verdict = job_view.summary(breakdown)
-        if verdict:
-            st.markdown(verdict)
-        found = found_label(job)
-        if found:
-            st.caption(found)
-        _facts_line(job_view.quick_facts(breakdown))
-
-        actions = st.columns([1, 1, 1.2, 1.5, 1.4, 1.4])
-        with actions[4]:
-            if st.button("No longer accepting", key=f"closed_{job_id}", width="stretch",
-                         help="Posting is closed and you never applied — remove it from the queue"):
-                if supabase_utils.mark_job_closed(job_id):
-                    flash_saved(f"Closed: {title}")
-                    st.rerun()
-                else:
-                    st.error("Failed to close — check logs.")
-        with actions[0]:
-            if st.button("Details", key=f"details_{job_id}", width="stretch"):
-                # Held in session_state rather than opened inline: a widget click
-                # inside the dialog reruns the script, and an inline-opened dialog
-                # would vanish mid-interaction.
-                st.session_state["open_job"] = job_id
-                st.rerun()
-        with actions[1]:
-            if st.button("Mark applied", key=f"apply_{job_id}", width="stretch"):
-                mark_applied(job)
-        with actions[2]:
-            if st.button("Pack", key=f"pack_{job_id}", width="stretch",
-                         help="Write answers, checklist, pitch and the routed CV "
-                              "to output/applications/"):
-                build_application_pack(job)
-        with actions[3]:
-            if st.button("Tailor CV", key=f"tailor_{job_id}", width="stretch",
-                         help="Write a CV and Anschreiben for this posting, from your "
-                              "fact base. Opens the Generate CV page with this job "
-                              "selected."):
-                tailor_this_job(job)
-        with actions[5]:
-            if st.button("Skip", key=f"skip_{job_id}", width="stretch",
-                         help="Not applying to this one — take it out of the queue. "
-                              "The row stays; use Focus mode to record why."):
-                skip_job(job, "not_interested")
 
 
 def build_application_pack(job):
@@ -544,6 +791,10 @@ def build_application_pack(job):
         st.warning(warning)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Where I applied
+# ═══════════════════════════════════════════════════════════════════════════
+
 def render_ghost_prompt(jobs):
     """
     Offer to close out applications that have gone quiet. Suggested, never
@@ -553,147 +804,236 @@ def render_ghost_prompt(jobs):
     stale = calibration.stale_pending(jobs)
     if not stale:
         return
+    n = len(stale)
+    with st.container(key="ghost-banner"):
+        cols = st.columns([3, 1.1], vertical_alignment="center")
+        with cols[0]:
+            html(f'<div style="font-family:{T.FONT_HEADING};font-size:19px;color:{T.PURPLE[900]};'
+                 f'margin-bottom:4px">{n} application{"s" if n != 1 else ""} '
+                 f'{"have" if n != 1 else "has"} gone quiet for '
+                 f'{calibration.GHOSTED_AFTER_DAYS}+ days</div>'
+                 f'<div style="font-size:14px;line-height:1.5;color:{T.PURPLE[900]}">Unresolved '
+                 'applications teach calibration nothing. Chase them or close them out — a late '
+                 'reply is still possible, so nothing happens automatically.</div>')
+        with cols[1]:
+            if st.button(f"Mark all {n} ghosted", key="ghost_all", type="primary", width="stretch"):
+                failed = [j.get("job_id") for j in stale
+                          if not supabase_utils.update_application_stage(j.get("job_id"), "ghosted")]
+                if failed:
+                    st.error(f"{len(failed)} could not be updated — check logs.")
+                else:
+                    flash_saved(f"Marked {n} application(s) as ghosted")
+                    st.rerun()
+        with st.expander(f"Review the {n}"):
+            for job in stale:
+                age = calibration.days_since_applied(job)
+                st.markdown(f"- **{job.get('job_title') or job.get('job_id')}** — "
+                            f"{job.get('company') or '—'} · applied {age} days ago")
 
-    st.warning(f"{len(stale)} application(s) have had no reply for "
-               f"{calibration.GHOSTED_AFTER_DAYS}+ days. Until they're resolved they "
-               "count for nothing — calibration only learns from settled outcomes.")
-    with st.expander(f"Review {len(stale)} silent application(s)"):
-        for job in stale:
-            age = calibration.days_since_applied(job)
-            st.markdown(f"- **{job.get('job_title') or job.get('job_id')}** — "
-                        f"{job.get('company') or '—'} · applied {age} days ago")
-        if st.button(f"Mark all {len(stale)} as ghosted", key="ghost_all"):
-            failed = [j.get("job_id") for j in stale
-                      if not supabase_utils.update_application_stage(j.get("job_id"), "ghosted")]
-            if failed:
-                st.error(f"{len(failed)} could not be updated — check logs.")
-            else:
-                flash_saved(f"Marked {len(stale)} application(s) as ghosted")
+
+def render_update_form(job):
+    """The stage, the reason, the note — a form, not a row of controls."""
+    job_id = job.get("job_id")
+    title = job.get("job_title") or "N/A"
+    current_stage = application_view.stage_of(job)
+    with st.popover("Update", width="stretch"):
+        new_stage = st.selectbox(
+            "Stage", STAGE_ORDER,
+            index=STAGE_ORDER.index(current_stage) if current_stage in STAGE_ORDER else 0,
+            format_func=lambda s: STAGE_LABELS[s], key=f"stage_{job_id}",
+        )
+        reason = ""
+        if new_stage == "rejected":
+            reason = st.selectbox(
+                "Reason", REJECTION_REASONS,
+                index=REJECTION_REASONS.index(job.get("rejection_reason") or "")
+                if job.get("rejection_reason") in REJECTION_REASONS else 0,
+                key=f"reason_{job_id}", format_func=lambda r: REJECTION_LABELS.get(r, r),
+            )
+        notes = st.text_input(
+            "Notes", value=job.get("outcome_notes") or "", key=f"notes_{job_id}",
+            placeholder="What they said, next steps",
+        )
+        if st.button("Save", key=f"save_{job_id}", type="primary", width="stretch"):
+            ok = supabase_utils.update_application_stage(
+                job_id, new_stage, rejection_reason=reason or None, notes=notes or None)
+            if ok:
+                flash_saved(f"Saved: {title} → {STAGE_LABELS.get(new_stage, new_stage)}")
                 st.rerun()
+            else:
+                st.error("Failed to save — check logs (has the SQL migration been run?).")
+
+
+def render_application_record(job):
+    """The row is a record, not a form: what happened, and what you argued from."""
+    job_id = job.get("job_id")
+    breakdown = job.get("score_breakdown") or {}
+    age = application_view.age_label(job)
+    age_color = T.PURPLE[700] if age["tone"] == "warn" else T.NEUTRAL[700]
+    updated = fmt_date(job.get("stage_updated_at"))
+    line = (f'<b>{T.esc(job.get("company") or "N/A")}</b> · applied '
+            f'{fmt_date(job.get("application_date"))}')
+    if age["text"]:
+        line += f' · <span style="color:{age_color};font-weight:600">{T.esc(age["text"])}</span>'
+    if updated != "—":
+        # stage_updated_at is durable proof the write landed — it survives a
+        # refresh, unlike the transient toast.
+        line += f' · <span style="color:{T.NEUTRAL[600]}">updated {updated}</span>'
+    url = job.get("job_url")
+    title = T.esc(job.get("job_title") or "N/A")
+    if url:
+        title = f'<a href="{T.esc(url)}" target="_blank" rel="noopener" style="color:inherit">{title}</a>'
+
+    with st.container(border=True):
+        head = st.columns([4.4, 3.2], vertical_alignment="top")
+        with head[0]:
+            html(f'<div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:5px">'
+                 f'<h3 style="margin:0;font-family:{T.FONT_HEADING};font-weight:400;font-size:21px;'
+                 f'line-height:1.2">{title}</h3>{T.score_pill(job.get("resume_score"))}'
+                 f'{T.gate_chip(breakdown)}</div>'
+                 f'<div style="font-size:14.5px;color:{T.NEUTRAL[800]}">{line}</div>')
+        with head[1]:
+            side = st.columns([1.7, 1.15, 1.05], vertical_alignment="center")
+            with side[0]:
+                html(T.stage_pill(application_view.stage_label(job),
+                                  application_view.STAGE_TONE.get(application_view.stage_of(job), "wait")))
+            with side[1]:
+                render_update_form(job)
+            with side[2]:
+                if st.button("Details", key=f"applied_details_{job_id}", width="stretch",
+                             help="The score breakdown and pitch this application was "
+                                  "written from — useful when a reply arrives weeks later."):
+                    # Held in session_state and re-opened below, for the same
+                    # reason as the queue: a widget click inside a dialog reruns
+                    # the script, and an inline-opened dialog vanishes mid-use.
+                    st.session_state["open_applied_job"] = job_id
+                    st.rerun()
+
+        parts = [T.verdict(job_view.summary(breakdown), 15),
+                 '<div style="height:14px"></div>',
+                 T.timeline_html(application_view.timeline(job)),
+                 '<div style="height:10px"></div>',
+                 T.two_up(T.labelled_box("What I led with", application_view.led_with(job), T.BLUE[700]),
+                          T.labelled_box("What they pushed back on", application_view.pushback(job),
+                                         T.PURPLE[700]))]
+        note = job.get("outcome_notes")
+        if note:
+            parts.append(f'<div style="margin-top:14px;font-size:14px;line-height:1.55;'
+                         f'color:{T.NEUTRAL[800]};padding-left:14px;border-left:2px solid '
+                         f'{T.NEUTRAL[400]}">{T.esc(note)}</div>')
+        html("".join(parts))
 
 
 def render_applications_page():
-    st.header("Applications — Outcome Tracking")
-    jobs = supabase_utils.get_applied_jobs_with_outcomes(999)
+    jobs = load_applied()
     if not jobs:
+        html(T.page_header("Where I applied", "Nothing sent yet."))
         st.info("No applied jobs yet.")
         return
 
     # Stats cover every application, not just the search results — otherwise
     # typing in the box would silently change what the totals mean.
     s = calibration.summarize(jobs)
-    tiles = st.columns(5)
-    tiles[0].metric("Applied", s["total_applied"])
-    tiles[1].metric("Awaiting reply", s["pending"])
-    tiles[2].metric("Interviews", s["interviews"])
-    tiles[3].metric("Offers", s["offers"])
-    tiles[4].metric("Rejected", s["rejected"])
-    if s["resolved"]:
-        extra = f" · {s['ghosted']} ghosted" if s["ghosted"] else ""
-        st.caption(f"Interview rate {pct(s['interview_rate'])} of {s['resolved']} resolved{extra}")
+    c = application_view.counts(jobs)
+    html(T.page_header(
+        "Where I applied",
+        f"{s['total_applied']} sent · {c['open']} still open · "
+        f"<b>{c['chase']} need chasing this week</b>"))
+    html(T.stat_tiles([
+        ("Applied", str(s["total_applied"]), f"{c['open']} still open"),
+        ("Awaiting reply", str(s["pending"]), f"{c['chase']} of them need chasing"),
+        ("Interviews", str(s["interviews"]), "of resolved applications"),
+        ("Interview rate", pct(s["interview_rate"]), f"of {s['resolved']} resolved"),
+        ("Offers", str(s["offers"]), f"{s['rejected']} rejected · {s['ghosted']} ghosted"),
+    ]))
 
     render_ghost_prompt(jobs)
 
-    show_resolved = st.checkbox("Show resolved", value=True,
-                                help="Resolved applications stay in the database — they're the "
-                                     "data calibration learns from. This only hides them here.")
-    if not show_resolved:
-        jobs = [j for j in jobs if not calibration.is_resolved(j)]
+    controls = st.columns([3, 2], vertical_alignment="center")
+    with controls[0]:
+        st.session_state.setdefault("app_tab", "open")
+        labels = {"open": f"Open {c['open']}", "chase": f"Needs chasing {c['chase']}",
+                  "resolved": f"Resolved {c['resolved']}", "all": f"All {c['all']}"}
+        tab = st.radio("Show", list(labels), key="app_tab", horizontal=True,
+                       format_func=labels.get, label_visibility="collapsed")
+    with controls[1]:
+        search = st.text_input("Search", key="search_applied", placeholder="Title or company",
+                               label_visibility="collapsed")
 
-    search = st.text_input("Search", key="search_applied",
-                           placeholder="Filter by job title or company…")
-    jobs = [j for j in jobs if matches_search(j, search)]
-    if not jobs:
-        st.info("No applications match that search.")
+    shown = application_view.filter_tab(jobs, tab)
+    shown = [j for j in shown if matches_search(j, search)]
+    if not shown:
+        # Also drop any open dialog. This path returns before the re-open block
+        # at the bottom, so without this the id survives a search that hides
+        # every row and the dialog springs back open when the search is cleared.
+        close_applied_details()
+        st.info("No applications match that search." if search
+                else "Nothing in this tab.")
         return
 
     def sort_key(j):
         return j.get("stage_updated_at") or j.get("application_date") or ""
-    jobs = sorted(jobs, key=sort_key, reverse=True)
+    shown = sorted(shown, key=sort_key, reverse=True)
 
-    for job in jobs:
-        job_id = job.get("job_id")
-        current_stage = job.get("application_stage") or "applied"
-        with st.container(border=True):
-            cols = st.columns([4, 1.3, 2, 2])
-            with cols[0]:
-                title = job.get("job_title") or "N/A"
-                company = job.get("company") or "N/A"
-                url = job.get("job_url")
-                label = f"**[{title}]({url})** — {company}" if url else f"**{title}** — {company}"
-                st.markdown(label)
-                # stage_updated_at is durable proof the write landed — it survives
-                # a refresh, unlike the transient toast.
-                updated = fmt_date(job.get("stage_updated_at"))
-                st.caption(f"Applied {fmt_date(job.get('application_date'))} · "
-                           f"Score {job.get('resume_score', '—')} · "
-                           f"Stage: **{STAGE_LABELS.get(current_stage, current_stage)}**"
-                           + (f" · updated {updated}" if updated != "—" else ""))
-            with cols[1]:
-                new_stage = st.selectbox(
-                    "Stage", STAGE_ORDER,
-                    index=STAGE_ORDER.index(current_stage) if current_stage in STAGE_ORDER else 0,
-                    format_func=lambda s: STAGE_LABELS[s],
-                    key=f"stage_{job_id}", label_visibility="collapsed",
-                )
-            with cols[2]:
-                reason = ""
-                if new_stage == "rejected":
-                    reason = st.selectbox(
-                        "Reason", REJECTION_REASONS,
-                        index=REJECTION_REASONS.index(job.get("rejection_reason") or "")
-                        if job.get("rejection_reason") in REJECTION_REASONS else 0,
-                        key=f"reason_{job_id}", label_visibility="collapsed",
-                        placeholder="Rejection reason",
-                    )
-            with cols[3]:
-                save = st.button("Save", key=f"save_{job_id}")
+    for job in shown:
+        render_application_record(job)
 
-            notes = st.text_input(
-                "Notes", value=job.get("outcome_notes") or "",
-                key=f"notes_{job_id}", placeholder="Optional notes (what they said, next steps)",
-                label_visibility="collapsed",
-            )
+    # An application filtered out by the search or the tab closes the dialog
+    # rather than being stranded open over a row that is no longer there.
+    open_id = st.session_state.get("open_applied_job")
+    if open_id:
+        open_job = next((j for j in shown if j.get("job_id") == open_id), None)
+        if open_job:
+            applied_details_dialog(open_job)
+        else:
+            close_applied_details()
 
-            if save:
-                ok = supabase_utils.update_application_stage(
-                    job_id, new_stage,
-                    rejection_reason=reason or None,
-                    notes=notes or None,
-                )
-                if ok:
-                    flash_saved(f"Saved: {title} → {STAGE_LABELS.get(new_stage, new_stage)}")
-                    st.rerun()
-                else:
-                    st.error("Failed to save — check logs (has the SQL migration been run?).")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Is the score right?
+# ═══════════════════════════════════════════════════════════════════════════
+
+def calibration_verdict(s):
+    """The answer, in one banner: how far off the scorer's odds are, and why."""
+    predicted, actual = s["mean_predicted"], s["interview_rate"] or 0
+    gap = (predicted - actual) * 100
+    if abs(gap) < 5:
+        word, big = "on the money", f"{gap:+.0f}pt"
+        headline = f"It promises {predicted * 100:.0f}% interview odds and delivers {actual * 100:.0f}%."
+        body = "Within five points — read a stated probability as roughly what it says. "
+    elif gap > 0:
+        word, big = "overconfident", f"+{gap:.0f}pt"
+        headline = f"It promises {predicted * 100:.0f}% interview odds and delivers {actual * 100:.0f}%."
+        body = (f"Close enough to be useful, not close enough to trust to the point — read a "
+                f"stated {predicted * 100:.0f}% as roughly {actual * 100:.0f}%. ")
+    else:
+        word, big = "underconfident", f"{gap:.0f}pt"
+        headline = f"It promises {predicted * 100:.0f}% interview odds and delivers {actual * 100:.0f}%."
+        body = "Better than it thinks — the postings it calls marginal are worth more than it says. "
+    if s["enough_data"]:
+        body += f"Based on {s['resolved']} resolved outcomes."
+    else:
+        body += (f"Based on {s['resolved']} resolved outcomes — the floor for a reliable read is "
+                 f"{s['min_required']}, so this will move.")
+    return word, big, headline, body
 
 
 def render_calibration_page():
-    st.header("Calibration")
-    st.caption("Is the scorer's confidence actually predictive? Applications still "
-               "waiting for a reply are excluded — no answer yet isn't a rejection.")
-
-    if st.button("Refresh"):
-        st.rerun()
-
-    jobs = supabase_utils.get_applied_jobs_with_outcomes(999)
+    jobs = load_applied()
+    html(T.page_header("Is the score right?",
+                       "Whether the scorer is telling you the truth about your odds. Applications "
+                       "still waiting for a reply are excluded — no answer yet isn't a rejection."))
     if not jobs:
-        st.info("No applied jobs yet. Log some outcomes on the Applications page first.")
+        st.info("No applied jobs yet. Log some outcomes on the Where I applied page first.")
         return
 
     s = calibration.summarize(jobs)
-
-    tiles = st.columns(5)
-    tiles[0].metric("Applied", s["total_applied"])
-    tiles[1].metric("Awaiting reply", s["pending"])
-    tiles[2].metric("Resolved", s["resolved"])
-    tiles[3].metric("Interview rate", pct(s["interview_rate"]))
-    tiles[4].metric("Offers", s["offers"])
-
-    if s["excluded"]:
-        st.caption(f"{s['excluded']} application(s) excluded as removed/spam postings — "
-                   "those never produced a real verdict, so they don't count for or "
-                   "against the scorer.")
+    if s["mean_predicted"] is None:
+        st.info("No scored job carries a predicted interview probability yet, so there's "
+                "nothing to calibrate against.")
+    else:
+        word, big, headline, body = calibration_verdict(s)
+        html(T.banner(headline, body, big=big, big_note=word))
 
     if not s["enough_data"]:
         st.warning(
@@ -702,96 +1042,145 @@ def render_calibration_page():
             "preview, not a signal."
         )
 
-    st.subheader("Predicted vs actual")
-    if s["mean_predicted"] is None:
-        st.info("No scored job carries a predicted interview probability yet, so there's "
-                "nothing to calibrate against.")
-    else:
-        cols = st.columns(3)
-        cols[0].metric("Scorer predicted (avg)", pct(s["mean_predicted"]))
-        cols[1].metric("Actually happened", pct(s["interview_rate"]))
-        cols[2].metric("Brier score", "—" if s["brier"] is None else f"{s['brier']:.3f}",
-                       help="Mean squared error of the predicted probability. Lower is "
-                            "better; 0.25 is what always guessing 50% would score.")
-        gap = (s["mean_predicted"] - (s["interview_rate"] or 0))
-        if abs(gap) >= 0.05:
-            direction = "over" if gap > 0 else "under"
-            st.caption(f"The scorer is **{direction}confident** by roughly "
-                       f"{abs(gap) * 100:.0f} percentage points on resolved applications.")
-
-    st.subheader("Interview rate by score bucket")
     rows = calibration.bucket_stats(jobs)
-    table = pd.DataFrame([
-        {"Score": r["bucket"], "Resolved": r["n"], "Interviews": r["interviews"],
-         "Interview rate": pct(r["interview_rate"])}
-        for r in rows
-    ])
-    st.dataframe(table, hide_index=True, width="stretch")
+    # Best band among those with enough resolved to mean something; a band of
+    # two applications at 50% is not a finding.
+    rated = [r for r in rows if r["interview_rate"] is not None]
+    solid = [r for r in rated if r["n"] >= 3] or rated
+    best = max(solid, key=lambda r: r["interview_rate"]) if solid else None
+    html(T.stat_tiles([
+        ("Applied", str(s["total_applied"]), f"{s['pending']} awaiting reply"),
+        ("Awaiting reply", str(s["pending"]), "excluded from every metric"),
+        ("Resolved", str(s["resolved"]),
+         f"{max(0, s['min_required'] - s['resolved'])} short of a reliable read"
+         if not s["enough_data"] else "enough for a read"),
+        ("Interview rate", pct(s["interview_rate"]), f"of {s['resolved']} resolved"),
+        ("Brier score", "—" if s["brier"] is None else f"{s['brier']:.3f}",
+         "always guessing 50% scores 0.25"),
+        ("Best band", best["bucket"] if best else "—",
+         f"{pct(best['interview_rate'])} interview rate" if best else "no resolved outcomes"),
+    ]))
+    if s["excluded"]:
+        st.caption(f"{s['excluded']} application(s) excluded as removed/spam postings — "
+                   "those never produced a real verdict, so they don't count for or "
+                   "against the scorer.")
 
-    charted = [r for r in rows if r["n"] > 0 and r["interview_rate"] is not None]
-    if s["enough_data"] and charted:
-        chart_df = pd.DataFrame(
-            [{"Score bucket": r["bucket"], "Interview rate": r["interview_rate"]}
-             for r in charted]
-        ).set_index("Score bucket")
-        st.bar_chart(chart_df, color=series_color(), y_label="Interview rate")
-    elif charted:
-        st.caption("Chart appears once there are enough resolved outcomes to be worth plotting.")
+    panels = st.columns(2, gap="medium")
+    with panels[0]:
+        with st.container(border=True):
+            html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;'
+                 f'font-size:22px">Does a higher score actually help?</h3>'
+                 f'<p style="margin:0 0 22px;font-size:14px;color:{T.NEUTRAL[700]};line-height:1.5">'
+                 'Interview rate per score band, resolved applications only.</p>'
+                 + T.bucket_bars([{"label": r["bucket"], "n": r["n"], "rate": r["interview_rate"]}
+                                  for r in rows]))
+            if best and best["n"]:
+                html(f'<p style="margin:22px 0 0;font-size:14px;line-height:1.6;color:{T.NEUTRAL[800]};'
+                     f'padding-top:18px;border-top:1px solid var(--jh-divider)">The {best["bucket"]} band '
+                     f'converts best — {pct(best["interview_rate"])} of {best["n"]}. Any band with fewer '
+                     'than five resolved is noise, not a ceiling.</p>')
 
-    st.subheader("Why applications were rejected")
-    reasons = calibration.rejection_reason_counts(jobs)
-    if not reasons:
-        st.info("No rejections logged yet.")
-    else:
-        reason_df = pd.DataFrame(
-            [{"Reason": k, "Count": v} for k, v in reasons.items()]
-        ).set_index("Reason")
-        st.bar_chart(reason_df, color=series_color(), horizontal=True, x_label="Applications")
+    with panels[1]:
+        with st.container(border=True):
+            rejections = calibration.rejection_reason_counts(jobs)
+            skips = supabase_utils.get_skip_reason_counts()
+            combined = [{"label": REJECTION_LABELS.get(k, k.replace("_", " ")), "n": v,
+                         "fill": T.PURPLE[500]} for k, v in rejections.items()]
+            combined += [{"label": apply_queue.SKIP_REASON_LABELS.get(k, k.replace("_", " ")),
+                          "n": v, "fill": T.BLUE[500]} for k, v in skips.items()]
+            combined.sort(key=lambda r: -r["n"])
+            top = max((r["n"] for r in combined), default=0)
+            for r in combined:
+                r["share"] = r["n"] / top if top else 0
+            html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;'
+                 f'font-size:22px">What\'s actually stopping you</h3>'
+                 f'<p style="margin:0 0 22px;font-size:14px;color:{T.NEUTRAL[700]};line-height:1.5">'
+                 'Rejection reasons, plus your own skip reasons — the two together are the real filter.</p>')
+            if combined:
+                html(T.bar_rows(combined[:8]) + T.legend([(T.PURPLE[500], "They rejected me"),
+                                                          (T.BLUE[500], "I skipped it")]))
+                lead = combined[0]
+                html(f'<p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:{T.NEUTRAL[800]}">'
+                     f'<b>{T.esc(lead["label"])}</b> is the top blocker at {lead["n"]}. That is the '
+                     'single highest-leverage thing to change — or to filter on in the queue.</p>')
+            else:
+                st.info("No rejections or skips logged yet.")
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Which CV to use
+# ═══════════════════════════════════════════════════════════════════════════
 
 def render_archetypes_page():
-    st.header("CV Archetypes")
-    st.caption("The postings worth applying to, grouped by the kind of CV they want. "
-               "One base CV per archetype; per-job tailoring still runs on top.")
-
     summary = cluster_results.load_summary()
     assignments = cluster_results.load_assignments()
     if not summary or not assignments:
+        html(T.page_header("Which CV to use", "No clustering run found yet."))
         st.info(
-            "No clustering run found yet. Generate one with `python -m clustering.run` "
-            "— it reads the scored jobs, extracts a requirement profile per posting, "
-            "and writes the archetypes this page renders."
+            "Generate one with `python -m clustering.run` — it reads the scored jobs, "
+            "extracts a requirement profile per posting, and writes the archetypes this "
+            "page renders."
         )
         return
 
-    corpus = summary.get("corpus", {})
+    clusters = sorted(summary.get("clusters", []), key=lambda c: -c["size"])
+    health = cluster_results.health(summary)
     cfg = summary.get("settings", {})
-
-    tiles = st.columns(4)
-    tiles[0].metric("Archetypes", summary.get("chosen_k", "—"))
-    tiles[1].metric("Postings clustered", len(assignments))
-    tiles[2].metric("Confidently placed",
-                    sum(1 for r in assignments if r.get("confident") == "yes"))
-    tiles[3].metric("Silhouette", f"{summary.get('silhouette', 0):.3f}",
-                    help="Cluster tightness. Low values are normal for job postings — "
-                         "roles lie on a continuum, not in separate species. Stability "
-                         "below is the number that decides whether to trust this.")
-
+    corpus = summary.get("corpus", {})
+    k = len(clusters)
+    html(T.page_header(
+        "Which CV to use",
+        f"{len(assignments)} addressable postings fall into {k} kind{'s' if k != 1 else ''} of CV. "
+        f"Maintain {k} base document{'s' if k != 1 else ''}, not one generic one. "
+        f'<span style="color:{T.NEUTRAL[700]}">Stability {health["stability"]:.2f} across resamples — '
+        f'{T.esc(health["verdict"])}</span>'))
     st.caption(
         f"Fitted on postings scoring {cfg.get('min_score', '?')}+ with at most "
         f"{cfg.get('max_years_required', '?')} years required, out of "
         f"{corpus.get('n_scored', '?')} scored. Generated {fmt_date(summary.get('generated_at'))}."
     )
+    if health["tone"] == "bad":
+        st.error("Stability is too low to trust these groupings — re-run the clustering "
+                 "before building CVs on them.")
 
-    health = cluster_results.health(summary)
-    message = f"**Stability {health['stability']:.2f}** (adjusted Rand index across " \
-              f"resamples) — {health['verdict']}"
-    if health["tone"] == "good":
-        st.success(message)
-    elif health["tone"] == "warn":
-        st.warning(message)
-    else:
-        st.error(message)
+    if not clusters:
+        st.warning("The run produced no clusters.")
+        return
+
+    cv_fit = cluster_results.load_cv_fit()
+    if cv_fit and cluster_results.fit_is_stale(cv_fit, summary):
+        st.warning(
+            "Your CV was scored against an older clustering run, so those numbers "
+            "no longer line up with the archetypes below. Re-run "
+            "`python -m clustering.cv_fit` to refresh them."
+        )
+        cv_fit = None
+    if not cv_fit:
+        st.info("Coverage is not scored yet. Run `python -m clustering.cv_fit` to see, per "
+                "archetype, what your CV already covers and what is missing.")
+
+    cols = st.columns(min(3, len(clusters)), gap="medium")
+    for i, cluster in enumerate(clusters):
+        with cols[i % len(cols)]:
+            render_archetype_card(cluster, i, cluster_results.fit_for_cluster(cv_fit, cluster["cluster"]))
+
+    if cv_fit:
+        render_gap_panel(cv_fit)
+
+    opened = st.session_state.get("arch_open")
+    for cluster in clusters:
+        if cluster["cluster"] == opened:
+            with st.container(border=True):
+                head = st.columns([4, 1], vertical_alignment="center")
+                with head[0]:
+                    html(f'<h3 style="margin:0;font-family:{T.FONT_HEADING};font-weight:400;font-size:24px">'
+                         f'{T.esc(cluster["label"])} in detail</h3>')
+                with head[1]:
+                    if st.button("Close", key="arch_close", width="stretch"):
+                        st.session_state.pop("arch_open", None)
+                        st.rerun()
+                render_archetype(cluster, assignments, summary,
+                                 cluster_results.fit_for_cluster(cv_fit, cluster["cluster"]))
 
     with st.expander("How the number of archetypes was chosen"):
         st.caption(
@@ -811,68 +1200,91 @@ def render_archetypes_page():
             hide_index=True, width="stretch",
         )
 
-    clusters = sorted(summary.get("clusters", []), key=lambda c: -c["size"])
-    if not clusters:
-        st.warning("The run produced no clusters.")
+
+def render_archetype_card(cluster, rank, fit):
+    """One archetype: what it is, how much of it the CV proves, the cheapest win."""
+    with st.container(border=True):
+        label = "Archetype 1 · your best fit" if rank == 0 else f"Archetype {rank + 1}"
+        parts = [
+            T.kicker(label, T.PURPLE[700]),
+            f'<h3 style="margin:0 0 6px;font-family:{T.FONT_HEADING};font-weight:400;font-size:25px;'
+            f'line-height:1.15">{T.esc(cluster["label"])}</h3>',
+            f'<div style="font-size:14px;color:{T.NEUTRAL[800]};margin-bottom:18px">'
+            f'{cluster["size"]} postings · best score {cluster["max_score"]} · '
+            f'{cluster["n_score_55_plus"]} above 55</div>',
+        ]
+        if fit:
+            gain = fit["coverage_if_written"] - fit["coverage"]
+            parts.append(
+                f'<div style="display:flex;justify-content:space-between;align-items:baseline;'
+                f'margin-bottom:8px"><span style="font-size:12px;letter-spacing:.08em;text-transform:'
+                f'uppercase;color:{T.NEUTRAL[600]}">Coverage</span><span style="font-family:'
+                f'{T.FONT_HEADING};font-size:20px">{pct(fit["coverage"])} <span style="font-size:14px;'
+                f'color:{T.BLUE[700]}">→ {pct(fit["coverage_if_written"])}</span></span></div>'
+                + T.coverage_bar(fit["coverage"], fit["coverage_if_written"])
+                + f'<div style="font-size:12.5px;color:{T.NEUTRAL[700]};margin:8px 0 18px;line-height:1.5">'
+                  f'Purple is what your CV proves today; blue is what it would prove after an edit — '
+                  f'{"no new learning" if gain > 0 else "nothing is left unwritten"}.</div>')
+            win = (fit["unwritten"] or [None])[0]
+            if win:
+                text = (f"Write up {win['skill']}. {pct(win['demand'])} of these postings ask for it "
+                        "and your CV never mentions it.")
+            elif fit["missing"]:
+                gap = fit["missing"][0]
+                text = (f"Build {gap['skill']} — {pct(gap['demand'])} of these postings ask for it "
+                        "and nothing on the CV answers it.")
+            else:
+                text = "Nothing left on the table — this archetype is covered."
+            parts.append(f'<div style="background:{T.BLUE[200]};border-radius:16px;padding:16px 18px;'
+                         f'margin-bottom:18px">{T.kicker("Cheapest win", T.BLUE[800])}'
+                         f'<div style="font-size:14.5px;line-height:1.55;color:{T.BLUE[900]}">'
+                         f'{T.esc(text)}</div></div>')
+        skills = [s["Skill"] for s in cluster_results.top_skills(cluster, limit=6)]
+        parts.append(T.kicker("Lead with") + T.mono_chips(skills) + '<div style="height:14px"></div>')
+        html("".join(parts))
+        gaps_label = f"{len(fit['missing'])} gaps" if fit else "Details"
+        if st.button(gaps_label, key=f"arch_open_{cluster['cluster']}", width="stretch"):
+            st.session_state["arch_open"] = cluster["cluster"]
+            st.rerun()
+
+
+def render_gap_panel(cv_fit):
+    """The gaps worth closing, across every archetype, weighted by how many ask."""
+    weighted = {}
+    total = sum(f["size"] for f in cv_fit.get("fits", [])) or 1
+    for f in cv_fit.get("fits", []):
+        for r in f["missing"]:
+            w = weighted.setdefault(r["skill"], {"demand": 0.0, "kind": "build"})
+            w["demand"] += r["demand"] * f["size"] / total
+        for r in f["unwritten"]:
+            w = weighted.setdefault(r["skill"], {"demand": 0.0, "kind": "write"})
+            w["demand"] += r["demand"] * f["size"] / total
+            w["kind"] = "write"
+    rows = sorted(weighted.items(), key=lambda kv: -kv[1]["demand"])[:7]
+    if not rows:
         return
-
-    cv_fit = cluster_results.load_cv_fit()
-    if cv_fit and cluster_results.fit_is_stale(cv_fit, summary):
-        st.warning(
-            "Your CV was scored against an older clustering run, so those numbers "
-            "no longer line up with the archetypes below. Re-run "
-            "`python -m clustering.cv_fit` to refresh them."
-        )
-        cv_fit = None
-    render_cv_fit_overview(cv_fit)
-
-    tabs = st.tabs([f"{c['label']} ({c['size']})" for c in clusters])
-    for tab, cluster in zip(tabs, clusters):
-        with tab:
-            render_archetype(cluster, assignments, summary,
-                             cluster_results.fit_for_cluster(cv_fit, cluster["cluster"]))
-
-
-def render_cv_fit_overview(cv_fit):
-    """Which archetype the CV answers best, before drilling into any one of them."""
-    st.subheader("Your CV against these archetypes")
-    if not cv_fit:
-        st.info(
-            "Not scored yet. Run `python -m clustering.cv_fit` to map your CV onto the "
-            "same skill vocabulary as the postings and see, per archetype, what you "
-            "already cover and what is missing."
-        )
-        return
-
-    st.caption(
-        "Coverage is the share of each archetype's **demand** your CV answers, not the "
-        "share of skills — missing something 90% of postings require costs far more "
-        "than missing something 15% mention. *If written* counts skills that are true "
-        "of you but absent from the CV: those are recovered by editing, not learning."
-    )
-    st.dataframe(
-        pd.DataFrame([
-            {"Archetype": f["label"], "Postings": f["size"],
-             "Coverage now": pct(f["coverage"]),
-             "If written up": pct(f["coverage_if_written"]),
-             "Real gaps": len(f["missing"]),
-             "Free wins": len(f["unwritten"])}
-            for f in cv_fit.get("fits", [])
-        ]),
-        hide_index=True, width="stretch",
-    )
-    if cv_fit.get("headline"):
-        st.caption(f"Read from your CV as: *{cv_fit['headline']}*")
+    top = rows[0][1]["demand"] or 1
+    lines = "".join(
+        f'<div style="display:flex;align-items:center;gap:16px">'
+        f'<div style="width:150px;flex:none;font-family:{T.FONT_MONO};font-size:13px">{T.esc(skill)}</div>'
+        f'<div style="flex:1;height:22px;border-radius:999px;background:{T.BG};overflow:hidden">'
+        f'<div style="height:100%;background:{T.BLUE[500] if w["kind"] == "write" else T.PURPLE[500]};'
+        f'width:{max(2, round(100 * w["demand"] / top))}%"></div></div>'
+        f'<div style="width:52px;flex:none;font-size:13.5px;text-align:right">{pct(w["demand"])}</div>'
+        f'<div style="width:150px;flex:none;font-size:12.5px;color:{T.NEUTRAL[700]}">'
+        f'{"already true — write it" if w["kind"] == "write" else "build it"}</div></div>'
+        for skill, w in rows)
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 6px;font-family:{T.FONT_HEADING};font-weight:400;font-size:22px">'
+             f'The {len(rows)} gaps worth closing</h3>'
+             f'<p style="margin:0 0 22px;font-size:14px;color:{T.NEUTRAL[700]};line-height:1.5">Across '
+             'every archetype, weighted by how many postings ask. Blue ones are true of you already '
+             'and only need writing down.</p>'
+             f'<div style="display:flex;flex-direction:column;gap:11px;margin-bottom:6px">{lines}</div>')
 
 
 def render_archetype(cluster, assignments, summary, fit=None):
-    """One archetype: who it is, what it wants, and the jobs it covers."""
-    tiles = st.columns(4)
-    tiles[0].metric("Postings", cluster["size"])
-    tiles[1].metric("Best score", cluster["max_score"])
-    tiles[2].metric("Mean score", f"{cluster['mean_score']:.0f}")
-    tiles[3].metric("Scoring 55+", cluster["n_score_55_plus"])
-
+    """One archetype in depth: who it is, what it wants, and the jobs it covers."""
     if fit:
         render_cv_gap(fit)
 
@@ -911,7 +1323,7 @@ def render_archetype(cluster, assignments, summary, fit=None):
         "Hide postings sitting between two archetypes", value=False,
         key=f"conf_{cluster['cluster']}",
         help=f"Assignment margin below {summary.get('ambiguous_margin', 0.15)} — these "
-             "could plausibly belong to another archetype, so decide them by eye.",
+             f"could plausibly belong to another archetype, so decide them by eye.",
     )
     jobs = cluster_results.jobs_in_cluster(
         assignments, cluster["cluster"], confident_only=confident_only
@@ -932,10 +1344,7 @@ def render_archetype(cluster, assignments, summary, fit=None):
         st.caption("Closest to the centroid — these read as the archetype itself "
                    "rather than as its edge cases.")
         for e in cluster.get("exemplars", []):
-            st.markdown(
-                f"**{e['title']}** — {e['company']} · {score_badge(e['score'])}  \n"
-                f"{e['summary']}"
-            )
+            st.markdown(f"**{e['title']}** — {e['company']} · {e['score']}/100  \n{e['summary']}")
 
 
 def render_cv_gap(fit):
@@ -945,17 +1354,13 @@ def render_cv_gap(fit):
     responses: covered is nothing to do, unwritten is an edit, missing is either
     a project to build or an archetype to drop.
     """
-    st.subheader("Your CV against this archetype")
-
-    tiles = st.columns(3)
-    tiles[0].metric("Coverage", pct(fit["coverage"]),
-                    help="Share of this archetype's weighted demand your CV answers.")
     gain = fit["coverage_if_written"] - fit["coverage"]
-    tiles[1].metric("If written up", pct(fit["coverage_if_written"]),
-                    delta=f"+{gain * 100:.0f} pts" if gain > 0 else None,
-                    help="Counting skills that are true of you but absent from the CV.")
-    tiles[2].metric("Real gaps", len(fit["missing"]),
-                    help=f"Of {fit['n_demanded']} skills this archetype demands.")
+    html(T.stat_tiles([
+        ("Coverage", pct(fit["coverage"]), "of this archetype's weighted demand"),
+        ("If written up", pct(fit["coverage_if_written"]),
+         f"+{gain * 100:.0f} pts from editing alone" if gain > 0 else "nothing unwritten"),
+        ("Real gaps", str(len(fit["missing"])), f"of {fit['n_demanded']} skills demanded"),
+    ]))
 
     have, edit, gap = st.tabs([
         f"Have it ({len(fit['covered'])})",
@@ -1010,16 +1415,60 @@ def render_cv_gap(fit):
             st.markdown(", ".join(f"`{r['skill']}`" for r in fit["off_target"]))
 
 
-def render_generate_cv_page():
-    st.header("Generate CV")
-    st.caption("Pick one posting. You get a CV and an Anschreiben written only from "
-               "facts about you, argued over by a hiring manager until the objections "
-               "run out. Unlike the other pages, this one does call the LLM — but only "
-               "when you press a button.")
+# ═══════════════════════════════════════════════════════════════════════════
+# Write my CV
+# ═══════════════════════════════════════════════════════════════════════════
 
+def close_interview(job_id, questions):
+    """Drop the answered questions and the text typed into them.
+
+    The answer widgets are keyed per job and question, so their contents outlive
+    the form unless they are cleared — reopening the gap check would show the
+    previous answers already filled in, which reads as though they had not been
+    saved.
+    """
+    st.session_state.pop(f"gaps_{job_id}", None)
+    for q in questions:
+        st.session_state.pop(f"a_{job_id}_{q.id}", None)
+
+
+def tailor_steps(job_id, interview, saved):
+    """Where the three steps stand for this posting."""
+    gaps_done = st.session_state.get(f"gaps_done_{job_id}") or \
+        (interview is not None and not interview.questions)
+    rounds = (saved or {}).get("rounds") or []
+    if saved and saved.get("awaiting_answers"):
+        # A paused run is not finished, and saying "done" next to a draft that is
+        # waiting on you is how a pause gets missed entirely.
+        step1 = {"state": "done", "note": "answered" if gaps_done else "skipped or answered earlier"}
+        step2 = {"state": "current", "note": f"{len(rounds)} round"
+                                             f"{'s' if len(rounds) != 1 else ''} · "
+                                             "paused for your answers"}
+        step3 = {"state": "todo", "note": "after the loop"}
+    elif saved:
+        step1 = {"state": "done", "note": "answered" if gaps_done else "skipped or answered earlier"}
+        step2 = {"state": "done", "note": f"{len(rounds)} round{'s' if len(rounds) != 1 else ''} · "
+                                          + ("no new objections" if not saved.get("judge_failed")
+                                             else "last review failed")}
+        step3 = {"state": "current", "note": "you are here"}
+    elif gaps_done:
+        step1 = {"state": "done", "note": "facts saved"}
+        step2 = {"state": "current", "note": "you are here"}
+        step3 = {"state": "todo", "note": "after the loop"}
+    else:
+        step1 = {"state": "current", "note": "you are here"}
+        step2 = {"state": "todo", "note": "a few minutes of LLM calls"}
+        step3 = {"state": "todo", "note": "after the loop"}
+    return [dict(n="1", label="Fill the gaps", **step1),
+            dict(n="2", label="Write and argue", **step2),
+            dict(n="3", label="Read and send", **step3)]
+
+
+def render_generate_cv_page():
     # status='new' already excludes anything applied or dismissed.
-    queue = supabase_utils.get_top_scored_jobs_to_apply(200)
+    queue = load_queue()
     if not queue:
+        html(T.page_header("Write my CV", "Nothing in the queue to write for."))
         st.info("No unapplied scored jobs in the queue.")
         return
 
@@ -1033,25 +1482,39 @@ def render_generate_cv_page():
     # Consumed rather than read, so returning to this page later does not keep
     # dragging the selection back to whatever was picked days ago.
     requested = st.session_state.pop("tailor_job_id", None)
-    index = 0
     if requested:
-        match = next((i for i, label in enumerate(options)
-                      if labels[label].get("job_id") == requested), None)
+        match = next((label for label in options if labels[label].get("job_id") == requested), None)
         if match is None:
             st.warning("That posting is no longer in the queue — it may have been "
                        "applied to, skipped, or closed. Pick another one.")
         else:
-            index = match
+            st.session_state["tailor_choice"] = match
+    if st.session_state.get("tailor_choice") not in labels:
+        st.session_state["tailor_choice"] = options[0]
 
-    choice = st.selectbox("Job posting", options, index=index)
+    head = st.columns([3.4, 1.2], vertical_alignment="top")
+    with head[0]:
+        html(T.kicker("Writing a CV for", T.PURPLE[700]))
+        choice = st.selectbox("Job posting", options, key="tailor_choice",
+                              label_visibility="collapsed")
+    with head[1]:
+        if st.button("← Back to the jobs", key="tailor_back", width="stretch"):
+            go("queue")
+            st.rerun()
+
     # The queue rows carry no description; the writer and the interview both need
     # one, so the full row is fetched only for the posting actually chosen.
     job = supabase_utils.get_job_with_description(labels[choice]["job_id"])
     if not job:
         st.error("Could not load that posting.")
         return
-    if job.get("job_url"):
-        st.markdown(f"[Open the posting]({job['job_url']})")
+    job_id = job["job_id"]
+    link = (f' · <a href="{T.esc(job["job_url"])}" target="_blank" rel="noopener">open posting ↗</a>'
+            if job.get("job_url") else "")
+    html(f'<h1 style="margin:0 0 6px;font-family:{T.FONT_HEADING};font-weight:400;font-size:40px;'
+         f'line-height:1.1">{T.esc(job.get("job_title") or "N/A")}</h1>'
+         f'<p style="margin:0 0 18px;font-size:16px;color:{T.NEUTRAL[800]}">'
+         f'{T.esc(job.get("company") or "N/A")} · score {T.esc(job.get("resume_score"))}{link}</p>')
     if len(job.get("description") or "") < 300:
         st.warning("This posting has almost no description stored, so the tailoring "
                    "has little to work from.")
@@ -1062,74 +1525,263 @@ def render_generate_cv_page():
         st.error(f"Could not build the fact base: {exc}")
         return
 
-    st.caption(f"Fact base: **{len(base.facts)} facts** "
-               f"({sum(1 for f in base.facts if f.tier == 4)} true but not yet on your CV). "
-               "Every line of the generated CV cites these.")
+    interview = st.session_state.get(f"gaps_{job_id}")
+    saved = tailor_store.load(job_id)
+    html(T.step_bar(tailor_steps(job_id, interview, saved)) + '<div style="height:18px"></div>')
 
-    st.subheader("1 · Fill the gaps")
-    st.caption("Before writing, check what this posting asks for that your fact base "
-               "cannot answer. Anything you add here is saved and helps every future "
-               "application, not just this one.")
-
-    gap_key = f"gaps_{job['job_id']}"
-    if st.button("Find what's missing"):
-        with st.spinner("Reading the posting against your fact base…"):
-            st.session_state[gap_key] = tailor_interview.find_gaps(job, base)
-
-    interview = st.session_state.get(gap_key)
-    if interview is not None:
-        if interview.already_covered:
-            st.success("Already covered: " + ", ".join(interview.already_covered))
-        if not interview.questions:
-            st.info("Nothing to ask — your fact base answers what this posting requires.")
+    left, right = st.columns([1, 1], gap="medium")
+    with left:
+        render_scorer_leads(base)
+        render_gap_step(job, base, interview)
+        render_generate_step(job, base, saved)
+        if saved:
+            # Above the round history on purpose: a paused run is waiting on you,
+            # and the questions are the only thing on this page that is.
+            render_probe_step(job, base, saved)
+            render_rounds(saved)
+    with right:
+        if saved:
+            render_generated_application(saved)
         else:
-            with st.form(f"answers_{job['job_id']}"):
-                answers = {}
-                for q in interview.questions:
-                    st.markdown(f"**{q.question}**")
-                    st.caption(f"{q.requirement} · {q.why_it_matters} · my guess: {q.likely}")
-                    answers[q.id] = st.text_area(
-                        "Your answer", key=f"a_{job['job_id']}_{q.id}",
-                        label_visibility="collapsed",
-                        placeholder="Leave blank if you haven't done this — a no costs nothing.",
-                    )
-                if st.form_submit_button("Save answers to my profile", type="primary"):
-                    with st.spinner("Turning your answers into facts…"):
-                        new_ids = tailor_interview.answers_to_facts(
-                            interview.questions, answers, base)
+            with st.container(border=True):
+                html(T.kicker("The result")
+                     + f'<div style="font-size:14.5px;line-height:1.6;color:{T.NEUTRAL[800]}">Nothing '
+                       'written for this posting yet. Fill the gaps on the left, then generate — you '
+                       'get a CV and an Anschreiben written only from facts about you, argued over '
+                       'by a hiring manager until the objections run out.</div>')
+                citable = base.citable()
+                st.caption(f"Fact base: {len(citable)} facts "
+                           f"({sum(1 for f in citable if f.tier == 4)} true but not yet on your CV). "
+                           "Every line of the generated CV cites these.")
+
+
+def harvest_leads_once(base):
+    """Pull in what the scorer noticed, once per session.
+
+    Scoring runs in GitHub Actions, where `profile_facts.json` does not exist —
+    it is personal and gitignored — so the leads from those runs cannot be
+    written there and are read back from the stored breakdowns here instead.
+
+    Once per session, not once per rerun: this page reruns on every keystroke in
+    a text area, and a Supabase read per keystroke is not a feature.
+    """
+    if st.session_state.get("scorer_leads_harvested"):
+        return
+    st.session_state["scorer_leads_harvested"] = True
+    try:
+        counts = tailor_harvest.harvest_from_supabase(base)
+        if counts["added"] or counts["merged"]:
+            tailor_facts.save(base)
+    except Exception as exc:  # noqa: BLE001 - never block the page on this
+        logging.warning("Could not harvest scorer leads: %s", exc)
+
+
+def render_scorer_leads(base):
+    """What the scorer keeps noticing across the queue, put back to you as questions.
+
+    These are leads, not facts: the scorer read your CV against a posting and
+    concluded the CV does not show something, which is not the same as knowing
+    whether you have done it. So nothing here is citable until you answer it —
+    the writer cannot see these and the verifier rejects any line that cites one.
+    Answering is what converts a lead into a fact, in your words.
+    """
+    harvest_leads_once(base)
+    leads = base.unconfirmed()
+    if not leads:
+        return
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;font-size:19px">'
+             'What the scorer keeps noticing</h3>'
+             f'<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:{T.NEUTRAL[700]}">Gaps '
+             'the scorer flagged while working through your queue, most-seen first — the ones where it '
+             'thought the substance was probably there and your CV just does not show it. It cannot '
+             'know whether you have done these; only you can. Nothing here reaches a CV until you '
+             'answer it, and an answer is kept for every future application.</p>')
+        with st.form("scorer_leads"):
+            replies, dismissed = {}, {}
+            for lead in leads[:8]:
+                seen = len(lead.seen_in)
+                html(f'<div style="display:flex;align-items:center;gap:9px;margin:10px 0 4px">'
+                     f'<span style="font-size:14.5px;font-weight:500">{T.esc(lead.claim)}</span>'
+                     f'<span style="font-size:12px;padding:3px 9px;border-radius:999px;'
+                     f'background:{T.PURPLE[200]};color:{T.PURPLE[800]};white-space:nowrap">'
+                     f'{seen} posting{"s" if seen != 1 else ""}</span></div>')
+                if lead.context:
+                    st.caption(lead.context)
+                replies[lead.id] = st.text_area(
+                    "Have you done this?", key=f"lead_{lead.id}", label_visibility="collapsed",
+                    placeholder="Where you did it, roughly when, any number attached. "
+                                "Leave blank if you haven't — that is a perfectly good answer.",
+                )
+                dismissed[lead.id] = st.checkbox(
+                    "Never ask me this again", key=f"drop_{lead.id}",
+                    help="Drops the lead. Use it for gaps that are simply not true of "
+                         "you — it stops the scorer re-raising them every run.")
+            if st.form_submit_button("Save what's true", type="primary"):
+                added, dropped = [], 0
+                with st.spinner("Turning your answers into facts…"):
+                    for lead in leads[:8]:
+                        answer = (replies.get(lead.id) or "").strip()
+                        if answer:
+                            # Through text_to_facts rather than confirming the lead
+                            # in place: the lead is the scorer's sentence about an
+                            # absence, and what belongs in the base is your sentence
+                            # about what you did — split into atomic facts, in your
+                            # own words, with the tier your answer actually supports.
+                            added += tailor_interview.text_to_facts(answer, base)
+                            base.drop(lead.id)
+                        elif dismissed.get(lead.id):
+                            dropped += base.drop(lead.id)
+                if added or dropped:
+                    tailor_facts.save(base)
+                for lead in leads[:8]:
+                    st.session_state.pop(f"lead_{lead.id}", None)
+                    st.session_state.pop(f"drop_{lead.id}", None)
+                flash_saved(
+                    f"Added {len(added)} fact(s)"
+                    + (f", dropped {dropped} lead(s)" if dropped else "")
+                    + "." if (added or dropped) else "Nothing to save — left as they were."
+                )
+                st.rerun()
+        if len(leads) > 8:
+            st.caption(f"{len(leads) - 8} more below the fold — answer these and the rest "
+                       "move up. They are ranked by how often the scorer hit them.")
+
+
+def render_gap_step(job, base, interview):
+    """Step 1: what the posting asks for that the fact base cannot answer."""
+    job_id = job["job_id"]
+    gap_key = f"gaps_{job_id}"
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;font-size:19px">'
+             '1 · Fill the gaps</h3>'
+             f'<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:{T.NEUTRAL[700]}">Before '
+             'writing, check what this posting asks for that your fact base cannot answer. Anything '
+             'you add here is saved and helps every future application, not just this one.</p>')
+        if st.button("Find what's missing", key="find_gaps", type="primary"):
+            with st.spinner("Reading the posting against your fact base…"):
+                st.session_state[gap_key] = tailor_interview.find_gaps(job, base)
+            st.rerun()
+
+        if interview is not None:
+            if interview.already_covered:
+                st.success("Already covered: " + ", ".join(interview.already_covered))
+            if not interview.questions:
+                st.info("Nothing to ask — your fact base answers what this posting requires.")
+            else:
+                with st.form(f"answers_{job_id}"):
+                    answers = {}
+                    for q in interview.questions:
+                        st.markdown(f"**{q.question}**")
+                        st.caption(f"{q.requirement} · {q.why_it_matters} · my guess: {q.likely}")
+                        answers[q.id] = st.text_area(
+                            "Your answer", key=f"a_{job_id}_{q.id}",
+                            label_visibility="collapsed",
+                            placeholder="Leave blank if you haven't done this — a no costs nothing.",
+                        )
+                    if st.form_submit_button("Save answers to my profile", type="primary"):
+                        with st.spinner("Turning your answers into facts…"):
+                            new_ids = tailor_interview.answers_to_facts(
+                                interview.questions, answers, base)
                         if new_ids:
                             tailor_facts.save(base)
-                            flash_saved(f"Added {len(new_ids)} fact(s) to your profile.")
-                            st.rerun()
-                        else:
-                            st.info("Nothing new to add — no answers, or nothing checkable "
-                                    "in them.")
+                        # Close the form either way. The questions have been answered;
+                        # leaving them on screen invites answering them twice, and a
+                        # blank answer is a "no" that is not worth asking again.
+                        close_interview(job_id, interview.questions)
+                        st.session_state[f"gaps_done_{job_id}"] = True
+                        flash_saved(
+                            f"Added {len(new_ids)} fact(s) to your profile."
+                            if new_ids else
+                            "Saved — nothing new to add from those answers."
+                        )
+                        st.rerun()
 
-    st.subheader("2 · Generate")
-    rounds = st.slider("Rounds of review", 1, 5, tailor_settings.MAX_ROUNDS,
-                       help="The loop stops early once a round raises nothing new. "
-                            "Past round two the models mostly converge on each other.")
-    score_it = st.checkbox(
-        "Score old vs new afterwards", value=True,
-        help="Scores your current CV and the tailored one head to head, once, after "
-             "the loop and never inside it — feeding a score back into the writer "
-             "would make it optimise against the same model that measures it.")
+        with st.expander("Add something your CV doesn't say"):
+            st.caption(
+                "The gap check only asks about what *this posting* demands, so work "
+                "that is real and relevant but that no posting happens to name never "
+                "gets picked up — a thesis, a side project, a tool you use daily. "
+                "Nothing here is posting-specific: what you add is available to every "
+                "application afterwards. Write it as you would say it."
+            )
+            with st.form(f"freeform_{job_id}"):
+                told = st.text_area(
+                    "What did you do?", height=120, label_visibility="collapsed",
+                    placeholder="e.g. My Master's thesis at Daimler Buses, Sept 2026 – "
+                                "Feb 2027, 30h/week — what it's on, what you've built so "
+                                "far, any numbers.",
+                )
+                if st.form_submit_button("Add to my profile"):
+                    with st.spinner("Turning that into facts…"):
+                        new_ids = tailor_interview.text_to_facts(told, base)
+                    if new_ids:
+                        tailor_facts.save(base)
+                        flash_saved(f"Added {len(new_ids)} fact(s) to your profile.")
+                        st.rerun()
+                    else:
+                        st.info("Nothing checkable in that — try naming what you built, "
+                                "where, and any numbers attached to it.")
 
-    if st.button("Generate CV and cover letter", type="primary"):
-        run_generation(job, base, rounds, score_it)
 
-    saved = tailor_store.load(job["job_id"])
-    if saved:
-        render_generated_application(saved)
+def render_generate_step(job, base, saved):
+    """Step 2: the loop's knobs and the button that spends money."""
+    job_id = job["job_id"]
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;font-size:19px">'
+             '2 · Write and argue</h3>'
+             f'<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:{T.NEUTRAL[700]}">Each '
+             'round is one rewrite plus one hiring-manager review. The loop stops early once a round '
+             'raises nothing new.</p>')
+        # Both keyed. Without a key a widget resets to its default on every rerun,
+        # and this page reruns constantly — finding gaps, saving an answer, opening
+        # the fact base. Dragging the slider to 4 and then touching anything else
+        # snapped it back to 2, which read as the slider being stuck.
+        rounds = st.slider("Rounds of review", 1, 5, tailor_settings.MAX_ROUNDS,
+                           key="tailor_rounds",
+                           help="Past round two the models largely converge on each other, "
+                                "so 3-4 buys less than it costs.")
+        probe = st.checkbox(
+            "Ask me questions between rounds", value=True, key="tailor_probe",
+            help="After a round, the objections that need evidence your fact base does "
+                 "not hold are put back to you as questions. No rewrite can answer "
+                 "those — the writer may only use facts it can cite — so without this "
+                 "they survive every remaining round. The run pauses until you answer, "
+                 "and what you add is kept for every future application.")
+        score_it = st.checkbox(
+            "Score old vs new afterwards", value=True, key="tailor_score_it",
+            help="Scores your current CV and the tailored one head to head, once, after "
+                 "the loop and never inside it — feeding a score back into the writer "
+                 "would make it optimise against the same model that measures it.")
+
+        label = "Generate again" if saved else "Generate CV and cover letter"
+        if st.button(label, key="generate_cv", type="primary" if not saved else "secondary"):
+            run_generation(job, base, rounds, score_it, probe=probe)
+
+        # Acted on here rather than inside the result renderer, because continuing
+        # needs the job, the fact base and the personal details, and the renderer is
+        # deliberately given only the saved payload.
+        request = st.session_state.pop("refine_request", None)
+        if request and saved and request[0] == job_id:
+            resume = tailor_loop.continuation_from(saved)
+            if resume is None:
+                st.error("That saved draft could not be reloaded, so it cannot be "
+                         "continued. Generate it again.")
+            else:
+                run_generation(job, base, request[1], score_it, resume=resume,
+                               prior_rounds=saved.get("rounds") or [], probe=probe)
 
 
-def run_generation(job, base, rounds, score_it):
+def run_generation(job, base, rounds, score_it, resume=None, prior_rounds=None,
+                   probe=False):
     """Drive the loop, streaming progress, then persist the result."""
     status = st.empty()
     with st.spinner("Writing…"):
         result = tailor_loop.run(
-            job, base, tailor_store.personal_details(), max_rounds=rounds,
-            progress=lambda msg: status.caption(msg),
+            # int(): the slider reports a float in some Streamlit builds, and
+            # range() will not take one.
+            job, base, tailor_store.personal_details(), max_rounds=int(rounds),
+            progress=lambda msg: status.caption(msg), resume=resume, probe=probe,
         )
     status.empty()
 
@@ -1137,70 +1789,98 @@ def run_generation(job, base, rounds, score_it):
         st.error(result.stopped_because or "Nothing was produced.")
         return
 
-    if score_it:
+    # Scoring a paused run would price a draft that is about to be rewritten with
+    # facts it has not seen, and it is the expensive half of the whole page.
+    if score_it and not result.awaiting_answers:
         with st.spinner("Scoring the original and the tailored CV head to head…"):
             result.score_before, result.score_after, result.score_note = (
                 tailor_loop.holdout_compare(
                     job, tailor_documents.render_cv(result.application.cv)))
 
-    path = tailor_store.save(job, result)
+    path = tailor_store.save(job, result, prior_rounds=prior_rounds)
     flash_saved(f"Saved to {os.path.basename(path)}")
     st.rerun()
 
 
-def render_generated_application(saved):
-    """The finished CV, letter, and the argument that produced them."""
-    st.divider()
-    st.subheader("Result")
-    st.caption(f"Generated {fmt_date(saved.get('generated_at'))} · "
-               f"{saved.get('stopped_because', '')}")
+def render_probe_step(job, base, saved):
+    """The questions a paused run is waiting on, and the button that resumes it.
 
-    before, after = saved.get("score_before"), saved.get("score_after")
-    if after is not None:
-        cols = st.columns(3)
-        cols[0].metric("Original CV", before if before is not None else "—",
-                       help="Your current CV, rescored just now against this posting — "
-                            "not the score stored on the job row, which came from a "
-                            "different run and is not comparable.")
-        cols[1].metric("Tailored CV", after,
-                       delta=(after - before) if before is not None else None)
-        rounds = saved.get("rounds") or []
-        cols[2].metric("Would interview?",
-                       (rounds[-1].get("would_interview") or "—") if rounds else "—",
-                       help="The judge's own read. Recorded, never optimised against.")
-        st.caption(saved.get("score_note", ""))
+    This is the only place in the loop where information enters rather than being
+    rearranged, which is why it gets its own panel rather than a line in the round
+    history. A blank answer is a "no" and costs nothing: the facts are what keep
+    every generated CV citable, so an unanswered question is strictly better than
+    a guessed one.
+    """
+    if not saved.get("awaiting_answers") or not saved.get("questions"):
+        return
+    job_id = job["job_id"]
+    questions = [tailor_interview.Question.model_validate(q) for q in saved["questions"]]
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;font-size:19px">'
+             'The hiring manager has questions for you</h3>'
+             f'<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:{T.NEUTRAL[700]}">The '
+             'run is paused. These objections ask for evidence your fact base does not hold, so no '
+             'rewrite can answer them — the writer may only use facts it can cite. Answer what you '
+             'can and the next round uses it; leave the rest blank, a no costs nothing.</p>')
+        with st.form(f"probe_{job_id}"):
+            answers = {}
+            for q in questions:
+                st.markdown(f"**{q.question}**")
+                st.caption(f"{q.requirement} · {q.why_it_matters} · my guess: {q.likely}")
+                answers[q.id] = st.text_area(
+                    "Your answer", key=f"p_{job_id}_{q.id}", label_visibility="collapsed",
+                    placeholder="Leave blank if you haven't done this — a no costs nothing.",
+                )
+            extra = st.selectbox(
+                "Rounds to run after this", [1, 2], key=f"probe_rounds_{job_id}",
+                format_func=lambda n: f"then run {n} more round" + ("s" if n > 1 else ""),
+            )
+            if st.form_submit_button("Save answers and carry on", type="primary"):
+                with st.spinner("Turning your answers into facts…"):
+                    new_ids = tailor_interview.answers_to_facts(questions, answers, base)
+                if new_ids:
+                    tailor_facts.save(base)
+                for q in questions:
+                    st.session_state.pop(f"p_{job_id}_{q.id}", None)
+                # Continuing goes through the same path as "add a round", so the
+                # draft you have already read is revised rather than rewritten
+                # from scratch — now against a fact base that answers more.
+                st.session_state["refine_request"] = (job_id, int(extra))
+                flash_saved(
+                    f"Added {len(new_ids)} fact(s) — carrying on with those."
+                    if new_ids else
+                    "Nothing new to add from those answers — carrying on regardless."
+                )
+                st.rerun()
 
-    cv_tab, letter_tab, work_tab = st.tabs(["CV", "Cover letter", "How it got here"])
 
-    with cv_tab:
-        st.download_button("Download CV", saved.get("cv_text", ""),
-                           file_name=f"CV_{saved['job']['company']}.txt")
-        st.code(saved.get("cv_text", ""), language=None, wrap_lines=True)
-
-    with letter_tab:
-        st.download_button("Download cover letter", saved.get("cover_letter_text", ""),
-                           file_name=f"Anschreiben_{saved['job']['company']}.txt")
-        st.code(saved.get("cover_letter_text", ""), language=None, wrap_lines=True)
-
-    with work_tab:
+def render_rounds(saved):
+    """How it got here: each round's objections and repairs."""
+    rounds = saved.get("rounds") or []
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 14px;font-family:{T.FONT_HEADING};font-weight:400;font-size:19px">'
+             'How it got here</h3>')
         if saved.get("structural"):
             st.warning("**Gaps no rewrite can close** — these are real, and worth "
                        "knowing before you spend an evening on this application:\n\n"
                        + "\n".join(f"- {s}" for s in saved["structural"]))
-        for rnd in saved.get("rounds", []):
-            with st.expander(
-                f"Round {rnd['number']} — "
-                f"{len(rnd['new_objections'])} new objection(s)"
-                + (f", {rnd['repairs']} repair(s)" if rnd["repairs"] else "")
-            ):
+        for rnd in rounds:
+            tag = (f"{len(rnd['new_objections'])} objection{'s' if len(rnd['new_objections']) != 1 else ''}"
+                   + (f", {rnd['repairs']} repair{'s' if rnd['repairs'] != 1 else ''}" if rnd["repairs"] else ""))
+            if not rnd["new_objections"]:
+                tag = "nothing new"
+            tone = (T.BLUE[200], T.BLUE[900]) if not rnd["new_objections"] else (T.PURPLE[200], T.PURPLE[800])
+            with st.container(border=True):
+                html(f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">'
+                     f'<span style="font-family:{T.FONT_HEADING};font-size:14px">Round {rnd["number"]}</span>'
+                     f'<span style="font-size:12px;padding:3px 10px;border-radius:999px;background:{tone[0]};'
+                     f'color:{tone[1]}">{T.esc(tag)}</span></div>')
                 if not rnd["verifier_ok"]:
-                    st.error("Mechanical checks still failing:\n\n"
-                             + rnd.get("verifier_problems", ""))
+                    st.error("Mechanical checks still failing:\n\n" + rnd.get("verifier_problems", ""))
                 else:
-                    st.success("Every claim cites a fact, every number checks out, "
-                               "no banned phrasing.")
+                    st.markdown("Every claim cites a fact, every number checks out, no banned phrasing.")
                 if rnd.get("standout"):
-                    st.markdown(f"**Judge's read on the strongest point:** {rnd['standout']}")
+                    st.markdown(f"**Strongest point per the judge:** {rnd['standout']}")
                 for objection in rnd["new_objections"]:
                     st.markdown(f"- {objection}")
                 if rnd.get("ai_tells"):
@@ -1208,8 +1888,86 @@ def render_generated_application(saved):
                                + "; ".join(f'"{t}"' for t in rnd["ai_tells"]))
 
 
+def render_generated_application(saved):
+    """The finished CV and letter, with the head-to-head score above them."""
+    rounds = saved.get("rounds") or []
+    job_id = saved["job"]["job_id"]
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 5px;font-family:{T.FONT_HEADING};font-weight:400;font-size:22px">'
+             'The result</h3>'
+             f'<div style="font-size:13.5px;color:{T.NEUTRAL[700]};margin-bottom:16px">Generated '
+             f'{fmt_date(saved.get("generated_at"))} · survived {len(rounds)} review '
+             f'round{"s" if len(rounds) != 1 else ""} · {T.esc(saved.get("stopped_because", ""))}</div>')
+        if saved.get("judge_failed"):
+            # Distinguish "nothing was ever reviewed" from "the last rewrite was not
+            # reviewed". The blanket first-draft wording was wrong whenever earlier
+            # rounds had succeeded — it told you no objections were raised on a run
+            # that had already produced nineteen of them.
+            reviewed = [r for r in rounds if r.get("would_interview")]
+            if reviewed:
+                st.warning(
+                    f"**The last review didn't land.** {len(reviewed)} of {len(rounds)} "
+                    "rounds were reviewed, but the draft below is the final rewrite and "
+                    "no hiring-manager pass has read *this* version. Add a round to have "
+                    "it read."
+                )
+            else:
+                st.error(
+                    "**This draft was never reviewed.** The hiring-manager pass failed on "
+                    "every attempt, so nothing was revised and no objections were raised. "
+                    "Add a round, or regenerate."
+                )
+
+        before, after = saved.get("score_before"), saved.get("score_after")
+        if after is not None:
+            delta = f" ↑{after - before}" if before is not None and after > before else \
+                (f" ↓{before - after}" if before is not None and after < before else "")
+            verdict = (rounds[-1].get("would_interview") or "—") if rounds else "—"
+            html(f'<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">'
+                 f'<div style="flex:1;min-width:120px;background:{T.BG};border-radius:16px;padding:16px 18px">'
+                 f'{T.kicker("Your CV")}<div style="font-family:{T.FONT_HEADING};font-size:30px;line-height:1">'
+                 f'{"—" if before is None else before}</div></div>'
+                 f'<div style="flex:1;min-width:120px;background:{T.PURPLE[200]};border-radius:16px;padding:16px 18px">'
+                 f'{T.kicker("Tailored", T.PURPLE[800])}<div style="font-family:{T.FONT_HEADING};font-size:30px;'
+                 f'line-height:1;color:{T.PURPLE[900]}">{after}<span style="font-size:15px">{delta}</span></div></div>'
+                 f'<div style="flex:1;min-width:120px;background:{T.BLUE[200]};border-radius:16px;padding:16px 18px">'
+                 f'{T.kicker("Would interview", T.BLUE[800])}<div style="font-family:{T.FONT_HEADING};font-size:30px;'
+                 f'line-height:1;color:{T.BLUE[900]}">{T.esc(verdict)}</div></div></div>'
+                 f'<div style="font-size:13px;line-height:1.55;color:{T.NEUTRAL[700]};margin-bottom:14px">'
+                 f'{T.esc(saved.get("score_note") or "Both CVs scored against this posting in one holdout call, after the loop finished — never fed back into the writer.")}</div>')
+
+        cv_tab, letter_tab = st.tabs(["CV", "Anschreiben"])
+        with cv_tab:
+            st.code(saved.get("cv_text", ""), language=None, wrap_lines=True)
+            st.download_button("Download CV", saved.get("cv_text", ""),
+                               file_name=f"CV_{saved['job']['company']}.txt", type="primary")
+        with letter_tab:
+            st.code(saved.get("cover_letter_text", ""), language=None, wrap_lines=True)
+            st.download_button("Download Anschreiben", saved.get("cover_letter_text", ""),
+                               file_name=f"Anschreiben_{saved['job']['company']}.txt", type="primary")
+
+        if saved.get("application"):
+            cols = st.columns([1, 1.3], vertical_alignment="center")
+            with cols[0]:
+                extra = st.selectbox(
+                    "Add rounds", [1, 2], key=f"extra_rounds_{job_id}",
+                    label_visibility="collapsed",
+                    format_func=lambda n: f"{n} more round" + ("s" if n > 1 else ""),
+                )
+            with cols[1]:
+                more = st.button("Add a review round", key=f"refine_{job_id}", width="stretch")
+            st.caption("Continues from this draft against the objections still open, "
+                       "rather than starting again — the document you have read stays "
+                       "recognisable and you only pay for the extra rounds.")
+            if more:
+                st.session_state["refine_request"] = (job_id, int(extra))
+                st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+
 def main():
-    st.title("Job Scraper")
+    html(T.CSS)
 
     # Consumed here, not per page, so a save made on one page still confirms
     # even though the rerun that follows it may land somewhere else.
@@ -1217,24 +1975,17 @@ def main():
     if saved_message:
         st.toast(saved_message, icon="✅")
 
-    # Applied here, before the radio is instantiated, because that is the only
-    # point at which its key can still be set programmatically.
-    pending = st.session_state.pop("pending_nav", None)
-    if pending:
-        st.session_state["nav"] = pending
+    st.session_state.setdefault("page", DEFAULT_PAGE)
+    render_sidebar()
 
-    page = st.sidebar.radio(
-        "View",
-        ["Jobs to Apply", "Applications", "Calibration", "CV Archetypes", "Generate CV"],
-        key="nav",
-    )
-    if page == "Jobs to Apply":
-        render_today_page()
-    elif page == "Applications":
+    page = st.session_state["page"]
+    if page == "queue":
+        render_queue_page()
+    elif page == "apps":
         render_applications_page()
-    elif page == "Calibration":
+    elif page == "cal":
         render_calibration_page()
-    elif page == "CV Archetypes":
+    elif page == "arch":
         render_archetypes_page()
     else:
         render_generate_cv_page()

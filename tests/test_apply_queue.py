@@ -134,3 +134,36 @@ class TestFormatFound:
     def test_no_stamp_means_no_label_rather_than_a_guess(self):
         assert apply_queue.format_found(job("x", 80), NOW) is None
         assert apply_queue.format_found(job("x", 80, scraped_at="whenever"), NOW) is None
+
+
+class TestNewestSort:
+    def test_newest_found_first_undated_last(self):
+        jobs = [
+            {"job_id": "old", "resume_score": 95, "scraped_at": "2026-09-10T08:00:00+00:00"},
+            {"job_id": "none", "resume_score": 99},
+            {"job_id": "new", "resume_score": 70, "scraped_at": "2026-09-12T08:00:00+00:00"},
+        ]
+        assert [j["job_id"] for j in apply_queue.sort_jobs(jobs, "new")] == ["new", "old", "none"]
+
+
+class TestGermanFilter:
+    def _job(self, level):
+        return {"score_breakdown": {"german_required": level}}
+
+    def test_any_keeps_everything(self):
+        for level in ("none", "nice-to-have", "unstated", "B2", "C1-fluent"):
+            assert apply_queue.matches_german(self._job(level), "any")
+
+    def test_up_to_b2_drops_only_c1(self):
+        assert apply_queue.matches_german(self._job("B2"), "B2")
+        assert apply_queue.matches_german(self._job("unstated"), "B2")
+        assert not apply_queue.matches_german(self._job("C1-fluent"), "B2")
+
+    def test_none_keeps_unstated_ads_as_open_questions(self):
+        assert apply_queue.matches_german(self._job("none"), "none")
+        assert apply_queue.matches_german(self._job("unstated"), "none")
+        assert apply_queue.matches_german(self._job("nice-to-have"), "none")
+        assert not apply_queue.matches_german(self._job("B2"), "none")
+
+    def test_missing_breakdown_is_treated_as_unstated(self):
+        assert apply_queue.matches_german({}, "B2")

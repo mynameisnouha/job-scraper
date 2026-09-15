@@ -9,6 +9,9 @@ from sources import user_agents
 from db import supabase_utils
 from sources import scrape_guard
 from sources import dedup
+# Graduate / trainee programme classifier lives in its own module: the scorer and
+# the queue need it too, and neither should import a scraper to get it.
+from sources.role_type import GRADUATE_PROGRAM, program_type_of
 from markdownify import markdownify as md
 import re
 import sys
@@ -30,7 +33,11 @@ _INTERNSHIP_RE = re.compile(
     r"|\babschlussarbeit"
     r"|\bmasterarbeit"
     r"|\bbachelorarbeit"
-    r"|\bfinal (year )?project\b",
+    r"|\bfinal (year )?project\b"
+    # Study placements, not jobs: the applicant is still enrolled for the duration.
+    r"|\bduales? studium"
+    r"|\bdual(es)? stud(ent|ium)"
+    r"|\bausbildung\b",
     re.IGNORECASE,
 )
 
@@ -507,6 +514,7 @@ def process_linkedin_query(search_query: str, location: str, limit: int = None,
                 logging.info(f"Skipping freelance/contract job: {details.get('job_title')} (ID: {job_id})")
                 _filtered("freelance")
                 continue
+            details['program_type'] = program_type_of(details.get('job_title'))
             company_title_key = (dedup.normalize_company(details.get('company')),
                                  dedup.normalize_title(details.get('job_title')))
             if all(company_title_key) and company_title_key in company_title_set:

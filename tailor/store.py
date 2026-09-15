@@ -24,8 +24,15 @@ def _path(job_id: str) -> str:
     return os.path.join(settings.OUTPUT_DIR, f"{safe}.json")
 
 
-def save(job: Dict[str, Any], result: Any) -> str:
-    """Persist a finished run: the documents, the argument, and the caveats."""
+def save(job: Dict[str, Any], result: Any,
+         prior_rounds: Optional[List[Dict[str, Any]]] = None) -> str:
+    """Persist a finished run: the documents, the argument, and the caveats.
+
+    `prior_rounds` carries the history of a run being continued. A continuation
+    returns only the rounds it actually ran, so without this the file would be
+    rewritten as though the earlier rounds never happened - losing the argument
+    that produced the draft being refined, which is the part worth keeping.
+    """
     os.makedirs(settings.OUTPUT_DIR, exist_ok=True)
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -35,7 +42,18 @@ def save(job: Dict[str, Any], result: Any) -> str:
             "original_score": job.get("resume_score"),
         },
         "stopped_because": result.stopped_because,
+        "judge_failed": getattr(result, "judge_failed", False),
+        # Carried so the run can be extended later without re-raising objections
+        # the earlier rounds already answered.
+        "seen_keys": list(getattr(result, "seen_keys", [])),
+        "structural_map": dict(getattr(result, "structural_map", {})),
         "structural": result.structural,
+        # A paused run has to survive the page reload that shows its questions,
+        # so the questions go on disk with everything else rather than living in
+        # session state. Answering them elsewhere and coming back should still
+        # work.
+        "awaiting_answers": getattr(result, "awaiting_answers", False),
+        "questions": [q.model_dump(mode="json") for q in getattr(result, "questions", [])],
         "score_before": result.score_before,
         "score_after": result.score_after,
         "score_note": result.score_note,
@@ -46,7 +64,7 @@ def save(job: Dict[str, Any], result: Any) -> str:
         "application": (
             result.application.model_dump(mode="json") if result.application else None
         ),
-        "rounds": [
+        "rounds": list(prior_rounds or []) + [
             {
                 "number": r.number,
                 "repairs": r.repairs,
@@ -95,6 +113,23 @@ def personal_details() -> Dict[str, Any]:
                     "education", "certifications"):
             if resume.get(key):
                 details[key] = resume[key]
+
+        # The employment timeline: role, employer, dates. Supplied here rather
+        # than left to the writer because dates are not competence claims and
+        # therefore carry no fact ids - which meant nothing checked them. The
+        # verifier walks summary, bullets and letter paragraphs, so a heading
+        # reading "01/2026 - Present" for a role that ended in August would pass
+        # every check in the package. Giving the writer the authoritative dates
+        # removes the guesswork rather than adding another rule about it.
+        if resume.get("experience"):
+            details["experience_timeline"] = [
+                {
+                    "role": e.get("job_title", ""),
+                    "employer": e.get("company", ""),
+                    "dates": f"{e.get('start_date', '')} - {e.get('end_date', '')}".strip(" -"),
+                }
+                for e in resume["experience"]
+            ]
     except Exception as exc:  # noqa: BLE001
         logging.warning("Could not read the base resume for personal details: %s", exc)
 

@@ -11,6 +11,8 @@ Streamlit-free on purpose, like calibration.py and job_view.py.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from sources.role_type import is_program
+
 # Why a job left the queue without an application. These are labels, not
 # bookkeeping: "I skipped every job needing C1 German" is a finding, and it only
 # exists if the reason was recorded at the moment of the decision.
@@ -38,6 +40,19 @@ SKIP_REASON_LABELS = {
     "other": "Other",
 }
 
+# The same reasons as chips: short enough to sit eight in a row.
+SKIP_REASON_SHORT = {
+    "not_interested": "Not interested",
+    "wrong_seniority": "Wrong seniority",
+    "location": "Location",
+    "german_level": "German too high",
+    "visa_sponsorship": "No sponsorship",
+    "salary_too_low": "Salary too low",
+    "already_applied_elsewhere": "Already applied",
+    "duplicate_posting": "Duplicate",
+    "other": "Other",
+}
+
 # Keyboard shortcuts for the focused job. The label is also the button label —
 # the UI matches on it to bind the key, so the two can never drift apart.
 SHORTCUTS = [
@@ -50,12 +65,64 @@ SHORTCUTS = [
     ("k", "Previous"),
 ]
 
-SORT_MODES = ["score", "effort"]
+SORT_MODES = ["score", "effort", "new"]
+SORT_MODE_LABELS = {
+    "score": "Best match",
+    "effort": "Least effort",
+    "new": "Newest",
+}
+
+# How much German a posting may demand and still be shown. Ranked, because
+# "up to B2" has to admit everything below B2 — including the ads that name no
+# level at all, which are a question for the recruiter rather than a gate.
+GERMAN_FILTERS = ["any", "B2", "none"]
+GERMAN_FILTER_LABELS = {
+    "any": "Any German level",
+    "B2": "German up to B2",
+    "none": "No German demanded",
+}
+_GERMAN_RANK = {
+    "none": 0, "nice-to-have": 1, "unstated": 1, "unclear": 1, "B2": 2, "C1-fluent": 3,
+}
+_GERMAN_CEILING = {"any": 99, "B2": 2, "none": 1}
+
+
+def german_level(job: Dict[str, Any]) -> str:
+    breakdown = job.get("score_breakdown") or {}
+    return str(breakdown.get("german_required") or "unstated").strip()
+
+
+def matches_german(job: Dict[str, Any], ceiling: str) -> bool:
+    """Is the German the ad demands within the chosen ceiling?"""
+    rank = _GERMAN_RANK.get(german_level(job), 1)
+    return rank <= _GERMAN_CEILING.get(ceiling, 99)
+
+# Standard roles and graduate/trainee programmes are different bets — a
+# programme has one intake a year and an assessment centre, a role has a
+# recruiter reading CVs this week — so they are worked in different sittings.
+ROLE_TYPES = ["all", "roles", "programs"]
+ROLE_TYPE_LABELS = {
+    "all": "Roles + programmes",
+    "roles": "Standard roles",
+    "programs": "Programmes only",
+}
+
+
+def matches_role_type(job: Dict[str, Any], role_type: str) -> bool:
+    if role_type == "programs":
+        return is_program(job)
+    if role_type == "roles":
+        return not is_program(job)
+    return True
 
 # How far back the queue reaches, newest-first. A posting's value decays fast —
 # the first applicants are read first — so "when was this found" is a filter, not
 # a decoration. None means no lower bound.
 DATE_WINDOWS: List[Tuple[str, Optional[timedelta]]] = [
+    ("1h", timedelta(hours=1)),
+    ("2h", timedelta(hours=2)),
+    ("6h", timedelta(hours=6)),
+    ("12h", timedelta(hours=12)),
     ("24h", timedelta(hours=24)),
     ("3d", timedelta(days=3)),
     ("7d", timedelta(days=7)),
@@ -64,6 +131,10 @@ DATE_WINDOWS: List[Tuple[str, Optional[timedelta]]] = [
 ]
 
 DATE_WINDOW_LABELS = {
+    "1h": "Last hour",
+    "2h": "Last 2 hours",
+    "6h": "Last 6 hours",
+    "12h": "Last 12 hours",
     "24h": "Last 24 hours",
     "3d": "Last 3 days",
     "7d": "Last 7 days",
@@ -72,6 +143,11 @@ DATE_WINDOW_LABELS = {
 }
 
 DATE_WINDOW_KEYS = [key for key, _ in DATE_WINDOWS]
+
+# The window the page opens on. Named rather than left as "whatever is first in
+# the list": the sub-day windows sort ahead of it, and a queue that opens on
+# "Last hour" shows almost nothing and reads as broken rather than as filtered.
+DEFAULT_DATE_WINDOW = "24h"
 
 
 def scraped_at(job: Dict[str, Any]) -> Optional[datetime]:
@@ -161,6 +237,14 @@ def sort_jobs(jobs: List[Dict[str, Any]], mode: str = "score") -> List[Dict[str,
     fit in it — but score still breaks ties, and jobs with no estimate sort last
     rather than pretending to be free.
     """
+    if mode == "new":
+        # Newest-found first, for the pass where being early matters more than
+        # being the best fit. Score breaks ties; undated rows go last.
+        def key(job):
+            found = scraped_at(job)
+            return (found is None, -(found.timestamp() if found else 0.0),
+                    -(job.get("resume_score") or 0))
+        return sorted(jobs, key=key)
     if mode == "effort":
         def key(job):
             hours = effort_hours(job)

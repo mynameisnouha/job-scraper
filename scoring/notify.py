@@ -25,6 +25,7 @@ from email.message import EmailMessage
 from typing import Any, Dict, List, Optional, Tuple
 
 import config
+from sources.role_type import is_program
 
 
 def alert_worthy(jobs: List[Dict[str, Any]],
@@ -86,8 +87,14 @@ def build_message(matches: List[Dict[str, Any]],
         url = job.get("job_url") or ""
         verdict = breakdown.get("one_line_verdict") or ""
         score = job.get("resume_score") or 0
+        # A programme is a different kind of nudge: there is an intake date and
+        # usually an assessment centre, so it is worth knowing before opening it.
+        program = ""
+        if is_program(job):
+            intake = str(breakdown.get("program_intake") or "").strip()
+            program = f" [Programme{', intake ' + intake if intake else ''}]"
 
-        text.append(f"[{score}/100] {title} — {company}")
+        text.append(f"[{score}/100] {title}{program} — {company}")
         if verdict:
             text.append(f"    {verdict}")
         if url:
@@ -99,7 +106,10 @@ def build_message(matches: List[Dict[str, Any]],
                    if url else html.escape(title))
         items.append(
             '<li style="margin:0 0 14px 0">'
-            f'<strong style="font-size:15px">{heading}</strong><br>'
+            f'<strong style="font-size:15px">{heading}</strong>'
+            + (f'<span style="color:#7c3aed;font-size:12px;margin-left:6px">{html.escape(program.strip())}</span>'
+               if program else "")
+            + '<br>'
             f'<span style="color:#555">{html.escape(company)} · <strong>{score}/100</strong></span>'
             + (f'<br><span style="color:#555">{html.escape(verdict)}</span>' if verdict else "")
             + '</li>'
@@ -178,6 +188,24 @@ def notify_matches(jobs: List[Dict[str, Any]], min_score: Optional[int] = None) 
     bar, or a delivery failure that has already been logged.
     """
     if not getattr(config, "EMAIL_ALERTS_ENABLED", False):
+        # Say so, and say it loudly when it looks accidental. This branch used to
+        # return in silence, which is how alerts stayed off in GitHub Actions for
+        # days without leaving a single line in any run log: the workflow passes
+        # EMAIL_ALERTS_ENABLED from a repository *variable*, an unset variable
+        # arrives as an empty string, and an empty string is falsy. Everything
+        # looked healthy because nothing ever said otherwise.
+        would_have = alert_worthy(jobs, min_score)
+        if would_have:
+            logging.warning(
+                "EMAIL ALERTS ARE OFF — %d job(s) in this run would have been sent, "
+                "best %s. Set EMAIL_ALERTS_ENABLED=true (locally in .env, or as a "
+                "repository variable for GitHub Actions).%s",
+                len(would_have), would_have[0].get("resume_score"),
+                (" Also unset: " + ", ".join(missing_settings()) + ".")
+                if missing_settings() else "",
+            )
+        else:
+            logging.info("Email alerts are disabled; nothing in this run cleared the bar anyway.")
         return 0
     matches = alert_worthy(jobs, min_score)
     if not matches:

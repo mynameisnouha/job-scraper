@@ -1,7 +1,7 @@
 from supabase import create_client, Client
 import config # Import configuration
 from sources import dedup  # normalization shared with the scrapers; see get_existing_jobs_from_supabase
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from models import Resume
 import datetime # Import datetime module
 import logging # Import logging
@@ -80,6 +80,7 @@ def save_jobs_to_supabase(jobs_data: list):
         "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
         "is_active", "status", "job_state", "scraped_at", "last_checked",
         "customized_resume_id", "resume_link", "score_breakdown", "alt_sources",
+        "program_type",
     }
 
     processed_jobs_data = []
@@ -105,7 +106,18 @@ def save_jobs_to_supabase(jobs_data: list):
         # or update existing rows if a job_id conflict occurs based on the primary key.
         # Ensure 'job_id' is the primary key or has a unique constraint in your Supabase table.
         # By default, supabase-py's upsert updates the row on conflict.
-        data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
+        try:
+            data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
+        except Exception as inner_e:
+            # Column not added yet (supabase_setup/add_program_type.sql). Losing the
+            # tag is recoverable — the queue re-derives it from the title — losing
+            # the whole run's postings is not.
+            if "program_type" not in str(inner_e):
+                raise
+            logging.warning("program_type column missing in Supabase — saving jobs without it.")
+            for job in processed_jobs_data:
+                job.pop("program_type", None)
+            data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
 
         # Check the actual response structure from your Supabase client version for upsert
         # It might differ slightly from insert's response structure
@@ -131,14 +143,27 @@ def get_jobs_to_score(limit: int) -> list:
 
     try:
         logging.info(f"Fetching up to {limit} jobs needing scoring...")
+
         # Select fields needed for scoring
-        response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select("job_id, job_title, company, description, level")\
+        def _query(columns: str):
+            return supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select(columns)\
                            .eq("is_active", True)\
                            .is_("resume_score", None)\
                            .order("scraped_at", desc=False)\
                            .limit(limit)\
                            .execute()
+
+        base_cols = "job_id, job_title, company, description, level"
+        try:
+            response = _query(base_cols + ", program_type")
+        except Exception as inner_e:
+            if "program_type" not in str(inner_e):
+                raise
+            # Column not added yet (supabase_setup/add_program_type.sql). Programmes
+            # are then scored as standard roles rather than not at all.
+            logging.warning("program_type column missing in Supabase — scoring without it.")
+            response = _query(base_cols)
 
         if response.data:
             logging.info(f"Successfully fetched {len(response.data)} jobs to score.")
@@ -213,10 +238,16 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
 
         base_cols = "job_id, job_title, company, resume_score, job_url, provider, posted_at, scraped_at"
         try:
-            response = _query(base_cols + ", score_breakdown, why_me_pitch, dismissed_at")
+            response = _query(base_cols + ", score_breakdown, why_me_pitch, dismissed_at, program_type")
         except Exception as inner_e:
             err = str(inner_e)
-            if "dismissed_at" in err:
+            if "program_type" in err:
+                # Column not added yet (supabase_setup/add_program_type.sql). The queue
+                # falls back to classifying the title itself; see apply_queue.program_type.
+                logging.warning("program_type column missing in Supabase — the queue will "
+                                "tag programmes from the title instead.")
+                response = _query(base_cols + ", score_breakdown, why_me_pitch, dismissed_at")
+            elif "dismissed_at" in err:
                 logging.warning("Dismissal columns missing (run supabase_setup/add_dismissal.sql). "
                                 "Fetching without them — dismissed jobs will keep reappearing.")
                 try:
@@ -262,6 +293,23 @@ def get_job_with_description(job_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logging.error(f"Error fetching job {job_id} with description: {e}")
         return None
+
+
+def get_job_urls(job_ids: List[str]) -> Dict[str, str]:
+    """job_id -> job_url for a handful of jobs, in one query.
+
+    The rescore RPC does not return job_url, and the email alert wants a link
+    per job. One batched select beats a per-job fetch of the full row, whose
+    description column is the largest in the table.
+    """
+    if not job_ids:
+        return {}
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                            .select("job_id, job_url")                            .in_("job_id", list(job_ids))                            .execute()
+        return {row["job_id"]: row.get("job_url") or "" for row in (response.data or [])}
+    except Exception as e:
+        logging.error(f"Error fetching job URLs: {e}")
+        return {}
 
 
 def get_applied_jobs(limit: int) -> list:
@@ -580,6 +628,23 @@ def get_scored_jobs_for_health_check(limit: int = 500) -> list:
         return []
 
 
+def get_score_breakdowns(limit: int = 500) -> list:
+    """
+    Job ids and their score breakdowns, newest first. Nothing else.
+
+    Deliberately leaner than get_scored_jobs_for_health_check, which selects the
+    full description too: the tailoring harvest walks hundreds of rows to count
+    how often each gap recurs, and pulling a few hundred job descriptions to read
+    one JSON field off each would be the expensive part of a cheap operation.
+    """
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .select("job_id, job_title, company, score_breakdown")                           .not_.is_("score_breakdown", None)                           .order("scraped_at", desc=True)                           .limit(limit)                           .execute()
+        return response.data or []
+    except Exception as e:
+        logging.error(f"Error fetching score breakdowns: {e}")
+        return []
+
+
 def mark_job_closed(job_id: str) -> bool:
     """
     Marks a posting you never applied to as no longer accepting candidates:
@@ -672,6 +737,51 @@ def undismiss_job(job_id: str) -> bool:
         return False
 
 
+def get_skip_reason_counts() -> Dict[str, int]:
+    """
+    How often each skip reason was recorded, most common first.
+
+    The other half of "what is stopping you": rejections are what employers
+    said no to, skips are what you said no to. Empty when the dismissal
+    migration has not been run — the columns simply are not there yet.
+    """
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .select("dismissal_reason")                           .not_.is_("dismissed_at", None)                           .execute()
+    except Exception as e:
+        logging.warning(f"Could not read skip reasons (run supabase_setup/add_dismissal.sql?): {e}")
+        return {}
+    counts: Dict[str, int] = {}
+    for row in response.data or []:
+        reason = (row.get("dismissal_reason") or "").strip() or "unspecified"
+        counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True))
+
+
+def get_scrape_pulse(hours: int = 24, bar: int = 70) -> Optional[Dict[str, Any]]:
+    """
+    When the scraper last landed, and what the last day brought.
+
+    Read once per page load for the sidebar, so it asks only for the two
+    columns it needs. None when the query fails — the sidebar then says nothing
+    rather than something wrong.
+    """
+    since = (datetime.datetime.now(datetime.timezone.utc)
+             - datetime.timedelta(hours=hours)).isoformat()
+    try:
+        latest = supabase.table(config.SUPABASE_TABLE_NAME)                         .select("scraped_at, provider")                         .not_.is_("scraped_at", None)                         .order("scraped_at", desc=True)                         .limit(1)                         .execute()
+        recent = supabase.table(config.SUPABASE_TABLE_NAME)                         .select("resume_score, provider")                         .gte("scraped_at", since)                         .execute()
+    except Exception as e:
+        logging.warning(f"Could not read the scrape pulse: {e}")
+        return None
+    rows = recent.data or []
+    return {
+        "last_scraped_at": (latest.data or [{}])[0].get("scraped_at"),
+        "new": len(rows),
+        "cleared": sum(1 for r in rows if (r.get("resume_score") or 0) >= bar),
+        "sources": sorted({r.get("provider") for r in rows if r.get("provider")}),
+    }
+
+
 def get_applied_jobs_with_outcomes(limit: int = 999) -> list:
     """
     Fetches all applied jobs with their outcome-tracking fields and score_breakdown,
@@ -687,13 +797,20 @@ def get_applied_jobs_with_outcomes(limit: int = 999) -> list:
                        .execute()
 
     base_cols = ("job_id, job_title, company, resume_score, score_breakdown, job_url, "
-                 "application_date, application_stage, stage_updated_at, rejection_reason, outcome_notes")
+                 "why_me_pitch, application_date, application_stage, stage_updated_at, "
+                 "rejection_reason, outcome_notes")
     try:
         response = _query(base_cols)
         return response.data or []
     except Exception as e:
         err = str(e)
-        if "application_stage" in err or "rejection_reason" in err or "outcome_notes" in err:
+        # why_me_pitch is listed alongside the outcome columns rather than given
+        # its own branch: both come from optional migrations, and the recovery is
+        # identical — drop back to the columns that certainly exist. Without it
+        # here, a project missing only that migration would fall through to the
+        # generic handler and get an empty page instead of a degraded one.
+        if ("application_stage" in err or "rejection_reason" in err
+                or "outcome_notes" in err or "why_me_pitch" in err):
             logging.warning("Outcome-tracking columns missing — run supabase_setup/add_application_outcomes.sql. "
                              "Fetching without them.")
             fallback_cols = "job_id, job_title, company, resume_score, score_breakdown, job_url, application_date"

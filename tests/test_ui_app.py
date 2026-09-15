@@ -69,20 +69,40 @@ FAKE_APPLIED_JOBS = [
 ]
 
 
+def markdown_text(app):
+    """Everything rendered through st.markdown — the HTML cards included."""
+    return " ".join(m.value for m in app.markdown)
+
+
+def tiles(app):
+    """label → value for every stat tile on the page."""
+    found = {}
+    for m in app.markdown:
+        for label, value in re.findall(
+                r'text-transform:uppercase;color:#7f7c97;margin-bottom:7px">([^<]+)</div>'
+                r'<div style="font-family:[^"]*;font-size:34px;line-height:1">([^<]+)</div>',
+                m.value):
+            found[label] = value
+    return found
+
+
 @pytest.fixture
 def app(monkeypatch):
     monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply",
                         lambda limit: list(FAKE_TODAY_JOBS))
     monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",
                         lambda limit=999: list(FAKE_APPLIED_JOBS))
+    # Sidebar and calibration reads that would otherwise go to the network.
+    monkeypatch.setattr(supabase_utils, "get_scrape_pulse", lambda **kw: None)
+    monkeypatch.setattr(supabase_utils, "get_skip_reason_counts", lambda: {})
     return AppTest.from_file(UI_APP_PATH, default_timeout=60)
 
 
 @pytest.fixture
 def list_app(app):
-    """The full-list view. Focus mode is the default, so switch it off first."""
+    """The full-list view. One at a time is the default, so switch it off first."""
     app.run()
-    app.checkbox(key="focus_mode").set_value(False)
+    app.radio(key="queue_view").set_value("list")
     return app
 
 
@@ -93,67 +113,84 @@ class TestJobsToApplyPage:
 
     def test_default_filters_hide_low_score_and_stale_jobs(self, list_app):
         list_app.run()
-        text = " ".join(m.value for m in list_app.markdown)
+        text = markdown_text(list_app)
         assert "ML Engineer" in text          # today + score 82
         assert "Data Scientist" not in text   # score 41, below default min of 70
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago,
                                               # outside the default 24h window
-        # One card survives, carrying its six actions.
-        assert sorted(b.key for b in list_app.button) == [
-            "apply_j1", "closed_j1", "details_j1", "pack_j1", "skip_j1", "tailor_j1",
-        ]
+        # One card survives, carrying its actions: decide, or reach for the overflow.
+        keys = {b.key for b in list_app.button}
+        assert {"apply_j1", "skip_j1", "details_j1", "list_pack_j1",
+                "list_tailor_j1", "list_closed_j1"} <= keys
+        assert not any(k.endswith("_j2") or k.endswith("_j6") for k in keys)
+
+    def test_the_strip_says_what_the_filters_hide(self, list_app):
+        """A short queue must read as filtered, not as an empty market."""
+        list_app.run()
+        labels = [b.label for b in list_app.button if b.key.startswith("drop_")]
+        assert any("Older than 24 hours" in l and "1" in l for l in labels)
+        assert any("Score under 70" in l and "1" in l for l in labels)
+
+    def test_dropping_a_chip_opens_that_filter(self, list_app):
+        list_app.run()
+        list_app.button("drop_min_score").click().run()
+        assert not list_app.exception
+        assert "Data Scientist" in markdown_text(list_app)
+        assert not any(b.key == "drop_min_score" for b in list_app.button)
 
     def test_widening_the_date_window_reveals_older_jobs(self, list_app):
         list_app.run()
         list_app.selectbox(key="date_window").set_value("30d").run()
-        text = " ".join(m.value for m in list_app.markdown)
-        assert "Vision Engineer" in text
+        assert "Vision Engineer" in markdown_text(list_app)
         assert not list_app.exception
 
     def test_card_shows_when_the_job_was_found(self, list_app):
         """Under a day old, the clock time is shown alongside the elapsed time."""
         list_app.run()
-        captions = " ".join(c.value for c in list_app.caption)
-        assert re.search(r"Found \d{2}:\d{2} · (just now|\d+[mh] ago)", captions)
+        assert re.search(r"found \d{2}:\d{2} · (just now|\d+[mh] ago)", markdown_text(list_app))
 
     def test_lowering_min_score_reveals_weaker_jobs(self, list_app):
         list_app.run()
         list_app.slider[0].set_value(0).run()
-        text = " ".join(m.value for m in list_app.markdown)
-        assert "Data Scientist" in text
+        assert "Data Scientist" in markdown_text(list_app)
 
     def test_overview_card_shows_only_the_headline(self, list_app):
-        """The list stays scannable: verdict and facts, detail stays behind Details."""
+        """The list stays scannable: verdict and gates, detail stays behind the overflow."""
         list_app.run()
-        text = " ".join(m.value for m in list_app.markdown)
+        text = markdown_text(list_app)
         assert "ML Engineer" in text
         assert "Strong fit." in text
         assert "Lead with" not in text
         assert "QLoRA fine-tuning in production" not in text
-        captions = " ".join(c.value for c in list_app.caption)
-        assert "Interview odds" in captions and "30%" in captions
+        assert "30% interview odds" in text
+        assert "1.5h" in text
 
-    def test_card_shows_the_recommendation_as_a_badge(self, list_app):
+    def test_card_shows_the_scorer_verdict_as_a_chip(self, list_app):
         list_app.run()
-        text = " ".join(m.value for m in list_app.markdown)
-        assert "Apply now" in text
+        assert "Apply now" in markdown_text(list_app)
+
+    def test_card_shows_the_score_band_and_its_place_in_the_corpus(self, list_app):
+        list_app.run()
+        text = markdown_text(list_app)
+        assert "Strong" in text
+        assert "of 3" in text  # three scored postings, ranked against each other
 
     def test_details_button_opens_the_dialog_with_the_full_breakdown(self, list_app):
         list_app.run()
         list_app.button("details_j1").click().run()
         assert not list_app.exception
-        text = " ".join(m.value for m in list_app.markdown)
+        text = markdown_text(list_app)
         assert "Lead with" in text
         assert "QLoRA fine-tuning in production" in text
-        assert "They'll push back on" in text
+        assert "They&#x27;ll push back on" in text
         assert "Kubernetes" in text
-        assert "Before applying" in text
+        assert "Fix before applying" in text
         assert "GCP not shown → Add a bullet" in text
-        assert "I shipped a fine-tuned LLM to production." in text
+        assert any("I shipped a fine-tuned LLM to production." in c.value for c in list_app.code)
 
     def test_dialog_stays_closed_until_clicked(self, list_app):
         list_app.run()
-        assert "Open posting" not in " ".join(m.value for m in list_app.markdown)
+        assert "Open posting" not in markdown_text(list_app)
 
     def test_mark_applied_from_inside_the_dialog(self, list_app, monkeypatch):
         calls = []
@@ -173,17 +210,17 @@ class TestJobsToApplyPage:
         """
         list_app.run()
         list_app.button("details_j1").click().run()
-        assert "Open posting" in " ".join(m.value for m in list_app.markdown)
+        assert "Open posting" in markdown_text(list_app)
         # An unrelated interaction elsewhere on the page.
         list_app.text_input("search_jobs").set_value("ML").run()
-        assert "Open posting" in " ".join(m.value for m in list_app.markdown)
+        assert "Open posting" in markdown_text(list_app)
 
     def test_filtering_a_job_out_closes_its_dialog(self, list_app):
         list_app.run()
         list_app.button("details_j1").click().run()
         list_app.text_input("search_jobs").set_value("zzz-no-match").run()
         assert not list_app.exception
-        assert "Open posting" not in " ".join(m.value for m in list_app.markdown)
+        assert "Open posting" not in markdown_text(list_app)
 
     def test_details_dialog_survives_an_empty_breakdown(self, list_app, monkeypatch):
         bare = [{"job_id": "b1", "job_title": "Bare Job", "company": "Co",
@@ -209,7 +246,7 @@ class TestJobsToApplyPage:
         monkeypatch.setattr(supabase_utils, "mark_job_closed",
                             lambda jid: calls.append(jid) or True)
         list_app.run()
-        list_app.button("closed_j1").click().run()
+        list_app.button("list_closed_j1").click().run()
         assert calls == ["j1"]
         assert not list_app.exception
 
@@ -220,22 +257,21 @@ class TestJobsToApplyPage:
         monkeypatch.setattr(supabase_utils, "mark_job_applied",
                             lambda jid: applied.append(jid) or True)
         list_app.run()
-        list_app.button("closed_j1").click().run()
+        list_app.button("list_closed_j1").click().run()
         assert applied == []
 
     def test_search_narrows_by_title(self, list_app):
         list_app.run()
         list_app.slider[0].set_value(0).run()
         list_app.text_input("search_jobs").set_value("data scien").run()
-        text = " ".join(m.value for m in list_app.markdown)
+        text = markdown_text(list_app)
         assert "Data Scientist" in text
         assert "ML Engineer" not in text
 
     def test_search_matches_company_case_insensitively(self, list_app):
         list_app.run()
         list_app.text_input("search_jobs").set_value("acme").run()
-        text = " ".join(m.value for m in list_app.markdown)
-        assert "ML Engineer" in text
+        assert "ML Engineer" in markdown_text(list_app)
 
     def test_search_with_no_hits_shows_hint(self, list_app):
         list_app.run()
@@ -263,28 +299,28 @@ class TestFocusQueue:
     def test_focus_mode_shows_one_job_with_its_full_breakdown(self, app):
         app.run()
         assert not app.exception
-        text = " ".join(m.value for m in app.markdown)
+        text = markdown_text(app)
         # Only the top-ranked job, but everything about it — no Details round trip.
         assert "ML Engineer" in text
         assert "Vision Engineer" not in text
         assert "Lead with" in text
         assert "QLoRA fine-tuning in production" in text
-        assert "I shipped a fine-tuned LLM to production." in text
+        # The pitch sits in the side rail as a code block, so it can be copied.
+        assert any("I shipped a fine-tuned LLM to production." in c.value for c in app.code)
 
     def test_position_is_shown_so_you_know_where_you_are(self, app):
         app.run()
-        captions = " ".join(c.value for c in app.caption)
-        assert "**1 of 1** in the queue" in captions
+        assert re.search(r">1 of 1<", markdown_text(app))
 
     def test_every_shortcut_has_a_control_labelled_with_its_key(self, app):
         """
         The label is the binding: the browser-side listener clicks whatever
-        control starts with "[x]". A shortcut with no matching label is dead.
+        control ends in the key's code chip. A shortcut with no matching label is dead.
         """
         app.run()
         labels = [b.label for b in app.button] + [b.label for b in app.get("link_button")]
         for key, _ in apply_queue.SHORTCUTS:
-            assert any(label.startswith(f"[{key}]") for label in labels), key
+            assert any(label.endswith(f"`{key}`") for label in labels), key
 
     def test_apply_marks_the_focused_job(self, app, monkeypatch):
         calls = []
@@ -300,24 +336,31 @@ class TestFocusQueue:
         monkeypatch.setattr(supabase_utils, "dismiss_job",
                             lambda jid, reason=None: calls.append((jid, reason)) or True)
         app.run()
-        app.selectbox("skip_reason").set_value("german_level").run()
         app.button("focus_skip_j1").click().run()
+        app.button("skipreason_j1_german_level").click().run()
         assert calls == [("j1", "german_level")]
         assert not app.exception
 
-    def test_skip_defaults_to_a_reason_rather_than_recording_none(self, app, monkeypatch):
-        """A skip with no label teaches nothing later, so there is always one."""
+    def test_skip_asks_why_before_recording_anything(self, app, monkeypatch):
+        """The reason is captured at the moment of the decision, never defaulted."""
         calls = []
         monkeypatch.setattr(supabase_utils, "dismiss_job",
                             lambda jid, reason=None: calls.append((jid, reason)) or True)
         app.run()
+        assert not any(b.key.startswith("skipreason_") for b in app.button)
         app.button("focus_skip_j1").click().run()
-        assert calls == [("j1", "not_interested")]
+        assert calls == []
+        reasons = [b.key for b in app.button if b.key.startswith("skipreason_j1_")]
+        assert reasons == [f"skipreason_j1_{r}" for r in apply_queue.SKIP_REASONS]
+        app.button("skipcancel_j1").click().run()
+        assert not any(b.key.startswith("skipreason_") for b in app.button)
+        assert calls == []
 
     def test_a_failed_skip_says_so_instead_of_silently_dropping_it(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "dismiss_job", lambda jid, reason=None: False)
         app.run()
         app.button("focus_skip_j1").click().run()
+        app.button("skipreason_j1_not_interested").click().run()
         assert any("add_dismissal.sql" in e.value for e in app.error)
 
     def test_a_skip_can_be_undone(self, app, monkeypatch):
@@ -327,19 +370,19 @@ class TestFocusQueue:
                             lambda jid: restored.append(jid) or True)
         app.run()
         app.button("focus_skip_j1").click().run()
+        app.button("skipreason_j1_not_interested").click().run()
         app.button("undo_skip").click().run()
         assert restored == ["j1"]
 
     def test_navigation_moves_through_the_queue_in_rank_order(self, app):
         app.run()
-        app.checkbox(key="focus_mode")  # stays on
         app.slider[0].set_value(0).run()          # let the weaker jobs in
         app.selectbox(key="date_window").set_value("30d").run()  # and the older ones
-        assert "Vision Engineer" in " ".join(m.value for m in app.markdown)  # score 90, first
+        assert "Vision Engineer" in markdown_text(app)  # score 90, first
         app.button("focus_next").click().run()
-        assert "ML Engineer" in " ".join(m.value for m in app.markdown)      # score 82
+        assert "ML Engineer" in markdown_text(app)      # score 82
         app.button("focus_prev").click().run()
-        assert "Vision Engineer" in " ".join(m.value for m in app.markdown)
+        assert "Vision Engineer" in markdown_text(app)
 
     def test_least_effort_sort_changes_which_job_is_first(self, app, monkeypatch):
         jobs = [
@@ -352,9 +395,22 @@ class TestFocusQueue:
         ]
         monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: jobs)
         app.run()
-        assert "Big Job" in " ".join(m.value for m in app.markdown)
+        assert "Big Job" in markdown_text(app)
         app.radio("sort_mode").set_value("effort").run()
-        assert "Small Job" in " ".join(m.value for m in app.markdown)
+        assert "Small Job" in markdown_text(app)
+
+    def test_newest_sort_puts_the_freshest_posting_first(self, app, monkeypatch):
+        jobs = [
+            {"job_id": "old", "job_title": "Older Job", "company": "Co", "resume_score": 95,
+             "job_url": None, "scraped_at": _days_ago(0.5), "score_breakdown": {}},
+            {"job_id": "fresh", "job_title": "Fresh Job", "company": "Co", "resume_score": 75,
+             "job_url": None, "scraped_at": _TODAY, "score_breakdown": {}},
+        ]
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: jobs)
+        app.run()
+        assert "Older Job" in markdown_text(app)
+        app.radio("sort_mode").set_value("new").run()
+        assert "Fresh Job" in markdown_text(app)
 
     def test_the_cursor_follows_the_job_when_the_queue_shifts(self, app, monkeypatch):
         """
@@ -370,7 +426,7 @@ class TestFocusQueue:
         monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: first)
         app.run()
         app.button("focus_next").click().run()
-        assert "Beta" in " ".join(m.value for m in app.markdown)
+        assert "Beta" in markdown_text(app)
 
         newcomer = {"job_id": "new", "job_title": "Newcomer", "company": "Co",
                     "resume_score": 99, "job_url": None, "scraped_at": _TODAY,
@@ -378,7 +434,7 @@ class TestFocusQueue:
         monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply",
                             lambda limit: [newcomer] + first)
         app.run()
-        text = " ".join(m.value for m in app.markdown)
+        text = markdown_text(app)
         assert "Beta" in text and "Newcomer" not in text
 
     def test_a_job_with_no_url_disables_open_instead_of_breaking(self, app, monkeypatch):
@@ -396,13 +452,16 @@ class TestFocusQueue:
                             lambda jid, reason=None: calls.append((jid, reason)) or True)
         list_app.run()
         list_app.button("skip_j1").click().run()
-        assert calls == [("j1", "not_interested")]
+        list_app.button("skipreason_j1_location").click().run()
+        assert calls == [("j1", "location")]
 
 
 class TestApplicationsPage:
-    def _open(self, app):
+    def _open(self, app, tab="all"):
         app.run()
-        app.sidebar.radio[0].set_value("Applications").run()
+        app.button("nav_apps").click().run()
+        assert not app.exception
+        app.radio("app_tab").set_value(tab).run()
         assert not app.exception
         return app
 
@@ -460,13 +519,27 @@ class TestApplicationsPage:
     def test_stage_timestamp_shown_as_durable_evidence(self, app):
         """The toast vanishes on refresh; stage_updated_at is what persists."""
         self._open(app)
-        captions = " ".join(c.value for c in app.caption)
-        assert f"updated {_STAGE_UPDATED[:10]}" in captions
+        assert f"updated {_STAGE_UPDATED[:10]}" in markdown_text(app)
 
     def test_missing_timestamp_is_omitted_not_rendered_as_dash(self, app):
         self._open(app)
-        captions = " ".join(c.value for c in app.caption)
-        assert "updated —" not in captions
+        assert "updated —" not in markdown_text(app)
+
+    def test_each_record_shows_its_pipeline_as_a_timeline(self, app):
+        self._open(app)
+        text = markdown_text(app)
+        assert "Interview 1" in text and "Interview 2" in text   # j3 is at interview 1
+        assert "Rejected" in text                                 # j5
+
+    def test_tabs_split_open_from_resolved(self, app):
+        self._open(app, tab="open")
+        text = markdown_text(app)
+        assert "NLP Engineer" in text          # still waiting
+        assert "MLOps Engineer" not in text    # rejected
+        self._open(app, tab="resolved")
+        text = markdown_text(app)
+        assert "MLOps Engineer" in text
+        assert "NLP Engineer" not in text
 
     def test_failed_save_shows_an_error_not_a_confirmation(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "update_application_stage", lambda *a, **k: False)
@@ -477,16 +550,15 @@ class TestApplicationsPage:
 
     def test_stats_row_summarizes_every_application(self, app):
         self._open(app)
-        values = {m.label: m.value for m in app.metric}
+        values = tiles(app)
         assert values["Applied"] == "3"
         assert values["Awaiting reply"] == "1"   # j4 has no stage yet
         assert values["Interviews"] == "1"       # j3
-        assert values["Rejected"] == "1"         # j5
         assert values["Offers"] == "0"
 
     def test_no_ghost_prompt_when_nothing_is_stale(self, app):
         self._open(app)
-        assert not any("no reply for" in w.value for w in app.warning)
+        assert "gone quiet" not in markdown_text(app)
 
     def test_ghost_prompt_lists_silent_applications(self, app, monkeypatch):
         old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
@@ -495,7 +567,7 @@ class TestApplicationsPage:
                  "application_stage": "applied", "score_breakdown": {}}]
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
         self._open(app)
-        assert any("no reply for" in w.value for w in app.warning)
+        assert "gone quiet" in markdown_text(app)
         assert any("Silent Role" in m.value for m in app.markdown)
 
     def test_ghosting_all_is_suggested_not_automatic(self, app, monkeypatch):
@@ -515,25 +587,24 @@ class TestApplicationsPage:
 
     def test_hiding_resolved_only_affects_the_view(self, app):
         self._open(app)
-        assert any("AI Engineer" in m.value for m in app.markdown)   # interview_1
-        app.checkbox[0].set_value(False).run()
-        text = " ".join(m.value for m in app.markdown)
+        assert "AI Engineer" in markdown_text(app)   # interview_1
+        app.radio("app_tab").set_value("open").run()
+        text = markdown_text(app)
         assert "AI Engineer" not in text     # resolved, hidden
         assert "NLP Engineer" in text        # still pending, kept
         # Totals are unchanged — nothing was deleted.
-        assert {m.label: m.value for m in app.metric}["Applied"] == "3"
+        assert tiles(app)["Applied"] == "3"
 
     def test_stats_ignore_the_search_filter(self, app):
         """Totals must describe the whole pipeline, not the current search."""
         self._open(app)
         app.text_input("search_applied").set_value("gamma").run()
-        values = {m.label: m.value for m in app.metric}
-        assert values["Applied"] == "3"
+        assert tiles(app)["Applied"] == "3"
 
     def test_search_narrows_applications(self, app):
         self._open(app)
         app.text_input("search_applied").set_value("gamma").run()
-        text = " ".join(m.value for m in app.markdown)
+        text = markdown_text(app)
         assert "AI Engineer" in text
         assert "NLP Engineer" not in text
 
@@ -545,7 +616,8 @@ class TestApplicationsPage:
 
     def test_empty_state(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: [])
-        self._open(app)
+        app.run()
+        app.button("nav_apps").click().run()
         assert not app.exception
         assert any("No applied jobs" in i.value for i in app.info)
 
@@ -565,7 +637,7 @@ def _resolved(n, stage="rejected", score=80, p=None):
 class TestCalibrationPage:
     def _open(self, app):
         app.run()
-        app.sidebar.radio[0].set_value("Calibration").run()
+        app.button("nav_cal").click().run()
         assert not app.exception
         return app
 
@@ -596,7 +668,7 @@ class TestCalibrationPage:
                   "stage_updated_at": _TODAY, "score_breakdown": {}}]
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
         self._open(app)
-        values = {m.label: m.value for m in app.metric}
+        values = tiles(app)
         assert values["Applied"] == "3"
         assert values["Awaiting reply"] == "1"
         assert values["Resolved"] == "2"
@@ -606,7 +678,7 @@ class TestCalibrationPage:
         jobs = _resolved(1, stage="interview_1") + _resolved(1, stage="spam_or_removed")
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes", lambda limit=999: jobs)
         self._open(app)
-        values = {m.label: m.value for m in app.metric}
+        values = tiles(app)
         assert values["Applied"] == "2"
         assert values["Resolved"] == "1"
         assert values["Awaiting reply"] == "0"
@@ -618,8 +690,17 @@ class TestCalibrationPage:
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",
                             lambda limit=999: _resolved(20, stage="rejected", p=0.8))
         self._open(app)
-        text = " ".join(c.value for c in app.caption)
+        text = markdown_text(app)
         assert "overconfident" in text
+        assert "+80pt" in text
+
+    def test_skip_reasons_count_as_blockers_alongside_rejections(self, app, monkeypatch):
+        monkeypatch.setattr(supabase_utils, "get_skip_reason_counts",
+                            lambda: {"german_level": 19, "location": 2})
+        self._open(app)
+        text = markdown_text(app)
+        assert "German level too high" in text
+        assert "top blocker at 19" in text
 
     def test_no_predictions_available(self, app, monkeypatch):
         monkeypatch.setattr(supabase_utils, "get_applied_jobs_with_outcomes",

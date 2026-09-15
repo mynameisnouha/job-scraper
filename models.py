@@ -72,6 +72,13 @@ class ScreenResult(BaseModel):
         "'nice-to-have', 'B2', 'C1-fluent', 'unstated' (no level named at all — the "
         "usual case for a German-language ad), or 'unclear'"))
     jd_language: str = Field(..., description="Language the ad is written in: 'en', 'de', or 'mixed'")
+    # The title regex at scrape time catches most programmes; this catches the rest
+    # ("Analytics Associate — 18-month rotational intake, cohort starts October").
+    # Optional-with-default, unlike the language fields: a wrong False here costs
+    # one badge on one card, not a corpus-wide measurement.
+    is_graduate_program: bool = Field(False, description=(
+        "True if this is a structured graduate/trainee programme (fixed intake dates, cohort, "
+        "rotations, assessment centre) rather than a standard role"))
 
 class PitchOutput(BaseModel):
     pitch: str = Field(..., description="3-4 sentence first-person pitch mapping the candidate's strongest evidence to the job's top requirements")
@@ -187,6 +194,11 @@ class ScoreBreakdown(BaseModel):
     salary_band: str = Field("", description="Stated salary band, or '' if not stated")
     posting_age_days: Optional[int] = Field(None, description="If stated or inferable")
     is_agency_or_staffing_firm: bool = Field(False, description="True if this posting is from a recruiting/staffing agency, not the hiring company")
+    # --- Graduate / trainee programmes ---
+    program_type: str = Field("", description="'graduate_program' if this is a structured graduate/trainee intake, else ''")
+    program_intake: str = Field("", description="Programme start date or intake window as stated (e.g. '2027-04-01', 'October 2026', 'rolling'), or '' if not a programme / not stated")
+    program_duration_months: Optional[int] = Field(None, description="Programme length in months if stated")
+    program_eligibility: str = Field("", description="Eligibility window the programme states — graduation recency, max years of experience, degree level — max 20 words, or ''")
     application_effort_hours: float = Field(1.0, description="Estimated hours to complete the application")
     application_effort_estimate: str = Field("", description="e.g. 'CV + cover letter upload' vs '3 essay questions'")
     expected_value: float = Field(0.0, description="p_first_round_interview.after_fixes / application_effort_hours")

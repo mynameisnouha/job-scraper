@@ -35,6 +35,16 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
   nothing at all fails the run instead of showing green. ([sources/scrape_guard.py](sources/scrape_guard.py))
 - **Manual jobs.** Drop a posting you found yourself into `manual_jobs.json` and
   it gets scored like any other. ([scoring/manual_jobs.py](scoring/manual_jobs.py))
+- **Graduate and trainee programmes.** Structured intakes (Traineeprogramm,
+  graduate programme, AI residency) are searched for by name in both languages,
+  tagged from the title at scrape time, and scored as what they are: the intake
+  date is checked against your availability, eligibility windows ("max. 2 Jahre
+  Berufserfahrung") become a gate, and your experience counts as differentiation
+  in a pool of fresh graduates rather than as a seniority gap. Arbeitsagentur
+  files half of them under its Praktikum/Trainee category, which used to be
+  dropped wholesale; a programme there is now kept while a Praktikum is not.
+  The queue can show programmes only, roles only, or both.
+  ([sources/role_type.py](sources/role_type.py))
 
 ### Scoring
 
@@ -56,16 +66,30 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
 
 ### Working the queue — `streamlit run ui_app.py`
 
-- **Jobs to Apply.** Ranked by score, or by least effort when you only have an
-  evening. Filter by how recently a job was found, minimum score, or a search
-  over title and company.
-- **Focus mode.** One job at a time, driven from the keyboard: `a` applied,
-  `s` skip, `o` open the posting, `p` build the application pack, `c` tailor a
-  CV for it, `j`/`k` to move. The cursor is anchored to a job, not a position, so it survives the
-  queue refreshing underneath you. ([review/apply_queue.py](review/apply_queue.py))
-- **Skips carry a reason** — "German level too high", "no visa sponsorship" —
-  because "I skipped every job needing C1" is a finding, not bookkeeping. One-step
-  undo, and the row is never deleted.
+Five screens, grouped in the sidebar by how often you open them: *Jobs to
+apply* and *Write my CV* every day, *Where I applied* every week, *Is the score
+right?* and *Which CV to use* every month. The look — palette, type, the pill
+controls and surface cards — lives in [review/theme.py](review/theme.py) and
+[.streamlit/config.toml](.streamlit/config.toml); the pages compose HTML
+fragments from there rather than styling inline.
+
+- **Jobs to apply.** Every card leads with the verdict: the score as a disc
+  with its band ("Strong", "Worth it", "Marginal", "Long shot" — set against
+  the observed distribution, not a school scale) and its place in the corpus,
+  then the one-line verdict and the gates as chips, German always first. Sort
+  by best match, least effort or newest; a strip under the controls says what
+  the filters are hiding ("Older than 24 hours · 194", "Score under 70 · 12")
+  and each chip drops that filter with one click, so a short queue never reads
+  as an empty market.
+- **One at a time.** The default view: one job, driven from the keyboard —
+  `a` applied, `s` skip, `o` open the posting, `p` build the application pack,
+  `c` tailor a CV for it, `j`/`k` to move — with the pitch, the context and the
+  key legend in a side rail. The cursor is anchored to a job, not a position,
+  so it survives the queue refreshing underneath you.
+  ([review/apply_queue.py](review/apply_queue.py))
+- **Skips carry a reason** — asked at the moment of the decision, as chips
+  (`1`–`9` from the keyboard) — because "I skipped every job needing C1" is a
+  finding, not bookkeeping. One-step undo, and the row is never deleted.
 - **Found timestamps.** Under 24 hours old a job shows the clock time and how
   long ago; past that, just the date. Being early to a posting is most of the
   advantage.
@@ -73,13 +97,19 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
   form asks for (Gehaltsvorstellung, earliest start, permit status, notice
   period), a checklist, the pitch, and the right CV. No LLM, no generation — it
   collects what already exists. ([review/application_pack.py](review/application_pack.py))
-- **Applications page.** Log what actually happened: interview rounds, offer,
-  rejection with a reason, ghosted.
-- **Calibration page.** Are the scorer's confidence numbers actually predictive?
-  Interview rate by score band and a Brier score, with unresolved applications
-  excluded — you haven't heard back yet, which is not the same as a no.
+- **Where I applied.** Each application is a record, not a form: stage as a
+  timeline, how long it has been quiet, what you led with and what they pushed
+  back on. Tabs split open from needs-chasing from resolved; stage, reason and
+  notes are edited behind an *Update* button. Applications silent for 30+ days
+  are offered for closing out, never closed automatically.
+  ([review/application_view.py](review/application_view.py))
+- **Is the score right?** Leads with the answer — "+7pt overconfident: it
+  promises 31% and delivers 24%" — then interview rate by score band and the
+  blockers: rejection reasons and your own skip reasons on one chart, because
+  the two together are the real filter. Unresolved applications are excluded —
+  you haven't heard back yet, which is not the same as a no.
   ([review/calibration.py](review/calibration.py))
-- **CV Archetypes page.** The postings worth applying to, grouped into a handful
+- **Which CV to use.** The postings worth applying to, grouped into a handful
   of role archetypes — one base CV each, instead of one generic CV for
   everything. Per archetype: how many postings, the best score, the skills to
   lead with ranked by how over-represented they are, what the roles actually
@@ -91,8 +121,9 @@ queue: read the verdict, open the posting, mark applied or skip with a reason.
   you cover, what is true of you but missing from the CV, and what is genuinely
   absent — each gap weighted by how many postings actually ask for it.
   ([clustering/cv_fit.py](clustering/cv_fit.py))
-- **Generate CV page.** Reachable from any job in the queue via **Tailor CV**
-  (or `c` in Focus mode). Pick one posting and get a tailored CV and Anschreiben,
+- **Write my CV.** Reachable from any job in the queue via **Tailor a CV for
+  this** in the overflow menu (or `c`). Three steps with their state on a bar —
+  fill the gaps, write and argue, read and send. Pick one posting and get a tailored CV and Anschreiben,
   written only from a fact base about you — every line cites the fact it rests
   on, so nothing can be invented — then argued over by a simulated hiring manager
   until the objections stop being new. Asks you about gaps first, and keeps the
@@ -135,6 +166,7 @@ add_why_me_pitch.sql          the generated pitch for strong matches
 add_application_outcomes.sql  interview / rejection / offer tracking
 add_dismissal.sql             soft skip, with a reason
 add_alt_sources.sql           cross-source dedup
+add_program_type.sql          graduate / trainee programme tag
 raise_customization_threshold.sql
 ```
 

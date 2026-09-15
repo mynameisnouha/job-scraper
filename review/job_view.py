@@ -156,6 +156,19 @@ def quick_facts(breakdown: Dict[str, Any]) -> List[Tuple[str, str]]:
     if b.get("is_agency_or_staffing_firm"):
         facts.append(("Source", "Recruiting agency"))
 
+    # For a programme the intake date is the fact — it decides whether the
+    # availability date fits, and it is the first thing a recruiter checks.
+    if b.get("program_type"):
+        intake = str(b.get("program_intake") or "").strip()
+        duration = b.get("program_duration_months")
+        label = intake or "intake not stated"
+        if duration:
+            label += f", {duration} months"
+        facts.append(("Programme", shorten(label, 40)))
+        eligibility = str(b.get("program_eligibility") or "").strip()
+        if eligibility:
+            facts.append(("Eligibility", shorten(eligibility, 50)))
+
     return facts
 
 

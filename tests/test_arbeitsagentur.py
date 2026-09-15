@@ -211,6 +211,32 @@ class TestProcessQuery:
         assert outcome.filtered_out["not_a_regular_job"] == 2
         assert outcome.unaccounted == 0
 
+    def test_trainee_programmes_in_the_praktikum_category_are_kept(self, wired, monkeypatch):
+        """Employers post trainee programmes under PRAKTIKUM_TRAINEE about as often as
+        under ARBEIT (measured 2026-09-12). The category is admitted when the title
+        says programme; a plain Praktikum in the same category is still dropped."""
+        offers = [dict(SEARCH["ergebnisliste"][0], stellenangebotsart="PRAKTIKUM_TRAINEE",
+                       stellenangebotsTitel="Trainee Data Science & Management (m/w/d)"),
+                  dict(SEARCH["ergebnisliste"][1], stellenangebotsart="PRAKTIKUM_TRAINEE",
+                       stellenangebotsTitel="Praktikum Data Science (m/w/d)")]
+        monkeypatch.setattr(arbeitsagentur, "search_jobs", lambda *a, **k: offers)
+        titles = {o["referenznummer"]: o["stellenangebotsTitel"] for o in offers}
+        monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
+                            lambda refnr: dict(DETAIL, stellenangebotsTitel=titles[refnr]))
+
+        outcome = scrape_guard.SourceOutcome("arbeitsagentur")
+        records = arbeitsagentur.process_query("Trainee Data Science", outcome=outcome)
+        outcome.record_query(new=len(records))
+
+        assert [r["job_title"] for r in records] == ["Trainee Data Science & Management (m/w/d)"]
+        assert records[0]["program_type"] == "graduate_program"
+        assert outcome.filtered_out["not_a_regular_job"] == 1
+        assert outcome.unaccounted == 0
+
+    def test_standard_roles_carry_no_programme_tag(self, wired):
+        records = arbeitsagentur.process_query("Data Scientist")
+        assert all(r["program_type"] is None for r in records)
+
     def test_internships_are_filtered_by_title(self, wired, monkeypatch):
         monkeypatch.setattr(arbeitsagentur, "fetch_job_detail",
                             lambda refnr: dict(DETAIL, stellenangebotsTitel="Praktikum Data Science"))

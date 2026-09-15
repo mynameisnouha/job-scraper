@@ -1,0 +1,20 @@
+# The "Organic" theme the UI is designed on. review/theme.py carries the same
+# tokens for the HTML it builds, and restyles the widgets this file cannot reach.
+[theme]
+base = "light"
+primaryColor = "#7468cd"
+backgroundColor = "#f7f6fd"
+secondaryBackgroundColor = "#eceafa"
+textColor = "#26243a"
+linkColor = "#5a4ea9"
+font = "Figtree, sans-serif"
+headingFont = "Caprasimo, serif"
+codeFont = "Source Code Pro, monospace"
+baseRadius = "full"
+buttonRadius = "full"
+borderColor = "#dcdaea"
+showWidgetBorder = false
+
+[theme.sidebar]
+backgroundColor = "#eceafa"
+secondaryBackgroundColor = "#f7f6fd"

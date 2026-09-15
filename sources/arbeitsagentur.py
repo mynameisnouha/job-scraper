@@ -214,7 +214,7 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
     the saved count, so the counters partition `fetched` (see scrape_guard).
     """
     from db import supabase_utils  # local import: keeps this module importable without credentials
-    from sources.scraper import is_freelance_role, is_internship_role
+    from sources.scraper import is_freelance_role, is_internship_role, program_type_of
 
     def _filtered(reason, count=1):
         if outcome is not None:
@@ -277,10 +277,19 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
             _filtered("repost_same_company_title")
             continue
 
-        # ARBEIT is a regular job; AUSBILDUNG and the rest are training places.
-        if offer.get("stellenangebotsart") and offer["stellenangebotsart"] != "ARBEIT":
-            _filtered("not_a_regular_job")
-            continue
+        # ARBEIT is a regular job; AUSBILDUNG and SELBSTAENDIGKEIT are not wanted.
+        # PRAKTIKUM_TRAINEE is one category for two different things — internships
+        # and trainee programmes — and employers split the programmes between it and
+        # ARBEIT about evenly (measured 2026-09-12, "Trainee Data": 6 vs 38 with the
+        # AUSBILDUNG noise removed; Openbank's Data Science trainee, AXA's and
+        # TERRITORY's all sat in PRAKTIKUM_TRAINEE). So the category is admitted
+        # when the title says programme, and the internship check below still
+        # removes the Praktika that share it.
+        kind = offer.get("stellenangebotsart")
+        if kind and kind != "ARBEIT":
+            if kind != "PRAKTIKUM_TRAINEE" or not program_type_of(offer.get("stellenangebotsTitel")):
+                _filtered("not_a_regular_job")
+                continue
 
         _delay()
         detail = fetch_job_detail(offer["referenznummer"])
@@ -300,6 +309,7 @@ def process_query(query: str, limit: Optional[int] = None, outcome=None) -> List
             logging.info(f"Skipping freelance/contract job: {record.get('job_title')}")
             _filtered("freelance")
             continue
+        record["program_type"] = program_type_of(record.get("job_title"))
 
         # Re-checked against the normalized values: the detail payload's title can
         # differ from the search payload's for the same posting.

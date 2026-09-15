@@ -33,14 +33,94 @@ interchangeable phrases carries no information, and the reader has fifty of them
 ## How it runs
 
 ```
-facts  ->  interview  ->  writer  ->  verify  ->  judge  -+
-what is    ask about     compose    mechanical  object    |
-true       the gaps      + cite     checks      as the    |
-                                                employer  |
-                          ^                               |
-                          +---- revise, until nothing ----+
-                                new comes back
+job scorer ---> leads ------> you answer --+   a lead is a question:
+every scraped   what the      in your own   |   never citable until
+posting         market keeps  words         |   you have answered it
+                asking for                  v
+     facts  ->  interview  ->  writer  ->  verify  ->  judge  -+
+     what is    ask about     compose     mechanical  object   |
+     true       the gaps      + cite      checks      as the   |
+                                                      employer |
+                                ^                              |
+                                +--- revise, until nothing ----+
+                                |    new comes back            |
+                                |                              v
+                                +--- facts <-- you <-- the objections no
+                                                       rewrite can answer
 ```
+
+### `harvest.py` — what the scorer already noticed
+
+The job scorer reads every scraped posting against your CV and records, per job,
+the gaps where **the substance is probably there and the CV just does not show
+it** — `fixable_before_applying`, which the scoring prompt defines as tier-4
+evidence. Those observations were computed a few hundred times and read once
+each, on the job that produced them.
+
+Across the corpus they are a much better signal than on any one posting. One
+posting wanting Airflow is that posting's taste; fourteen is a gap worth an
+evening. Harvesting folds them into the fact base as they come in — deduped by
+meaning, not by string, and counted by how many postings hit them.
+
+**Nothing harvested is a fact.** Leads land `confirmed=False`, and an unconfirmed
+entry is not citable: it is absent from `base.render()` so the writer never sees
+it, and absent from `base.ids()` so the verifier rejects any line citing it. The
+scorer read a CV and a posting, not your memory — it can say "no Airflow shown",
+it cannot say whether you have used Airflow. Only you can. Answering a lead runs
+your answer through the same converter as an interview answer, so what enters the
+base is your sentence about what you did, in your words, at the tier your answer
+supports — and the lead itself is dropped.
+
+A lead you say is not true is dropped for good. The "base only grows" rule is
+about facts; a lead is a question, and a question that keeps coming back after
+you have answered it is a nag.
+
+Where it runs, and why there are two paths: scoring happens in GitHub Actions,
+where `profile_facts.json` does not exist — it is personal and gitignored. So
+`harvest_scored_batch` runs at the tail of every scoring batch and quietly finds
+nothing to write to in CI, while `harvest_from_supabase` reads the stored
+breakdowns back the first time you open the tailoring page in a session. Nothing
+is lost either way: the breakdowns are in Supabase, the harvest is idempotent by
+job id, and no model is called on either path — it is string handling and a
+dictionary.
+
+### Scoring reads the base too
+
+The scoring rubric has always had a rule for tier-4 evidence — *a must-have at
+evidence tier 4 (true but not written on the CV) costs HALF weight and belongs
+under fixable_before_applying* — and nothing could populate it. So every answer
+you gave the tailoring interview scored as tier 5, **not done, at full weight**,
+against a posting that asked for it.
+
+`FactBase.render_for_scoring()` fills it: confirmed facts at tier 4, plus any
+interview answer, rendered as an `EVIDENCE NOT ON THE RESUME` block that sits
+after the resume in the scorer's cached system prompt.
+
+Three properties of that block are load-bearing.
+
+**It is beside the resume, never inside it.** Merging the two would make
+`fixable_before_applying` and the gap between `p_first_round_interview.as_is` and
+`.after_fixes` all report that the CV already shows these things. It does not,
+and those fields are what tell you which line to go and add.
+
+**Leads cannot reach it.** `render_for_scoring` serves `citable()`, so an
+unconfirmed lead is withheld — and on this path that matters more than anywhere
+else, because a lead came *from* the scorer. Feeding one back would have the
+scorer read its own guess as evidence, stop reporting the gap, and raise the
+score with nothing having become true.
+
+**Facts already on the CV are left out.** The scorer is reading the CV;
+repeating it back spends tokens saying nothing.
+
+Scoring runs in CI, where the fact base does not exist, so it is supplied there
+the way the candidate profile already is: a `TAILOR_FACTS_JSON` repository
+secret, falling back to the local file. Unlike the profile, a missing fact base
+is normal and never fails a run — it only means tier-4 evidence goes unseen.
+
+One consequence worth knowing: adding a fact changes what the *unchanged* CV
+scores, so scores from before and after are not strictly comparable, and the
+holdout baseline cache is keyed on the evidence block for exactly that reason.
+`rescore_existing.yml` re-scores the corpus when you want them level again.
 
 ### `facts.py` — the fact base
 
@@ -138,12 +218,106 @@ Objections marked `structural` — a qualification you do not have — are repor
 to you once and never sent back to the writer. Asking a writer to fix a missing
 qualification only invites it to blur the wording until the complaint goes away.
 
+**Two ways this step fails quietly, both guarded.** A failed judge call does not
+just lose a review: the loop treats it as a reason to stop, so the run ends after
+one unreviewed draft that still looks like a finished result. Both were seen in
+testing on the same posting.
+
+- The model returns a verdict that *validates* but says nothing — every field at
+  its schema default, including `would_interview: "no"`. Treated as a non-answer
+  and retried, because a hiring manager reading a real application always
+  produces something.
+- The model wraps its tool arguments in the markup it would use to describe a
+  call, so a list field arrives as a string and validation fails. Unwrapped
+  before validation; if the salvaged text is not valid JSON it is handed back
+  untouched and still rejected, so nothing is silently accepted.
+
+When the review genuinely cannot be reached, the run is flagged and the page says
+in plain terms that the draft was never reviewed, rather than presenting a
+first draft with no objections as a clean bill of health.
+
 ### `loop.py` — stopping
 
 Stops when a round raises **no objection the previous rounds had not already
-raised**. Novelty runs out; a quality score never quite does. There is a hard cap
-of three rounds regardless, because past round two the two models mostly
-converge on each other's taste rather than on anything an employer would notice.
+raised**. Novelty runs out; a quality score never quite does.
+
+In practice that stop rarely fires, and the cap is what ends the loop. Each
+rewrite hands the judge fresh surface to complain about, so rounds kept
+producing new objections (5, then 9, then 6 on one run) rather than converging.
+The cap is therefore **two rounds** by default, lowered from three after
+watching what the third bought: round one does the work, round two answers the
+first real objections, and round three mostly trades one set of quibbles for
+another at the cost of two more calls — one of them to the expensive judge.
+`TAILOR_MAX_ROUNDS` raises it if you disagree.
+
+### The question step between rounds
+
+Rewriting can only rearrange what the fact base already holds. So when the judge
+objects that a claim has no scale attached, or that nothing shows who owned the
+deployment, and the fact base genuinely does not say — no further round fixes
+it. The writer may only use facts it can cite, and the verifier stops it if it
+tries; the objection simply survives every remaining round, unanswered.
+
+Those objections are questions for the candidate, not instructions for the
+writer. With `probe=True`, a round that raises any is followed by a short
+interview built from the judge's own objections, capped at
+`TAILOR_MAX_PROBE_QUESTIONS` (3). It is aimed far better than the opening
+interview, which reads the posting cold: by this point a hiring manager has read
+an actual draft and said what is missing from it.
+
+This is the only step in the loop that adds information rather than moving it
+around, which is also why it is the one most likely to move the score. The rest
+of the loop is presentation.
+
+Two rules keep it honest, both inherited from the opening interview: a blank
+answer is a **no** and produces no facts, and answers become facts in the
+candidate's own words, available to every later application rather than to this
+posting alone. A question that gets a "no" is not wasted — the objection behind
+it is real, and it is reported as something to know before spending an evening
+on the application.
+
+The step is skipped on the final round, where the answers would have no rewrite
+left to reach, and style flags are never put to the candidate — a line that
+reads as machine-written is the writer's to fix.
+
+Answering needs a human, so the loop offers two ways to get one. Pass `ask` and
+it is called with the questions mid-run. Without one, the run **pauses**:
+`awaiting_answers` is set, the questions and the draft so far come back, and the
+caller resumes with `Continuation` once they are answered — the same path as
+"add a round", so the draft already on screen is revised rather than rewritten
+from scratch. The Streamlit page uses the pause; anything scripted will want
+`ask`.
+
+---
+
+## Cost
+
+A run is a handful of large calls, so three things keep the bill down without
+touching output quality.
+
+**Prompt caching.** The fact base is the expensive part of every writer call —
+several thousand tokens — and it is byte-identical on every round, every repair,
+and every job. It lives in the system prompt with caching on, so the first call
+pays for it and the rest read it at a fraction of the price. The posting does the
+same for the judge, identical across that run's rounds. Anything that varies
+stays in the user message, because caching is a prefix match and one changed
+byte would invalidate the whole thing.
+
+One caveat worth knowing: a cache *write* costs more than a plain read, so a
+single-call-and-stop run is slightly worse off. The saving arrives from the
+second call onwards, which any two-round run reaches, and caches survive between
+jobs — a session generating several CVs reuses the same fact-base prefix
+throughout.
+
+**A cached baseline.** The "before" score is a property of one posting and one
+unchanged CV, so it cannot move between regenerations of the same job — but it
+is a full scoring call, half the cost of the comparison. It is cached against a
+hash of the CV text, so editing your CV invalidates it and nothing else does.
+
+**One fewer round**, as above: two calls saved, one of them the judge's.
+
+Measured on one posting, these together cut the input-token bill by roughly two
+thirds, with every call in the run served from cache.
 
 ---
 
@@ -199,8 +373,11 @@ full-time experience.
 | `TAILOR_WRITER_MODEL` | `config.LLM_MODEL` (Sonnet) | |
 | `TAILOR_JUDGE_MODEL` | `anthropic/claude-opus-5` | deliberately not the writer's model |
 | `TAILOR_MAX_ROUNDS` | 3 | |
-| `TAILOR_MAX_QUESTIONS` | 5 | |
+| `TAILOR_MAX_QUESTIONS` | 5 | opening interview, reading the posting cold |
+| `TAILOR_MAX_SCORER_LEADS` | 40 | unconfirmed scorer leads held at once |
+| `TAILOR_MAX_PROBE_QUESTIONS` | 3 | mid-loop, off the judge's objections — it interrupts a run in flight, so it has to be worth stopping for |
 | `TAILOR_FACTS_PATH` | `profile_facts.json` | |
+| `TAILOR_FACTS_JSON` | unset | the fact base as JSON, for CI — read by the scorer, not by this package |
 
 On the judge model: a model reviewing its own output approves its own habits,
 which is precisely what this loop exists to catch. The default therefore pairs a

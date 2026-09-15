@@ -13,3 +13,4 @@ cv/
 output/
 profile_facts.json
 clustering/cache/cv_profile.json
+tailor/cache/

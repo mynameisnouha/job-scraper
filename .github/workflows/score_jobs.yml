@@ -35,6 +35,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CANDIDATE_PROFILE_JSON: ${{ secrets.CANDIDATE_PROFILE_JSON }}
+          # Facts that are true but not written on the CV — interview answers,
+          # collected by the tailoring package. Optional: unset, jobs are scored
+          # against the CV alone, which only means tier-4 evidence goes unseen.
+          TAILOR_FACTS_JSON: ${{ secrets.TAILOR_FACTS_JSON }}
           # Email alert for strong matches; unset secrets simply mean no mail.
           EMAIL_ALERTS_ENABLED: ${{ vars.EMAIL_ALERTS_ENABLED }}
           EMAIL_ALERT_MIN_SCORE: ${{ vars.EMAIL_ALERT_MIN_SCORE }}

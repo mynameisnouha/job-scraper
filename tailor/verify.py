@@ -30,6 +30,15 @@ from tailor.facts import FactBase
 _NUMBER = re.compile(r"\b\d[\d.,]*\s*%?|\b\d+x\b", re.IGNORECASE)
 _YEAR = re.compile(r"^(19|20)\d{2}$")
 
+# Date shapes that appear on a CV, longest first so alternation does not stop
+# early: 2027-03-01, 01.03.2027, 01/03/2027, 02/2027, 02.2027.
+_DATE = re.compile(
+    r"\b\d{4}-\d{1,2}-\d{1,2}\b"
+    r"|\b\d{1,2}\.\d{1,2}\.\d{4}\b"
+    r"|\b\d{1,2}/\d{1,2}/\d{4}\b"
+    r"|\b\d{1,2}[./]\d{4}\b"
+)
+
 # Reserved citation for lines drawn from the personal details block rather than
 # the fact base - availability, notice period, location, contact.
 PERSONAL_CITATION = "personal"
@@ -57,12 +66,23 @@ class VerifyResult:
 
 
 def _numbers_in(text: str) -> List[str]:
+    """Numbers a claim has to justify: metrics, not calendar dates.
+
+    Dates are removed before scanning rather than filtered afterwards. A bare
+    year was already skipped, but everything else about a date leaked through:
+    "thesis submission 02/2027," produced "02" and "2027," - the trailing comma
+    defeating the year test - and both were reported as invented metrics. Dates
+    come from the experience timeline and the personal block, which are checked
+    elsewhere, so there is nothing for this check to say about them.
+    """
+    text = _DATE.sub(" ", text)
     found = []
     for raw in _NUMBER.findall(text):
-        token = raw.strip()
-        digits = token.rstrip("%x").replace(",", "").replace(".", "").strip()
-        if _YEAR.match(token.strip()):
+        # Punctuation comes off BEFORE the year test, not after it.
+        token = raw.strip().strip(".,;:")
+        if _YEAR.match(token):
             continue
+        digits = token.rstrip("%x").replace(",", "").replace(".", "").strip()
         if not digits:
             continue
         found.append(token)

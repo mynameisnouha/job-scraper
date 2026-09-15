@@ -36,11 +36,14 @@ def temperature_for(model: str, preferred: float) -> float:
 
 # --- Loop ---------------------------------------------------------------------
 #
-# Three rounds. Objections that survive that long are usually structural - a
-# missing qualification the CV cannot invent - and past round two the two models
-# mostly converge on each other's taste rather than on anything an employer would
-# notice.
-MAX_ROUNDS = int(os.getenv("TAILOR_MAX_ROUNDS", "3"))
+# Two rounds, lowered from three after watching what the third actually bought.
+# The novelty-based stop never fired: rounds kept producing fresh objections
+# (5, then 9, then 6 on one run) because each rewrite gives the judge new
+# surface to complain about, so the cap is what ends the loop in practice. Round
+# one does the work; round two answers the first real objections; round three
+# mostly trades one set of quibbles for another at the price of two more calls,
+# one of them to the expensive judge. Raise it if you want, it is one env var.
+MAX_ROUNDS = int(os.getenv("TAILOR_MAX_ROUNDS", "2"))
 
 # How many repair attempts the writer gets when the deterministic verifier
 # rejects its output. Two: a genuine slip is fixed on the first retry, and a
@@ -52,6 +55,19 @@ MAX_REPAIR_ATTEMPTS = 2
 # properly in one sitting; beyond that answers get terse and the facts are worse.
 MAX_QUESTIONS = int(os.getenv("TAILOR_MAX_QUESTIONS", "5"))
 
+# Questions per mid-loop probe. Lower than the opening interview on purpose: this
+# one interrupts a run that is already in flight, so it has to be worth stopping
+# for. Three well-aimed questions off the judge's own objections is the most that
+# gets answered properly mid-task; a fourth tends to get a blank.
+MAX_PROBE_QUESTIONS = int(os.getenv("TAILOR_MAX_PROBE_QUESTIONS", "3"))
+
+# How many unconfirmed scorer leads the base will hold at once. Forty is roughly
+# what stays scannable on one screen; past that the panel stops being a to-do
+# list and starts being wallpaper. Counts on the leads already held keep rising
+# whatever this is set to, so the ranking stays live - only brand-new gaps wait
+# for room.
+MAX_SCORER_LEADS = int(os.getenv("TAILOR_MAX_SCORER_LEADS", "40"))
+
 # --- Files --------------------------------------------------------------------
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -59,6 +75,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # alongside candidate_profile.json.
 FACTS_PATH = os.getenv("TAILOR_FACTS_PATH", os.path.join(_ROOT, "profile_facts.json"))
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
 
 # --- Voice --------------------------------------------------------------------
 #

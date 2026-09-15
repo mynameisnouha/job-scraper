@@ -20,7 +20,7 @@ import time
 import random
 import logging
 import threading
-from typing import Optional, Type
+from typing import Optional, Sequence, Type, Union
 
 import litellm
 from pydantic import BaseModel
@@ -204,7 +204,7 @@ class LLMClient:
     def generate_content(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: Union[str, Sequence[str], None] = None,
         temperature: float = 1,
         response_format: Optional[Type[BaseModel]] = None,
         model_override: Optional[str] = None,
@@ -215,7 +215,11 @@ class LLMClient:
 
         Args:
             prompt: The user prompt/message
-            system_prompt: Optional system instruction
+            system_prompt: Optional system instruction. A list of strings is
+                sent as separate blocks, each with its own cache breakpoint
+                (when cache_system is set): order them most-stable first, so
+                a change in a later block still reads the earlier ones from
+                cache. At most 4 breakpoints per request.
             temperature: Temperature for generation (0.0-1.0)
             response_format: Optional Pydantic model for structured JSON output
             model_override: Override the default model for this call
@@ -233,22 +237,35 @@ class LLMClient:
         messages = []
 
         if system_prompt:
+            blocks = [system_prompt] if isinstance(system_prompt, str) else list(system_prompt)
+            blocks = [b for b in blocks if b]  # empty text blocks cannot be cached
             if cache_system:
                 # Anthropic prompt caching: the scoring rubric and resume are
                 # byte-identical on every call in a run, so paying full input
                 # price for them each time is pure waste. Cached reads are ~10%
                 # of the normal rate. Caching is a prefix match, so anything
                 # varying per job must stay in the user message below.
+                #
+                # Each block gets its own breakpoint. A breakpoint hashes the
+                # whole prefix up to that block, so with a single block the
+                # cache only ever hits when *everything* is identical; split
+                # into [shared rubric] + [per-job context], the rubric is read
+                # from cache across jobs even when the second block changes.
+                if len(blocks) > 4:
+                    raise ValueError("At most 4 system blocks can carry a cache breakpoint")
                 messages.append({
                     "role": "system",
-                    "content": [{
-                        "type": "text",
-                        "text": system_prompt,
-                        "cache_control": {"type": "ephemeral"},
-                    }],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                        for text in blocks
+                    ],
                 })
             else:
-                messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "system", "content": "\n\n".join(blocks)})
         messages.append({"role": "user", "content": prompt})
 
         # Build base kwargs for litellm.completion

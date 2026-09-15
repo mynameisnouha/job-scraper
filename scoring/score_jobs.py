@@ -1,5 +1,7 @@
 import time
 import json
+import re
+from datetime import datetime, timezone
 import logging
 import argparse
 from collections import Counter
@@ -15,6 +17,7 @@ from scoring import notify
 from db import supabase_utils
 from scoring.llm_client import primary_client, screen_client
 from models import ScoreBreakdown, ScreenResult, PitchOutput
+from sources.role_type import GRADUATE_PROGRAM, is_program
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -167,6 +170,105 @@ CANDIDATE_PROFILE_V2 = _PROFILE["profile_v2"].format(
 )
 
 
+def _load_tailor_evidence() -> str:
+    """Confirmed facts that are true but absent from the CV, as a prompt block.
+
+    The rubric already has a rule for these - a must-have at evidence tier 4
+    costs HALF weight and belongs under fixable_before_applying - but until now
+    nothing could populate it, so anything the candidate answered in a tailoring
+    interview scored as tier 5, not done, at full weight. A CV is a lossy summary
+    of a person and this is the part it lost.
+
+    Unlike the candidate profile, a missing fact base is NORMAL and must not stop
+    scoring: it is personal, gitignored, and does not exist on a CI runner unless
+    TAILOR_FACTS_JSON is set. Read at import so the block is byte-identical for
+    every job in a run - it sits in the cached system prefix, and a block that
+    varied per job would invalidate the cache on every call.
+
+    Supplied in CI exactly as the candidate profile is: a repository secret,
+    falling back to the local file. Leads never appear here - see
+    FactBase.render_for_scoring, which serves only confirmed facts.
+    """
+    raw = (os.environ.get("TAILOR_FACTS_JSON") or "").strip()
+    try:
+        from tailor.facts import FactBase
+        from tailor import settings as tailor_settings
+
+        if raw:
+            base = FactBase.model_validate(json.loads(raw))
+        elif os.path.exists(tailor_settings.FACTS_PATH):
+            with open(tailor_settings.FACTS_PATH, "r", encoding="utf-8") as fh:
+                base = FactBase.model_validate(json.load(fh))
+        else:
+            return ""
+        return base.render_for_scoring()
+    except Exception as e:  # noqa: BLE001 - scoring without the block beats not scoring
+        logging.warning(f"Could not read the tailoring fact base for scoring: {e}")
+        return ""
+
+
+EVIDENCE_NOT_ON_CV = _load_tailor_evidence()
+if EVIDENCE_NOT_ON_CV:
+    logging.info("Scoring with %d fact(s) that are true but not on the CV.",
+                 len(EVIDENCE_NOT_ON_CV.splitlines()))
+
+
+_EARLIEST_START = re.compile(r"Earliest full-time start:\s*(\d{4}-\d{2}-\d{2})")
+
+
+def _today_block() -> str:
+    """Today's date, for any prompt that reasons about time.
+
+    Without this a model anchors "now" somewhere near its training cutoff, and
+    every date in the candidate profile is read against the wrong present. It is
+    not a cosmetic problem: an availability of 2027-03-01 was being reported as
+    "over a year from now" when it is roughly five months away, and availability
+    is the most frequently applied hard gate in this corpus.
+    """
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def availability_note() -> str:
+    """Today, the earliest start date, and the gap between them, already worked out.
+
+    Stating the date alone is not enough. Given only "today is 2026-09-10", a
+    model still answered "rund 18 Monate" for a March 2027 start and visibly
+    argued with the date rather than using it - the supplied present contradicts
+    the one it learned, so it hedges and falls back on its prior.
+
+    Doing the arithmetic here removes both the sum and the doubt. There is
+    nothing left to compute and nothing to disagree with, which is the only
+    version of this that has held up.
+    """
+    today = datetime.now(timezone.utc).date()
+    lines = [f"Today's date is {today.isoformat()}."]
+
+    match = _EARLIEST_START.search(_PROFILE.get("profile_v2") or "")
+    if match:
+        try:
+            start = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            start = None
+        if start:
+            days = (start - today).days
+            if days > 0:
+                lines.append(
+                    f"The candidate's earliest full-time start is {start.isoformat()}, "
+                    f"which is {days} days from today — about {days / 30.44:.1f} months. "
+                    "Use this figure; do not compute your own."
+                )
+            else:
+                lines.append(
+                    f"The candidate's earliest full-time start was {start.isoformat()}; "
+                    "they are available now."
+                )
+    lines.append(
+        "Judge every other date in this posting or application by counting from "
+        "today's date above, never from your own sense of the present."
+    )
+    return "\n".join(lines)
+
+
 def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
     """
     Cheap fast-model screen: does this job clear the hard gates at all?
@@ -176,7 +278,16 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
     if not description.strip():
         return None
 
+    # The scrape-time title tag, when there is one. Stated as a fact rather than
+    # left for the model to notice: the title is often cut to the umbrella name
+    # ("Trainee (m/w/d)") and the programme nature is three paragraphs down.
+    program_hint = ("This posting was tagged as a graduate/trainee programme from its title.\n"
+                    if is_program(job_details) else "")
+
     prompt = f"""You are a fast job-screening filter for an early-career AI/Data Science candidate in Germany.
+
+## TODAY
+{availability_note()}
 
 ## CANDIDATE
 {CANDIDATE_PROFILE}
@@ -190,8 +301,15 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
 3. The role is NOT in data science / machine learning / AI / data or software engineering (e.g. sales, finance, accounting, mechanical engineering, marketing, nursing).
 4. The role is explicitly Senior / Staff / Principal / Lead / Head of.
 
-Otherwise passes=true. rough_score is a quick 0-100 fit estimate; reason is one short sentence.
-
+## GRADUATE / TRAINEE PROGRAMMES
+A structured intake (Traineeprogramm, graduate programme, rotational programme, residency) is
+WANTED, and is judged by rule 3 on its TRACK, not its umbrella name: a general "Traineeprogramm
+IT" or "Graduate Program Analytics" whose rotations include data, analytics, AI or software
+engineering passes rule 3; a programme with no such track (sales, finance, HR, legal, procurement)
+fails it. Rules 2 and 4 cannot fail a programme. Do not fail a programme for being "junior" — that
+is the point of it. Set is_graduate_program=true whenever the posting describes a fixed intake,
+cohort, rotations or an assessment centre, even when the title does not say programme.
+{program_hint}
 ## ALSO EXTRACT (for every job, whether it passes or fails)
 - jd_language: 'en', 'de' or 'mixed' — the language the ad is WRITTEN in.
 - german_required: the level the ad DEMANDS. These are different facts; do not infer one
@@ -291,8 +409,13 @@ def run_screening_phase() -> list:
         consecutive_errors = 0
 
         if result.passes:
+            if result.is_graduate_program and not job.get("program_type"):
+                # The title hid it and the screen saw it; the full scorer and the
+                # queue read the same key the sources write.
+                job["program_type"] = GRADUATE_PROGRAM
             passers.append(job)
-            logging.info(f"  SCREEN PASS  ({result.rough_score:3d}) {job.get('job_title')} — {result.reason}")
+            tag = " [programme]" if is_program(job) else ""
+            logging.info(f"  SCREEN PASS  ({result.rough_score:3d}) {job.get('job_title')}{tag} — {result.reason}")
         else:
             screened_out += 1
             capped = min(result.rough_score, 49)
@@ -308,6 +431,8 @@ def run_screening_phase() -> list:
                 "jd_language": result.jd_language,
                 "screen_only": True,
             }
+            if result.is_graduate_program or is_program(job):
+                breakdown_lite["program_type"] = GRADUATE_PROGRAM
             logging.info(f"  SCREEN FAIL  ({capped:3d}) {job.get('job_title')} — {result.reason}")
             supabase_utils.update_job_score(job_id, capped, resume_score_stage="initial",
                                             score_breakdown=breakdown_lite)
@@ -374,11 +499,33 @@ def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> O
 
     logging.info(f"Scoring job_id: {job_id} | {job_title} @ {job_company} | Level: {job_level}")
 
+    # Deliberately NOT merged into the resume text. The scorer's job is partly to
+    # report what the CV fails to show — fixable_before_applying, and the gap
+    # between p_first_round_interview.as_is and .after_fixes. Pasting these lines
+    # into the resume would make all three say the CV already shows them, which
+    # is false and throws away the one output that tells her what to add.
+    evidence_block = (f"""
+
+--- EVIDENCE NOT ON THE RESUME ---
+True of the candidate and confirmed by her, but written nowhere on the resume above.
+This is tier 4 evidence: a must-have met here costs HALF weight, not full, and the gap
+belongs under fixable_before_applying with the exact resume line to add. It does NOT
+count towards what the resume shows today, so p_first_round_interview.as_is is judged
+on the resume alone — only .after_fixes may assume these are on the page.
+{EVIDENCE_NOT_ON_CV}
+--- END EVIDENCE NOT ON THE RESUME ---""" if EVIDENCE_NOT_ON_CV else "")
+
     prompt = f"""
 You are a job-fit rating engine. Score inflation is the primary failure mode: this score decides
 where a candidate with LIMITED time spends application effort. A score that is too high costs
 her hours on an application that was never viable. Optimise for calibration, not encouragement.
 Never round up to make a job look more viable than it is.
+
+## TODAY
+{availability_note()}
+
+Getting this wrong makes the availability gate fire far harder than reality warrants,
+and availability is the most frequently applied gate here.
 
 ## CANDIDATE PROFILE
 {CANDIDATE_PROFILE_V2}
@@ -390,9 +537,10 @@ Never round up to make a job look more viable than it is.
   she will be eligible once she signs. -> cap 25 if failed.
 - availability: her earliest full-time start is 2027-03-01. Judge the employer's likely urgency
   from company size/tone: startup <~50 people or "ASAP"/"immediate start"/urgency language ->
-  cap 55. Mid-size, no stated urgency -> cap 70. Large company with structured intake, graduate
-  programme, or a stated future start date -> no cap. A stated start date compatible with
-  2027-03 (or a part-time bridge role) -> no cap.
+  cap 55. Mid-size, no stated urgency -> cap 70. Large company with structured intake, or a
+  stated future start date -> no cap. A stated start date compatible with 2027-03 (or a
+  part-time bridge role) -> no cap. For a graduate/trainee programme the INTAKE DATE decides —
+  see the programme section below, which overrides this paragraph.
 - location: on-site/hybrid required somewhere outside Passau/Munich/Berlin/Hamburg/Stuttgart and
   not remote -> cap 30.
 - working_language: if the day-to-day working language, OR the language of the product's users
@@ -411,6 +559,33 @@ Never round up to make a job look more viable than it is.
 For each gate report: gate name, result (pass/fail/unknown), the cap it implies, a one-line
 detail, whether it's negotiable, and how (e.g. "offer part-time bridge from now until March").
 
+## GRADUATE / TRAINEE PROGRAMMES
+A structured intake (Traineeprogramm, graduate programme, rotational programme, residency,
+fellowship) is a different bet from a standard role and is scored as one. The user message says
+when a posting was tagged as a programme at scrape time; also treat as a programme anything that
+describes a fixed intake, a cohort, rotations or an assessment centre, whatever the title says.
+- program_type = 'graduate_program'; program_intake = the start date or intake window as stated;
+  program_duration_months; program_eligibility = the window the programme states (graduation
+  recency, max experience, degree level).
+- Intake vs availability (earliest start above): a single stated intake BEFORE her earliest start
+  is a real availability fail -> cap 30, unless the JD names a later cohort she can join. An
+  intake on or after it -> no cap. Rolling / unstated -> no cap, but add
+  {{gate: 'availability', result: 'unknown', negotiable: true}}.
+- program_eligibility gate: many programmes cap experience ("max. 2 Jahre Berufserfahrung") or
+  graduation recency ("Abschluss max. 12 Monate zurück"). Check her education dates and the
+  experience ledger against it. Fail -> cap 40; not stated -> no entry.
+- The modal competitor is a fresh Master's graduate with 0-1 years. Her FTE-years and tier-1
+  evidence are DIFFERENTIATORS in this pool, never gaps: score seniority_fit on whether she sits
+  inside the programme's window, not on distance from a mid-level bar. The risk to name, if any,
+  is over-qualification — an employer wondering why she is not applying for the standard role.
+- Applicant volume: a large-brand programme pulls 500-2000+ and runs online tests, a video
+  interview and an assessment centre — reflect that in p_first_round_interview and in
+  application_effort_hours (assessment-centre programmes are 3-6h, not 1h).
+- A trainee salary is usually below a standard role's and often below the Blue Card threshold:
+  note it factually in salary_band; it is a permit question to raise, not a gap.
+- Do not fail seniority_floor, "4+ years", or "junior" on a programme — the programme is the
+  entry point by design.
+
 ## REQUIREMENT EXTRACTION
 Parse the JD into a weighted list of requirements. A must_have is worth 4x a nice_to_have.
 A requirement repeated across sections (e.g. Tasks AND Must-have) gets a 1.5x emphasis
@@ -419,7 +594,10 @@ candidate's evidence tier is 5 (not done) costs the FULL weight — there is no 
 "learnable," everything is learnable, that is not the question. A must_have at evidence tier 4
 (true but not written on the CV) costs HALF weight and belongs under fixable_before_applying,
 not under structural gaps. Cross-check every claimed match against the evidence index above —
-if you can't point to a specific tier for it, treat it as tier 4 or 5.
+if you can't point to a specific tier for it, treat it as tier 4 or 5. Where an
+EVIDENCE NOT ON THE RESUME block follows the resume, treat every line in it as tier 4:
+it is confirmed, so it is not a "not done" gap, but it is invisible to a recruiter
+reading the resume today, so it never scores as though the resume showed it.
 
 ## DIMENSION SCORES (0-100 each)
 - must_have_coverage (35%): weighted must-haves met, by evidence tier
@@ -510,17 +688,22 @@ gates that fail or are unknown — a gate that passes needs no entry and no expl
 --- RESUME ---
 {resume_text}
 --- END RESUME ---
+{evidence_block}
 """
 
     # Split so the cacheable half comes first: the rubric and the resume are
     # byte-identical for every job in a run, while the JD changes each call.
     # Anthropic caching is a prefix match, so the varying part must be last —
     # putting the JD in the system block would invalidate the cache every time.
+    # The scrape-time tag goes in the per-job half: the system block must stay
+    # byte-identical across jobs for the cache to hold.
+    program_line = ("Type: graduate/trainee programme (tagged from the title at scrape time)\n"
+                    if is_program(job_details) else "")
     user_prompt = f"""--- JOB DESCRIPTION ---
 Job Title: {job_title}
 Company: {job_company}
 Level: {job_level}
-
+{program_line}
 {job_description}
 --- END JOB DESCRIPTION ---
 
@@ -594,6 +777,11 @@ fixable before the deadline.
         if breakdown.years_experience_required and breakdown.years_experience_required > EFFECTIVE_FTE_YEARS:
             caps.append((40, f"JD requires {breakdown.years_experience_required}+ years; "
                               f"effective FTE-years is {EFFECTIVE_FTE_YEARS}"))
+        # The scrape-time tag wins over a blank from the model: the queue filters
+        # on this key, and a programme that lost its tag in scoring would vanish
+        # from the "programmes only" view.
+        if is_program(job_details) and not breakdown.program_type:
+            breakdown.program_type = GRADUATE_PROGRAM
         if breakdown.disqualifier_matches:
             penalty = 8 * len(breakdown.disqualifier_matches)
             breakdown.overall_score = max(0, breakdown.overall_score - penalty)
@@ -630,6 +818,10 @@ fixable before the deadline.
         logging.info(f"  Gaps:           {breakdown.key_gaps}")
         logging.info(f"  Recommendation: {breakdown.recommendation}")
         logging.info(f"  Reasoning:      {breakdown.reasoning}")
+        if breakdown.program_type:
+            logging.info(f"  Programme:      intake={breakdown.program_intake or '?'} | "
+                         f"duration={breakdown.program_duration_months or '?'}mo | "
+                         f"eligibility={breakdown.program_eligibility or 'not stated'}")
         if breakdown.hard_gates:
             failed = [g for g in breakdown.hard_gates if g.result == "fail"]
             if failed:
@@ -820,6 +1012,14 @@ def rescore_jobs_with_custom_resume():
     successful_rescores = 0
     failed_rescores = 0
     rescored_this_run = []  # (job_id, breakdown) for the batch-relative gate below
+    # Jobs this phase lifts over the alert bar. The custom resume is written for
+    # a job precisely because it looked promising, so the rescore is where a job
+    # most often crosses the threshold — and for a long time that crossing sent
+    # no mail at all, because only the initial phase alerted. A job that was
+    # already above the bar was mailed at the initial stage and is deliberately
+    # not mailed twice: an alert that repeats is an alert nobody opens.
+    alert_threshold = config.EMAIL_ALERT_MIN_SCORE
+    newly_alertable = []
 
     for i, job in enumerate(jobs_to_rescore):
         job_id = job.get('job_id')
@@ -866,6 +1066,17 @@ def rescore_jobs_with_custom_resume():
                                                score_breakdown=breakdown.model_dump()):
                 successful_rescores += 1
                 rescored_this_run.append((job_id, breakdown))
+                previous_score = job.get("resume_score") or 0
+                if previous_score < alert_threshold <= breakdown.overall_score:
+                    # Held by reference: finalize_batch_recommendations mutates
+                    # the breakdown in place, so the mail must be built after it.
+                    newly_alertable.append({
+                        "job_id": job_id,
+                        "job_title": job.get("job_title"),
+                        "company": job.get("company"),
+                        "resume_score": breakdown.overall_score,
+                        "score_breakdown": breakdown,
+                    })
             else:
                 failed_rescores += 1 
         else:
@@ -876,6 +1087,16 @@ def rescore_jobs_with_custom_resume():
             time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
 
     finalize_batch_recommendations(rescored_this_run, resume_score_stage="custom")
+
+    # Never fatal: the scores are already saved, so an unreachable mail server
+    # costs the alert and nothing else.
+    if newly_alertable:
+        # The rescore RPC does not return job_url, and the mail wants a link.
+        urls = supabase_utils.get_job_urls([e["job_id"] for e in newly_alertable])
+        for entry in newly_alertable:
+            entry["job_url"] = urls.get(entry["job_id"], "")
+            entry["score_breakdown"] = entry["score_breakdown"].model_dump()
+        notify.notify_matches(newly_alertable)
 
     rescore_end_time = time.time()
     logging.info("--- Job Re-scoring Finished ---")
@@ -987,6 +1208,20 @@ def main(argv: list | None = None):
             # once every job in the batch has a score.
             finalize_batch_recommendations(scored_this_run, resume_score_stage="initial")
             log_tailoring_queue_size([b for _, b in scored_this_run])
+
+            # The scorer has just written down, per job, which gaps look like
+            # "the substance is there, the CV doesn't show it". Those are worth
+            # keeping across the corpus rather than reading once on the job that
+            # produced them: one posting wanting Airflow is that posting's taste,
+            # fourteen is a gap worth an evening. They land in the fact base as
+            # unconfirmed leads — questions, never citable claims — so a CV can
+            # never rest on something the scorer merely inferred about you.
+            #
+            # No-ops on a CI runner, where the fact base does not exist. Nothing
+            # is lost: the breakdowns are in Supabase and the tailoring page
+            # backfills from them.
+            from tailor import harvest as tailor_harvest
+            tailor_harvest.harvest_scored_batch(scored_this_run)
 
             # Last, and never fatal: the jobs are already saved, so a mail server
             # being unreachable costs the alert and nothing else.

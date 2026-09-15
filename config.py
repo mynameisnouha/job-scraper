@@ -65,8 +65,34 @@ LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
 # --- Search Configuration ---
+
+# --- Graduate / trainee programmes ---
+# Structured early-careers intakes are wanted alongside standard roles, but they
+# need their own queries: a bare "Graduate Program" search returns the finance,
+# legal and sales programmes first and the per-query cap is spent before a data
+# one appears (LinkedIn, 2026-09-12: 0 of the top 10 named data or AI). Every
+# term here names the field. Both languages, as with the other queries — German
+# employers write "Trainee Data Science" and "Traineeprogramm Data Analytics",
+# not "Graduate Programme". Postings are tagged program_type='graduate_program'
+# by title at scrape time (sources/scraper.py), whichever query found them.
+GRADUATE_PROGRAM_QUERIES_EN = [
+    "Trainee Data Science",
+    "Trainee Data Analytics",
+    "Trainee Machine Learning",
+    "Trainee Artificial Intelligence",
+    "Graduate Program Data",
+    "Graduate Program AI",
+    "AI Residency",
+]
+GRADUATE_PROGRAM_QUERIES_DE = [
+    "Traineeprogramm Data",
+    "Trainee Künstliche Intelligenz",
+    "Trainee Data Engineering",
+    "Trainee Business Intelligence",
+    "Absolventenprogramm Data",
+]
+
 LINKEDIN_SEARCH_QUERIES = [
-    "Graduate Program",
     "Data Scientist",
     "Machine Learning Engineer",
     "AI Engineer",
@@ -83,6 +109,8 @@ LINKEDIN_SEARCH_QUERIES = [
     "Data Scientist PySpark",
     "Big Data Scientist",
     "Applied Scientist",
+    *GRADUATE_PROGRAM_QUERIES_EN,
+    *GRADUATE_PROGRAM_QUERIES_DE,
 ]
 LINKEDIN_LOCATION = "Germany"
 LINKEDIN_GEO_ID = 101282230      # Singapore: 102454443, Dubai: 100205264
@@ -124,6 +152,8 @@ ARBEITSAGENTUR_SEARCH_QUERIES = [
     "Computer Vision",
     "MLOps Engineer",
     "Business Intelligence",
+    *GRADUATE_PROGRAM_QUERIES_DE,
+    *GRADUATE_PROGRAM_QUERIES_EN,
 ]
 ARBEITSAGENTUR_LOCATION = "Deutschland"
 ARBEITSAGENTUR_PAGE_SIZE = 100
