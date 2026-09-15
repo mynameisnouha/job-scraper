@@ -40,6 +40,37 @@ SKIP_REASON_LABELS = {
     "other": "Other",
 }
 
+# Why a posting should not be in the corpus at all. Kept apart from SKIP_REASONS
+# on purpose: a skip is a decision about a real job and is worth counting, while
+# these say the row should never have been there. Folding them together would put
+# agency reposts into the statistics about why she turns work down.
+DELETE_REASONS = [
+    "not_relevant",
+    "agency_repost",
+    "duplicate_posting",
+    "expired",
+    "mis_scraped",
+    "other",
+]
+
+DELETE_REASON_LABELS = {
+    "not_relevant": "Not this field at all",
+    "agency_repost": "Agency / staffing repost",
+    "duplicate_posting": "Duplicate of another posting",
+    "expired": "Posting is gone or expired",
+    "mis_scraped": "Scraped wrong — title, company or text is broken",
+    "other": "Other",
+}
+
+DELETE_REASON_SHORT = {
+    "not_relevant": "Not my field",
+    "agency_repost": "Agency repost",
+    "duplicate_posting": "Duplicate",
+    "expired": "Gone/expired",
+    "mis_scraped": "Mis-scraped",
+    "other": "Other",
+}
+
 # The same reasons as chips: short enough to sit eight in a row.
 SKIP_REASON_SHORT = {
     "not_interested": "Not interested",

@@ -434,6 +434,64 @@ def skip_job(job, reason):
         st.error("Failed to skip — has supabase_setup/add_dismissal.sql been run?")
 
 
+def start_delete(job):
+    st.session_state["deleting"] = job.get("job_id")
+    st.rerun()
+
+
+def delete_posting(job, reason, note=""):
+    """Remove a posting from the corpus, with the reason it should not be there.
+
+    No undo, and the confirm step is the whole reason this is a two-click action:
+    the row carries the description, the score and the breakdown, and nothing
+    keeps a copy. What survives is the tombstone, which is what stops the next
+    scrape quietly putting the posting back.
+    """
+    job_id = job.get("job_id")
+    title = job.get("job_title") or job_id
+    if supabase_utils.delete_job(job, reason, note):
+        st.session_state.pop("deleting", None)
+        # The cached queue still holds the deleted row, and the card would render
+        # one more time before the next load.
+        _RUN.pop("queue", None)
+        flash_saved(f"Deleted: {title} "
+                    f"({apply_queue.DELETE_REASON_LABELS.get(reason, reason)})")
+        st.rerun()
+    else:
+        st.error("Failed to delete — has supabase_setup/add_deleted_jobs.sql been run? "
+                 "Nothing was removed.")
+
+
+def render_delete_panel(job):
+    """The confirm step, with the reason asked at the moment of the decision.
+
+    Deliberately heavier than the skip panel: a skip is reversible from the queue
+    and a delete is not, so this one says what is about to be lost and takes a
+    second click.
+    """
+    if st.session_state.get("deleting") != job.get("job_id"):
+        return
+    job_id = job.get("job_id")
+    with st.container(border=True, key="delete-panel"):
+        html('<div style="font-size:13.5px;font-weight:600;margin-bottom:2px">'
+             'Delete this posting for good?</div>'
+             f'<div style="font-size:12.5px;color:{T.NEUTRAL[700]};margin-bottom:8px">'
+             'The description, score and breakdown go with it and cannot be restored. '
+             'It will not come back on the next scrape. To take a real job out of the '
+             'queue instead, cancel and use Skip.</div>')
+        note = st.text_input("Anything worth remembering?", key=f"delnote_{job_id}",
+                             placeholder="Optional — a note stored with the deletion.")
+        with st.container(horizontal=True, gap="small"):
+            for reason in apply_queue.DELETE_REASONS:
+                if st.button(apply_queue.DELETE_REASON_SHORT[reason],
+                             key=f"delreason_{job_id}_{reason}", width="content",
+                             help=apply_queue.DELETE_REASON_LABELS[reason]):
+                    delete_posting(job, reason, note)
+        if st.button("Cancel", key=f"delcancel_{job_id}", type="tertiary"):
+            st.session_state.pop("deleting", None)
+            st.rerun()
+
+
 def start_skip(job):
     st.session_state["skipping"] = job.get("job_id")
     st.rerun()
@@ -501,6 +559,13 @@ def render_overflow(job, prefix, with_keys=False):
                           "the queue. Distinct from Skip, which records that you decided "
                           "against it."):
             close_posting(job)
+        if st.button("Delete this posting", key=f"{prefix}_delete_{job_id}", width="stretch",
+                     type="tertiary",
+                     help="For postings that should never have been here: agency reposts, "
+                          "duplicates, mis-scraped rows. The record goes for good — use "
+                          "Skip for a real job you decided against, because those rows "
+                          "are what the skip statistics are built from."):
+            start_delete(job)
 
 
 def card_facts(job, breakdown):
@@ -535,6 +600,7 @@ def render_job_card(job, all_scores):
                  + '<div style="height:10px"></div>'
                  + T.fact_chips(breakdown, card_facts(job, breakdown)))
             render_skip_panel(job)
+            render_delete_panel(job)
         with cols[2]:
             actions = st.columns([1.3, 1.1, 0.7])
             with actions[0]:
@@ -684,6 +750,7 @@ def render_focus_queue(jobs, all_scores):
         with st.container(border=True):
             render_job_body(job, all_scores)
             render_skip_panel(job)
+            render_delete_panel(job)
             html('<div style="height:6px;border-bottom:1px solid var(--jh-divider);'
                  'margin-bottom:12px"></div>')
             actions = st.columns([1.7, 1, 0.6, 1.6, 0.6, 0.6], vertical_alignment="center")

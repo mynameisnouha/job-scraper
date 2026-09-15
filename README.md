@@ -165,6 +165,7 @@ add_score_breakdown.sql       full LLM breakdown alongside the numeric score
 add_why_me_pitch.sql          the generated pitch for strong matches
 add_application_outcomes.sql  interview / rejection / offer tracking
 add_dismissal.sql             soft skip, with a reason
+add_deleted_jobs.sql          hard delete, with a tombstone so it stays deleted
 add_alt_sources.sql           cross-source dedup
 add_program_type.sql          graduate / trainee programme tag
 raise_customization_threshold.sql

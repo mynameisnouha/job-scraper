@@ -63,7 +63,14 @@ def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
     except Exception as e:
         logging.error(f"Error fetching existing jobs from Supabase: {e}")
 
-    return existing_ids, existing_company_title_keys
+    # Postings deleted by hand count as "already seen" for every scraper. Without
+    # this a delete undoes itself: the row is gone, so the next scrape treats the
+    # posting as new, re-inserts it, and pays to screen and score something that
+    # was explicitly thrown away.
+    deleted_ids, deleted_keys = get_deleted_job_keys()
+    if deleted_ids or deleted_keys:
+        logging.info(f"Plus {len(deleted_ids)} deleted posting(s) to keep out.")
+    return existing_ids | deleted_ids, existing_company_title_keys | deleted_keys
 
 def save_jobs_to_supabase(jobs_data: list):
     """
@@ -716,6 +723,101 @@ def dismiss_job(job_id: str, reason: Optional[str] = None) -> bool:
             logging.warning("Dismissal columns missing — run supabase_setup/add_dismissal.sql.")
         else:
             logging.error(f"Error dismissing job {job_id}: {e}")
+        return False
+
+
+# Why a posting should never have been in the corpus. Deliberately NOT the skip
+# vocabulary: a skip is a decision about a real job ("wrong seniority", "German
+# level"), and mixing the two would put junk rows into every statistic built on
+# why she turns jobs down.
+VALID_DELETE_REASONS = {
+    "not_relevant", "agency_repost", "duplicate_posting", "expired",
+    "mis_scraped", "other",
+}
+
+
+def get_deleted_job_keys() -> tuple[set, set]:
+    """Ids and dedup keys of postings deleted by hand.
+
+    Returns empty sets when the table is absent, so a scrape on a database that
+    has not run add_deleted_jobs.sql behaves exactly as it did before rather
+    than failing. The cost of that is a deleted posting coming back, which is
+    visible and fixable; the cost of the alternative is no scrape at all.
+    """
+    ids: set = set()
+    keys: set = set()
+    try:
+        response = supabase.table("deleted_jobs").select("job_id, dedup_key").execute()
+        for row in response.data or []:
+            if row.get("job_id"):
+                ids.add(str(row["job_id"]))
+            raw = row.get("dedup_key") or ""
+            if "|" in raw:
+                company, _, title = raw.partition("|")
+                if company and title:
+                    keys.add((company, title))
+    except Exception as e:
+        logging.warning(f"Could not read deleted_jobs ({e}); deleted postings may "
+                        "reappear. Run supabase_setup/add_deleted_jobs.sql.")
+    return ids, keys
+
+
+def delete_job(job: Dict[str, Any], reason: Optional[str] = None,
+               note: Optional[str] = None) -> bool:
+    """Remove a posting from the corpus for good, and record that it was removed.
+
+    The tombstone is written BEFORE the row is deleted, and the delete is skipped
+    if the tombstone fails. The other order loses the posting and its dedup key
+    together, which is the one outcome worth engineering against: the row is gone
+    from the queue, nothing remembers the decision, and the next scrape re-adds
+    the posting and pays to score it again.
+
+    This is not a dismissal. Use dismiss_job for a job you considered and turned
+    down - that row is evidence. Use this for postings that should not be in the
+    corpus at all: agency reposts, duplicates the dedup missed, a mis-scraped
+    listing. The score, breakdown and description go with it and do not come back.
+    """
+    job_id = str(job.get("job_id") or "")
+    if not job_id:
+        logging.error("No job_id provided to delete.")
+        return False
+    if reason is not None and reason not in VALID_DELETE_REASONS:
+        logging.error(f"Invalid delete reason '{reason}' for job {job_id}.")
+        return False
+
+    company = job.get("company") or ""
+    title = job.get("job_title") or ""
+    key = (dedup.normalize_company(company), dedup.normalize_title(title))
+    tombstone = {
+        "job_id": job_id,
+        "company": company,
+        "job_title": title,
+        "dedup_key": f"{key[0]}|{key[1]}" if all(key) else "",
+        "reason": reason,
+        "note": (note or "").strip() or None,
+    }
+
+    try:
+        supabase.table("deleted_jobs").upsert(tombstone).execute()
+    except Exception as e:
+        logging.error(f"Could not record the deletion of {job_id} ({e}). The posting "
+                      "was NOT deleted - run supabase_setup/add_deleted_jobs.sql first.")
+        return False
+
+    try:
+        response = (
+            supabase.table(config.SUPABASE_TABLE_NAME)
+            .delete()
+            .eq("job_id", job_id)
+            .execute()
+        )
+        if response.data:
+            logging.info(f"Deleted job {job_id} (reason={reason or 'none given'}).")
+            return True
+        logging.warning(f"Delete for job_id {job_id} affected no rows.")
+        return False
+    except Exception as e:
+        logging.error(f"Error deleting job {job_id}: {e}")
         return False
 
 
