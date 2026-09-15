@@ -38,6 +38,13 @@ SOURCE_INTERVIEW = "interview"
 SOURCE_SCORER = "scorer"
 
 
+def _today() -> str:
+    """Today, the earliest start date, and the rule against inventing durations."""
+    from scoring.availability import note
+
+    return note()
+
+
 class Fact(BaseModel):
     """One atomic, checkable thing that is true about the candidate."""
 
@@ -322,7 +329,12 @@ def seed_from_cv(resume: Dict[str, Any], profile_notes: str = "") -> FactBase:
         + "\n\nBreak this into atomic facts."
     )
     raw = primary_client.generate_content(
-        prompt=prompt, system_prompt=SEED_PROMPT,
+        # The date block belongs here too: seeding decides whether a role or a
+        # thesis with a date range is finished or still running, and that is not
+        # answerable without knowing today. A seeded fact is also the most
+        # expensive one to get wrong — it is written once and cited by every CV
+        # afterwards.
+        prompt=prompt, system_prompt="## TODAY\n" + _today() + "\n\n" + SEED_PROMPT,
         response_format=_SeedOutput, temperature=0.0,
     )
     seeds = _SeedOutput.model_validate_json(raw)

@@ -193,13 +193,15 @@ class Verdict(BaseModel):
 
 
 def _availability_note() -> str:
-    """Shared with the scorer, so both read the calendar the same way."""
-    try:
-        from scoring.score_jobs import availability_note
+    """Shared with the scorer, so both read the calendar the same way.
 
-        return availability_note()
-    except Exception:  # noqa: BLE001 - a missing profile must not stop a review
-        return datetime.now(timezone.utc).date().isoformat()
+    Delegated rather than reimplemented: the bare-date fallback this used to
+    have dropped the rule against computing durations, which is the half that
+    actually stops a five-month wait being described as seventeen months.
+    """
+    from scoring.availability import note
+
+    return note()
 
 
 def review(job: Dict[str, Any], app: Application, attempts: int = 2) -> Optional[Verdict]:

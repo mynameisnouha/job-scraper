@@ -19,6 +19,18 @@ from models import (
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def _today() -> str:
+    """Today, the earliest start date, and the rule against inventing durations.
+
+    A resume section is prose an employer reads, and "currently" or "for the past
+    two years" is a claim about time. Without this the model dates the work from
+    its own sense of the present, which sits near its training cutoff.
+    """
+    from scoring.availability import note
+
+    return note()
+
+
 # --- LLM Personalization Function ---
 async def personalize_section_with_llm(
     section_name: str,
@@ -62,6 +74,9 @@ async def personalize_section_with_llm(
 
     # Construct the prompt based on the section
     prompt_intro = f"""
+    **Today**
+    {_today()}
+
     **Task:** Enhance the specified resume section for the target job application.
 
     **Target Job**

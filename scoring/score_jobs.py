@@ -266,6 +266,16 @@ def availability_note() -> str:
         "Judge every other date in this posting or application by counting from "
         "today's date above, never from your own sense of the present."
     )
+    # The ban travels with the figure, so every prompt that imports this block
+    # inherits it. Previously each prompt carried its own copy, and the ones that
+    # did not — the pitch, the fact extractors — were free to invent a duration:
+    # a five-month wait was reaching drafts as seventeen months.
+    lines.append(
+        "NEVER state how many months or years away a date is, and never compute "
+        "an elapsed duration yourself — not in a sentence, not in passing. Where "
+        "a gap matters, quote the figure given above verbatim or say nothing "
+        "about its length. Refer to every other date by its calendar date."
+    )
     return "\n".join(lines)
 
 
@@ -450,6 +460,13 @@ def generate_why_me_pitch(resume_text: str, job_details: Dict[str, Any], breakdo
     and as the skeleton of a cover letter (Anschreiben).
     """
     prompt = f"""Write a first-person "why me" pitch (3-4 sentences, no greeting, no sign-off) for this application.
+
+## TODAY
+{availability_note()}
+
+This pitch is sent to an employer, so a wrong date here is not an internal error —
+it is a claim about when she can start, in her own voice. State availability as a
+calendar date if at all, never as a number of months.
 
 Rules:
 - Map the candidate's STRONGEST concrete evidence (Daimler Buses working student role, specific projects, specific skills) to the job's top 2-3 requirements.

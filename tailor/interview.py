@@ -54,6 +54,20 @@ the question must make "no" an easy and expected reply.
 6. At most {max_questions} questions. Most important first."""
 
 
+def _today() -> str:
+    """Today, the earliest start date, and the rule against inventing durations.
+
+    Every prompt in this module touches time. Rule 6 of ANSWER_PROMPT asks the
+    model to tell ongoing work from finished work by reading a date range — "a
+    date range ending in the future is in progress" — which is unanswerable
+    without knowing what the present is. A thesis running to February 2027 is
+    the case that exposed it.
+    """
+    from scoring.availability import note
+
+    return note()
+
+
 class Question(BaseModel):
     id: str = Field(..., description="q1, q2, ...")
     requirement: str = Field(..., description="The posting requirement this is about.")
@@ -83,6 +97,7 @@ def find_gaps(job: Dict[str, Any], base: FactBase) -> Optional[Interview]:
     from scoring.llm_client import primary_client
 
     prompt = (
+        "## TODAY\n" + _today() + "\n\n"
         f"## JOB POSTING\n\nTitle: {job.get('job_title')}\n"
         f"Company: {job.get('company')}\n\n"
         f"{(job.get('description') or '')[:9000]}\n\n"
@@ -175,7 +190,7 @@ def text_to_facts(text: str, base: FactBase) -> List[str]:
     try:
         raw = primary_client.generate_content(
             prompt=text.strip() + "\n\nTurn this into facts.",
-            system_prompt=ANSWER_PROMPT,
+            system_prompt="## TODAY\n" + _today() + "\n\n" + ANSWER_PROMPT,
             response_format=_AnswerOutput,
             temperature=0.0,
         )
@@ -218,7 +233,7 @@ def answers_to_facts(
     try:
         raw = primary_client.generate_content(
             prompt=payload + "\n\nTurn these answers into facts.",
-            system_prompt=ANSWER_PROMPT,
+            system_prompt="## TODAY\n" + _today() + "\n\n" + ANSWER_PROMPT,
             response_format=_AnswerOutput,
             temperature=0.0,
         )
@@ -295,6 +310,7 @@ def probe_objections(
         return None
 
     prompt = (
+        "## TODAY\n" + _today() + "\n\n"
         f"## JOB POSTING\n\nTitle: {job.get('job_title')}\n"
         f"Company: {job.get('company')}\n\n"
         f"{(job.get('description') or '')[:6000]}\n\n"
