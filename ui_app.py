@@ -75,9 +75,21 @@ PAGES = [
 ]
 DEFAULT_PAGE = "queue"
 
-# The bar a scored posting has to clear to be worth an evening. Also the
-# queue's default minimum score, so the two agree.
+# The bar a scored posting has to clear to be worth an evening. Used for the
+# scrape pulse ("how many above the bar today?"), which is a statement about the
+# market and needs a fixed reference point to mean anything.
+#
+# It is NOT the queue's default filter any more. Opening the queue already
+# filtered to 70+ hid the decision rather than making it: a 64 you would have
+# applied to never appeared, and the scorer is calibrated but not that
+# calibrated — five points is well inside its own noise. The filter still
+# exists, it just starts open, and the chip strip says what raising it would
+# hide.
 SCORE_BAR = 70
+
+# What the "Min score" slider starts at. Zero: show everything scored, and let
+# the sort order do the ranking.
+DEFAULT_MIN_SCORE = 0
 
 st.set_page_config(page_title="Job Hunt", layout="wide", initial_sidebar_state="expanded")
 
@@ -231,7 +243,7 @@ def render_sidebar():
 # the controls shows these counts so a short queue never reads as an empty
 # market — it reads as "12 postings under your bar, 194 older than a day".
 FILTER_KEYS = {
-    "min_score": {"default": SCORE_BAR, "open": 0},
+    "min_score": {"default": DEFAULT_MIN_SCORE, "open": 0},
     "date_window": {"default": apply_queue.DEFAULT_DATE_WINDOW, "open": "all"},
     "role_type": {"default": "all", "open": "all"},
     "german_max": {"default": "any", "open": "any"},

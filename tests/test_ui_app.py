@@ -35,7 +35,8 @@ FAKE_TODAY_JOBS = [
          "competitive_context": {"p_first_round_interview": {"after_fixes": 0.3}},
          "application_effort_hours": 1.5,
      }},
-    # Below the default min score of 70 — filtered out by default.
+    # A weak score. Visible by default now: the queue no longer opens filtered
+    # to 70+, because hiding a 64 hides the decision rather than making it.
     {"job_id": "j2", "job_title": "Data Scientist", "company": "Beta", "resume_score": 41,
      "job_url": None, "scraped_at": _TODAY, "score_breakdown": {}},
     # High score but scraped 10 days ago — filtered out by "found today only".
@@ -111,28 +112,47 @@ class TestJobsToApplyPage:
         list_app.run()
         assert not list_app.exception
 
-    def test_default_filters_hide_low_score_and_stale_jobs(self, list_app):
+    def test_every_scored_job_found_today_is_shown(self, list_app):
+        """No score bar by default. Recency still filters, because it decays.
+
+        The score filter used to start at 70 and the queue opened already
+        hiding things. A 64 is inside the scorer's own noise, so that hid the
+        decision instead of making it.
+        """
         list_app.run()
         text = markdown_text(list_app)
         assert "ML Engineer" in text          # today + score 82
-        assert "Data Scientist" not in text   # score 41, below default min of 70
+        assert "Data Scientist" in text       # today + score 41, no longer hidden
         assert "Vision Engineer" not in text  # score 90 but scraped 10 days ago,
                                               # outside the default 24h window
-        # One card survives, carrying its actions: decide, or reach for the overflow.
+        # Both cards carry their actions: decide, or reach for the overflow.
         keys = {b.key for b in list_app.button}
         assert {"apply_j1", "skip_j1", "details_j1", "list_pack_j1",
                 "list_tailor_j1", "list_closed_j1"} <= keys
-        assert not any(k.endswith("_j2") or k.endswith("_j6") for k in keys)
+        assert {"apply_j2", "skip_j2"} <= keys
+        assert not any(k.endswith("_j6") for k in keys)
 
     def test_the_strip_says_what_the_filters_hide(self, list_app):
         """A short queue must read as filtered, not as an empty market."""
         list_app.run()
         labels = [b.label for b in list_app.button if b.key.startswith("drop_")]
         assert any("Older than 24 hours" in l and "1" in l for l in labels)
+        # No score chip: nothing is hidden by score until the slider is raised.
+        assert not any("Score under" in l for l in labels)
+
+    def test_raising_the_bar_hides_weak_jobs_and_says_so(self, list_app):
+        """The filter still works — it just is not applied for you."""
+        list_app.run()
+        list_app.slider[0].set_value(70).run()
+        text = markdown_text(list_app)
+        assert "ML Engineer" in text
+        assert "Data Scientist" not in text
+        labels = [b.label for b in list_app.button if b.key.startswith("drop_")]
         assert any("Score under 70" in l and "1" in l for l in labels)
 
     def test_dropping_a_chip_opens_that_filter(self, list_app):
         list_app.run()
+        list_app.slider[0].set_value(70).run()
         list_app.button("drop_min_score").click().run()
         assert not list_app.exception
         assert "Data Scientist" in markdown_text(list_app)
@@ -151,6 +171,8 @@ class TestJobsToApplyPage:
 
     def test_lowering_min_score_reveals_weaker_jobs(self, list_app):
         list_app.run()
+        list_app.slider[0].set_value(70).run()
+        assert "Data Scientist" not in markdown_text(list_app)
         list_app.slider[0].set_value(0).run()
         assert "Data Scientist" in markdown_text(list_app)
 
@@ -309,8 +331,9 @@ class TestFocusQueue:
         assert any("I shipped a fine-tuned LLM to production." in c.value for c in app.code)
 
     def test_position_is_shown_so_you_know_where_you_are(self, app):
+        """Two today: the 82 and the 41, which the old 70 default hid."""
         app.run()
-        assert re.search(r">1 of 1<", markdown_text(app))
+        assert re.search(r">1 of 2<", markdown_text(app))
 
     def test_every_shortcut_has_a_control_labelled_with_its_key(self, app):
         """
