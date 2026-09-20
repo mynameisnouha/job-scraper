@@ -138,6 +138,22 @@ def consume_flash():
     return st.session_state.pop("flash", None)
 
 
+def flash_failed(message):
+    """Remember that a write FAILED, so it is shown where it cannot be missed.
+
+    A failure used to be an st.error inside the button's own column - a narrow
+    red box under "Apply" that the next click wiped. That is how a job you
+    marked applied stayed in the queue with nothing on screen to say why: the
+    write had failed, the page had redrawn, and the message was gone. Failures
+    now survive the rerun and render as a banner at the top of the page.
+    """
+    st.session_state["flash_failed"] = message
+
+
+def consume_failure():
+    return st.session_state.pop("flash_failed", None)
+
+
 def pct(value):
     return "—" if value is None else f"{value * 100:.0f}%"
 
@@ -250,11 +266,30 @@ FILTER_KEYS = {
 }
 
 
+# Queue controls whose value must outlive a trip to another page. Everything
+# here is bound to a widget, and that is the problem: Streamlit deletes a
+# widget's session-state entry at the end of any run in which the widget was
+# not drawn. Go to "Write my CV" and back, and every filter is gone — the German
+# filter you set is "any" again and the 24-hour window is back. Observed, not
+# theorised: set to none/30d, one page away, returned as any/24h.
+_PERSISTENT_KEYS = ("queue_view", "sort_mode", "search_jobs", "search_applied")
+
+
 def init_filters():
+    """Seed the queue controls once, and keep them alive on every run after.
+
+    Called from main() on every page, not from the queue page. Re-assigning a
+    key to itself is the documented way to stop Streamlit's cleanup taking it:
+    the assignment marks it as set by the script rather than by a widget, so a
+    run that never draws the widget still leaves the value where it was.
+    """
     for key, spec in FILTER_KEYS.items():
         st.session_state.setdefault(key, spec["default"])
     st.session_state.setdefault("queue_view", "focus")
     st.session_state.setdefault("sort_mode", "score")
+    for key in (*FILTER_KEYS, *_PERSISTENT_KEYS):
+        if key in st.session_state:
+            st.session_state[key] = st.session_state[key]
 
 
 def open_filter(key):
@@ -292,7 +327,6 @@ def render_queue_page():
         st.info("No scored jobs ready for application right now.")
         return
 
-    init_filters()
     total = len(jobs)
     all_scores = [j.get("resume_score") for j in jobs if j.get("resume_score") is not None]
     fresh = sum(1 for j in jobs if apply_queue.within_window(j, "24h"))
@@ -419,15 +453,23 @@ def render_job_list(jobs, all_scores, sort_by):
 
 
 def mark_applied(job):
-    """Shared by the list card, the focus card and the detail dialog."""
+    """Shared by the list card, the focus card and the detail dialog.
+
+    Reruns on failure as well as success. The rerun is what makes the outcome
+    visible either way: on success the job leaves the queue, on failure the
+    banner says it did not - and the row is re-read from Supabase rather than
+    trusted from the cached list, so what you see is what is stored.
+    """
     job_id = job.get("job_id")
     title = job.get("job_title") or job_id
     if supabase_utils.mark_job_applied(job_id):
         supabase_utils.update_application_stage(job_id, "applied")
         flash_saved(f"Marked applied: {title}")
-        st.rerun()
     else:
-        st.error("Failed to mark applied — check logs.")
+        flash_failed(f"Could not mark \"{title}\" as applied — it is still in the queue. "
+                     "Supabase rejected or dropped the write; the terminal running "
+                     "Streamlit has the error. Try again.")
+    st.rerun()
 
 
 def skip_job(job, reason):
@@ -441,9 +483,10 @@ def skip_job(job, reason):
         st.session_state["last_skipped"] = {"job_id": job_id, "title": title}
         st.session_state.pop("skipping", None)
         flash_saved(f"Skipped: {title} ({apply_queue.SKIP_REASON_LABELS.get(reason, reason)})")
-        st.rerun()
     else:
-        st.error("Failed to skip — has supabase_setup/add_dismissal.sql been run?")
+        flash_failed(f"Could not skip \"{title}\" — it is still in the queue. Has "
+                     "supabase_setup/add_dismissal.sql been run? The terminal has the error.")
+    st.rerun()
 
 
 def start_delete(job):
@@ -470,8 +513,9 @@ def delete_posting(job, reason, note=""):
                     f"({apply_queue.DELETE_REASON_LABELS.get(reason, reason)})")
         st.rerun()
     else:
-        st.error("Failed to delete — has supabase_setup/add_deleted_jobs.sql been run? "
-                 "Nothing was removed.")
+        flash_failed(f"Could not delete \"{title}\" — nothing was removed. Has "
+                     "supabase_setup/add_deleted_jobs.sql been run? The terminal has the error.")
+        st.rerun()
 
 
 def render_delete_panel(job):
@@ -2053,8 +2097,17 @@ def main():
     saved_message = consume_flash()
     if saved_message:
         st.toast(saved_message, icon="✅")
+    failure = consume_failure()
+    if failure:
+        # Both: the toast for the eye, the banner so it is still there when
+        # you look for it. A toast alone is gone in four seconds.
+        st.toast(failure, icon="❌")
+        st.error(failure)
 
     st.session_state.setdefault("page", DEFAULT_PAGE)
+    # Every page, every run - see init_filters for why it cannot live on the
+    # queue page alone.
+    init_filters()
     render_sidebar()
 
     page = st.session_state["page"]

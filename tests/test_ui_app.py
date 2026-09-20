@@ -158,6 +158,35 @@ class TestJobsToApplyPage:
         assert "Data Scientist" in markdown_text(list_app)
         assert not any(b.key == "drop_min_score" for b in list_app.button)
 
+    def test_filters_survive_a_trip_to_another_page(self, list_app):
+        """Streamlit drops a widget's state on any run that does not draw it.
+
+        Set the German filter, open another page, come back: every filter was
+        back at its default — the 24-hour window "added itself" and the German
+        filter was "any" again. Reproduced before the fix as none/30d → any/24h.
+        """
+        list_app.selectbox(key="german_max").set_value("none").run()
+        list_app.selectbox(key="date_window").set_value("30d").run()
+        list_app.button("nav_apps").click().run()
+        list_app.button("nav_queue").click().run()
+        assert list_app.session_state["german_max"] == "none"
+        assert list_app.session_state["date_window"] == "30d"
+        assert "Vision Engineer" in markdown_text(list_app), "30d window still applied"
+
+    def test_a_failed_apply_says_so_where_it_cannot_be_missed(self, list_app, monkeypatch):
+        """The write fails; the job stays; the page must say why, at the top.
+
+        It used to be an st.error inside the button's own column, wiped by the
+        next click — which read as "it refreshed and the job is still there".
+        """
+        monkeypatch.setattr(supabase_utils, "mark_job_applied", lambda job_id: False)
+        list_app.run()
+        list_app.button("apply_j1").click().run()
+        assert not list_app.exception
+        assert any("Could not mark" in e.value and "still in the queue" in e.value
+                   for e in list_app.error)
+        assert "ML Engineer" in markdown_text(list_app), "nothing pretends it left"
+
     def test_widening_the_date_window_reveals_older_jobs(self, list_app):
         list_app.run()
         list_app.selectbox(key="date_window").set_value("30d").run()
