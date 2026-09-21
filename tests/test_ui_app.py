@@ -187,6 +187,23 @@ class TestJobsToApplyPage:
                    for e in list_app.error)
         assert "ML Engineer" in markdown_text(list_app), "nothing pretends it left"
 
+    def test_delete_with_a_typed_note_reaches_the_database(self, app, monkeypatch):
+        """Note and reason go together, as one form submission.
+
+        A text field beside plain buttons loses the click: the field commits on
+        blur, that reruns the script, and the click that lands during the rerun
+        is dropped. Typing a note and then choosing a reason did nothing.
+        """
+        calls = []
+        monkeypatch.setattr(supabase_utils, "delete_job",
+                            lambda job, reason, note=None: calls.append((job["job_id"], reason, note)) or True)
+        app.run()
+        app.button("focus_delete_j1").click().run()
+        app.text_input(key="delnote_j1").input("same as the LinkedIn one").run()
+        app.button("delreason_j1_duplicate_posting").click().run()
+        assert not app.exception
+        assert calls == [("j1", "duplicate_posting", "same as the LinkedIn one")]
+
     def test_widening_the_date_window_reveals_older_jobs(self, list_app):
         list_app.run()
         list_app.selectbox(key="date_window").set_value("30d").run()

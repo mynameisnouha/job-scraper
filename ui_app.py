@@ -535,14 +535,23 @@ def render_delete_panel(job):
              'The description, score and breakdown go with it and cannot be restored. '
              'It will not come back on the next scrape. To take a real job out of the '
              'queue instead, cancel and use Skip.</div>')
-        note = st.text_input("Anything worth remembering?", key=f"delnote_{job_id}",
-                             placeholder="Optional — a note stored with the deletion.")
-        with st.container(horizontal=True, gap="small"):
-            for reason in apply_queue.DELETE_REASONS:
-                if st.button(apply_queue.DELETE_REASON_SHORT[reason],
-                             key=f"delreason_{job_id}_{reason}", width="content",
-                             help=apply_queue.DELETE_REASON_LABELS[reason]):
-                    delete_posting(job, reason, note)
+        # A form, because a text field next to plain buttons loses clicks. The
+        # field commits on blur, which reruns the script, and a click on a
+        # reason button that lands during that rerun is dropped without a
+        # trace - type a note, click a reason, nothing happens. Inside a form
+        # the note and the reason are submitted together as one event.
+        with st.form(f"delete_{job_id}", border=False):
+            note = st.text_input("Anything worth remembering?", key=f"delnote_{job_id}",
+                                 placeholder="Optional — a note stored with the deletion.")
+            with st.container(horizontal=True, gap="small"):
+                chosen = None
+                for reason in apply_queue.DELETE_REASONS:
+                    if st.form_submit_button(apply_queue.DELETE_REASON_SHORT[reason],
+                                             key=f"delreason_{job_id}_{reason}",
+                                             help=apply_queue.DELETE_REASON_LABELS[reason]):
+                        chosen = reason
+            if chosen:
+                delete_posting(job, chosen, note)
         if st.button("Cancel", key=f"delcancel_{job_id}", type="tertiary"):
             st.session_state.pop("deleting", None)
             st.rerun()
