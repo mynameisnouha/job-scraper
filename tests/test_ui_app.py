@@ -776,3 +776,43 @@ class TestCalibrationPage:
                             lambda limit=999: _resolved(20, stage="rejected", p=None))
         self._open(app)
         assert any("nothing to calibrate against" in i.value for i in app.info)
+
+
+class TestArchetypesMarketPanel:
+    """The German panel on "Which CV to use".
+
+    It reads a wider population than the archetypes themselves — those exclude
+    C1-German postings before fitting, so asking them how much German the market
+    demands would answer approximately zero.
+    """
+
+    def _open(self, app, breakdowns):
+        monkey = [{"score_breakdown": b} for b in breakdowns]
+        app.session_state["page"] = "arch"
+        import ui_app  # noqa: F401 - the module under test is the script itself
+        from db import supabase_utils as u
+        u.get_breakdowns_above_score = lambda min_score, page_size=500: monkey
+        app.run()
+        return markdown_text(app)
+
+    def test_the_panel_reports_the_german_split(self, app):
+        text = self._open(app, [
+            {"german_required": "C1-fluent", "jd_language": "de"},
+            {"german_required": "unstated", "jd_language": "de"},
+            {"german_required": "none", "jd_language": "en"},
+        ])
+        if "No clustering run found yet" in text:
+            pytest.skip("no clustering output on this machine")
+        assert "What the market asks for" in text
+        assert "C2 assumed" in text
+        assert "C1 stated" in text
+        # Two of three are closed on German: C1 stated, plus the German ad that
+        # names no level.
+        assert "67%" in text
+
+    def test_b1_is_shown_as_a_zero_rather_than_omitted(self, app):
+        """The scorer has no B1 band; a missing row would read as "not asked"."""
+        text = self._open(app, [{"german_required": "B2", "jd_language": "de"}])
+        if "No clustering run found yet" in text:
+            pytest.skip("no clustering output on this machine")
+        assert "B1 stated" in text

@@ -656,6 +656,36 @@ def get_score_breakdowns(limit: int = 500) -> list:
         return []
 
 
+def get_breakdowns_above_score(min_score: int, page_size: int = 500) -> list:
+    """Every scored job at or above `min_score`, with its breakdown. Paged.
+
+    Used by the market panel on the archetypes page, which needs the whole
+    population rather than the top N: the question there is what share of the
+    reachable market demands C1 German, and a limit would silently answer it
+    about the highest-scoring slice instead.
+    """
+    rows: list = []
+    offset = 0
+    try:
+        while True:
+            response = (
+                supabase.table(config.SUPABASE_TABLE_NAME)
+                .select("job_id, resume_score, score_breakdown")
+                .gte("resume_score", min_score)
+                .not_.is_("score_breakdown", None)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            batch = response.data or []
+            rows.extend(batch)
+            if len(batch) < page_size:
+                break
+            offset += page_size
+    except Exception as e:
+        logging.error(f"Error fetching breakdowns above score {min_score}: {e}")
+    return rows
+
+
 def mark_job_closed(job_id: str) -> bool:
     """
     Marks a posting you never applied to as no longer accepting candidates:

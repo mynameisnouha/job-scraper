@@ -21,8 +21,10 @@ from review import application_view
 from review import calibration
 from review import application_pack
 from review import job_view
+from review import market
 from review import theme as T
 from clustering import results as cluster_results
+from clustering import settings as cluster_settings
 from tailor import facts as tailor_facts
 from tailor import harvest as tailor_harvest
 from tailor import interview as tailor_interview
@@ -1243,6 +1245,71 @@ def render_calibration_page():
 # Which CV to use
 # ═══════════════════════════════════════════════════════════════════════════
 
+def load_market_breakdowns():
+    """Every scored job at or above the clustering floor, memoised for this run."""
+    if "market" not in _RUN:
+        _RUN["market"] = supabase_utils.get_breakdowns_above_score(cluster_settings.MIN_SCORE)
+    return _RUN["market"]
+
+
+def render_market_stats(summary):
+    """What the reachable market asks for: German first, then the skills.
+
+    German leads because it is the gate that decides whether a posting is worth
+    reading at all, and because the honest number is worse than the queue
+    suggests — the queue shows what you can apply to, this shows what the market
+    demanded before that filtering.
+    """
+    rows = [market.breakdown_of(j) for j in load_market_breakdowns()]
+    german = market.german_demand(rows)
+    if not german["total"]:
+        return
+
+    with st.container(border=True):
+        html(f'<h3 style="margin:0 0 4px;font-family:{T.FONT_HEADING};font-weight:400;font-size:24px">'
+             'What the market asks for</h3>'
+             f'<p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:{T.NEUTRAL[700]}">'
+             f'Across all {german["total"]} postings scoring {cluster_settings.MIN_SCORE} or better — '
+             'a wider set than the archetypes above, which exclude C1-German roles before they are '
+             'fitted. This is the market as it was, not as the queue shows it.</p>')
+
+        html(T.stat_tiles([
+            ("Closed on German today", f'{german["closed_share"]:.0%}',
+             f'{german["closed"]} postings demand C1 or read as C2'),
+            ("Open on German", f'{german["open_share"]:.0%}',
+             f'{german["open"]} ask for none, or call it a plus'),
+            ("Postings counted", str(german["total"]),
+             f'scored {cluster_settings.MIN_SCORE}+, of {summary.get("corpus", {}).get("n_scored", "?")} scored'),
+        ]))
+
+        html('<div style="height:18px"></div>' + T.kicker("German demanded")
+             + T.bar_rows(german["rows"], label_width=250))
+        st.caption(
+            "An ad that states a level is counted as it states it, whatever language it is "
+            "written in. Only ads that name no level at all are read from their language: "
+            "written in German, expecting German applications, counted as C2. The scorer "
+            "itself does not make that assumption — it treats an unstated level as unknown, "
+            "which is why the queue is less pessimistic than this panel. Nothing here changes "
+            "a score or a gate."
+        )
+        if not any(r["key"] == "B1" and r["n"] for r in german["rows"]):
+            st.caption(
+                "B1 reads zero because the scorer records no B1 band — its levels are none, "
+                "a plus, B2 and C1. A posting asking for B1 lands in B2 or, if it names no "
+                "level, in the assumption above."
+            )
+
+        skills = market.top_skills(summary)
+        if skills:
+            html('<div style="height:22px"></div>' + T.kicker("Skills demanded across the archetypes")
+                 + T.bar_rows(skills, label_width=250))
+            st.caption(
+                f'Share of the {summary.get("corpus", {}).get("n_addressable", "?")} addressable '
+                "postings that ask for each skill, weighted by archetype size. These exclude "
+                "C1-German roles — this is what the jobs you could actually take ask for."
+            )
+
+
 def render_archetypes_page():
     summary = cluster_results.load_summary()
     assignments = cluster_results.load_assignments()
@@ -1298,6 +1365,8 @@ def render_archetypes_page():
 
     if cv_fit:
         render_gap_panel(cv_fit)
+
+    render_market_stats(summary)
 
     opened = st.session_state.get("arch_open")
     for cluster in clusters:
