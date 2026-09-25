@@ -3,6 +3,7 @@ import config # Import configuration
 from sources import dedup  # normalization shared with the scrapers; see get_existing_jobs_from_supabase
 from typing import Optional, Any, Dict, List
 from models import Resume
+import json
 import datetime # Import datetime module
 import logging # Import logging
 
@@ -767,6 +768,10 @@ def dismiss_job(job_id: str, reason: Optional[str] = None) -> bool:
 VALID_DELETE_REASONS = {
     "not_relevant", "agency_repost", "duplicate_posting", "expired",
     "mis_scraped", "other",
+    # Written by maintenance.purge_low_scores, never offered as a button: the UI
+    # list is what YOU can say about a posting, and "it scored badly" is the
+    # pipeline's judgement rather than yours.
+    "below_score_floor",
 }
 
 
@@ -831,12 +836,44 @@ def delete_job(job: Dict[str, Any], reason: Optional[str] = None,
         "note": (note or "").strip() or None,
     }
 
+    # Kept because the bulk purge deletes ~1000 rows at a time, and screened-out
+    # rows carry the only record of what the cheap screen rejected - the sample
+    # score_jobs.py deliberately stores so the corpus-wide language picture is
+    # not just the postings that passed. Three fields keep the distribution
+    # answerable after the descriptions are gone.
+    breakdown = job.get("score_breakdown")
+    if isinstance(breakdown, str):
+        try:
+            breakdown = json.loads(breakdown)
+        except (ValueError, TypeError):
+            breakdown = {}
+    breakdown = breakdown if isinstance(breakdown, dict) else {}
+    stats = {
+        "resume_score": job.get("resume_score"),
+        "german_required": breakdown.get("german_required"),
+        "jd_language": breakdown.get("jd_language"),
+    }
+
     try:
-        supabase.table("deleted_jobs").upsert(tombstone).execute()
+        supabase.table("deleted_jobs").upsert({**tombstone, **stats}).execute()
     except Exception as e:
-        logging.error(f"Could not record the deletion of {job_id} ({e}). The posting "
-                      "was NOT deleted - run supabase_setup/add_deleted_jobs.sql first.")
-        return False
+        # Those three columns arrived after the table did. Falling back to the
+        # core payload keeps deleting working on a database that has not run the
+        # newer migration - losing the statistics, never the tombstone, because
+        # a delete without a tombstone is the one that undoes itself.
+        if any(col in str(e) for col in stats):
+            logging.warning("deleted_jobs is missing the stats columns — recording the "
+                            "deletion without them. Re-run supabase_setup/add_deleted_jobs.sql.")
+            try:
+                supabase.table("deleted_jobs").upsert(tombstone).execute()
+            except Exception as inner:
+                logging.error(f"Could not record the deletion of {job_id} ({inner}). "
+                              "The posting was NOT deleted.")
+                return False
+        else:
+            logging.error(f"Could not record the deletion of {job_id} ({e}). The posting "
+                          "was NOT deleted - run supabase_setup/add_deleted_jobs.sql first.")
+            return False
 
     try:
         response = (

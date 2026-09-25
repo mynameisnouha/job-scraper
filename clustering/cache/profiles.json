@@ -6978,5 +6978,5179 @@
    "Python with ML libraries",
    "Docker and Kubernetes experience"
   ]
+ },
+ "4463985424": {
+  "must_have_skills": [
+   "python",
+   "git_testing",
+   "llm_apis",
+   "agents",
+   "prompt_engineering",
+   "rag"
+  ],
+  "nice_to_have_skills": [
+   "backend_api",
+   "cloud",
+   "cicd"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI Engineer building and operating LLM agents and automation systems integrated with enterprise platforms.",
+  "top_requirements": [
+   "Python and Git/CI-CD experience",
+   "LLM agents and prompt engineering",
+   "API integration and OAuth knowledge"
+  ]
+ },
+ "4426822227": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "rag",
+   "prompt_engineering",
+   "agents",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "vector_databases",
+   "docker",
+   "kubernetes",
+   "cicd",
+   "finetuning",
+   "llm_evaluation"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and deploy LLM-based applications including RAG systems, chatbots and agents into healthcare software products.",
+  "top_requirements": [
+   "LLM-based application development experience",
+   "Prompt engineering and RAG architecture knowledge",
+   "Python and secure programming skills"
+  ]
+ },
+ "4465516401": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Data scientist building predictive models and customer analytics for e-commerce and TV shopping optimization.",
+  "top_requirements": [
+   "Predictive modeling and customer behavior analytics",
+   "Statistical analysis with Python or R",
+   "Machine learning in production e-commerce environments"
+  ]
+ },
+ "4438568930": {
+  "must_have_skills": [
+   "llm_apis",
+   "prompt_engineering",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "statistics_experiments"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "ops_automation",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Microsoft Copilot and AI specialist implementing automation and digital transformation for enterprise clients.",
+  "top_requirements": [
+   "Microsoft Copilot and 365 expertise",
+   "AI and automation strategy development",
+   "Business process analysis and optimization"
+  ]
+ },
+ "4469741989": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml",
+   "deep_learning",
+   "llm_apis",
+   "agents",
+   "sql",
+   "model_serving",
+   "monitoring",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "git_testing",
+   "data_modelling"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "Data Scientist building ML models and AI systems for sports performance analytics and live event processing.",
+  "top_requirements": [
+   "ML model development and deployment",
+   "LLM and agentic systems experience",
+   "Sports data analytics expertise"
+  ]
+ },
+ "4454647667": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "llm_apis",
+   "rag",
+   "agents",
+   "prompt_engineering",
+   "cloud",
+   "backend_api",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "nlp",
+   "llm_evaluation",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "AI Engineer building generative AI and RAG solutions from prototype to production for spare parts distribution.",
+  "top_requirements": [
+   "Design and deploy end-to-end AI solutions",
+   "Develop generative AI and RAG applications",
+   "Integrate AI into business processes"
+  ]
+ },
+ "4468067257": {
+  "must_have_skills": [
+   "python",
+   "git_testing",
+   "backend_api",
+   "docker",
+   "kubernetes"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "llm_apis",
+   "cloud"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Graduate AI software engineer building AI-powered product experiences at scale across diverse tech stacks.",
+  "top_requirements": [
+   "Build AI-powered product experiences",
+   "End-to-end ownership from idea to production",
+   "Proficiency in English"
+  ]
+ },
+ "arbeitsagentur_13649-13206731AB-S": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "optimization_or",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "time_series"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "research_science",
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data scientist building supply chain simulations and optimization models for logistics network management.",
+  "top_requirements": [
+   "Supply chain simulation and optimization expertise",
+   "Python programming proficiency",
+   "Operations Research or quantitative logistics background"
+  ]
+ },
+ "4461672401": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "nlp",
+   "llm_apis",
+   "agents",
+   "data_warehouse",
+   "spark_databricks"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI and data engineer building ML solutions and data pipelines for consulting clients.",
+  "top_requirements": [
+   "Python or R and SQL programming",
+   "Data pipeline and ETL/ELT experience",
+   "Cloud technologies (Azure, Databricks)"
+  ]
+ },
+ "4464294430": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "backend_api",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "frontend",
+   "inference_optimization",
+   "model_serving",
+   "rag"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build production AI features and LLM workflows for healthcare product, from idea to deployment.",
+  "top_requirements": [
+   "Build production AI features from idea to shipping",
+   "Design and validate LLM-based workflows",
+   "Strong Python and AI development tool proficiency"
+  ]
+ },
+ "4463476171": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "prompt_engineering",
+   "rag",
+   "agents",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "docker",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI Engineer building LLM applications and agents into BlueSpice wiki software.",
+  "top_requirements": [
+   "Build LLM applications and agents for BlueSpice",
+   "Optimize output for accuracy, speed, precision",
+   "Maintain production-level pipeline code"
+  ]
+ },
+ "4464297390": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "backend_api",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "frontend",
+   "inference_optimization",
+   "finetuning",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build production AI product features using LLMs, from idea to deployment in healthcare software.",
+  "top_requirements": [
+   "Build AI product features from idea to production",
+   "Design and validate LLM-based workflows",
+   "Use AI development tools daily"
+  ]
+ },
+ "4463442344": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "rag",
+   "agents",
+   "vector_databases",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "streaming",
+   "nlp",
+   "llm_evaluation",
+   "prompt_engineering"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI Engineer building multimodal LLM platform with voice, RAG, and agentic workflows for customer support.",
+  "top_requirements": [
+   "Advanced Python and asynchronous programming",
+   "LLM orchestration and multi-agent systems",
+   "RAG pipeline design and vector databases"
+  ]
+ },
+ "4469129250": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "cloud",
+   "backend_api",
+   "prompt_engineering",
+   "rag",
+   "agents",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "nlp",
+   "docker",
+   "cicd",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 3,
+  "german_required": "B2",
+  "role_summary": "AI engineer driving AI adoption across enterprise, from use-case identification through production deployment.",
+  "top_requirements": [
+   "AI/GenAI solution development and deployment",
+   "Microsoft Azure and AI Services expertise",
+   "Use-case identification and stakeholder engagement"
+  ]
+ },
+ "4469912223": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "computer_vision",
+   "nlp"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "finetuning"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "research_science",
+  "deliverable": "production_system",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Graduate program developing AI-powered robotic systems combining foundation models, robot learning and embodied AI.",
+  "top_requirements": [
+   "MSc/PhD in CS, Robotics, AI or related",
+   "Strong Python and deep learning fundamentals",
+   "Passion for embodied AI and intelligent systems"
+  ]
+ },
+ "4451517611": {
+  "must_have_skills": [
+   "sql",
+   "bi_dashboards",
+   "statistics_experiments",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "agents",
+   "python"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "entry",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior analyst driving marketing and commercial insights through dashboards, AI tools, and data-driven recommendations.",
+  "top_requirements": [
+   "Marketing and commercial analytics experience",
+   "BI/dashboard and reporting tools",
+   "AI tool proficiency and agentic use cases"
+  ]
+ },
+ "4457370251": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "llm_apis",
+   "prompt_engineering",
+   "rag"
+  ],
+  "nice_to_have_skills": [
+   "vector_databases",
+   "classical_ml",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI developer building and integrating LLM-based solutions and RAG systems into production software.",
+  "top_requirements": [
+   "Large Language Models practical experience",
+   "Python and ML frameworks expertise",
+   "Prompt Engineering and RAG knowledge"
+  ]
+ },
+ "4467458049": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "orchestration",
+   "cloud",
+   "data_warehouse"
+  ],
+  "nice_to_have_skills": [
+   "streaming",
+   "data_modelling"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "agency_or_staffing",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and optimize data pipelines for real-time and batch processing workflows.",
+  "top_requirements": [
+   "Design and maintain scalable data pipelines",
+   "Cloud platform and data warehouse experience",
+   "ETL and data modeling expertise"
+  ]
+ },
+ "4469330871": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "prompt_engineering",
+   "rag",
+   "backend_api",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "agents",
+   "finetuning",
+   "llm_evaluation",
+   "cloud"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI Software Engineer building LLM-powered features into logistics SaaS platform.",
+  "top_requirements": [
+   "LLM API experience (Anthropic, Gemini)",
+   "Modern programming language (C#/.NET preferred)",
+   "AI product thinking and pragmatism"
+  ]
+ },
+ "4466064963": {
+  "must_have_skills": [
+   "sql",
+   "statistics_experiments",
+   "bi_dashboards",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "llm_apis",
+   "cloud"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "CRM analyst and AI campaign manager developing segmentations, dashboards and data-driven marketing strategies.",
+  "top_requirements": [
+   "CRM systems and data analysis experience",
+   "AI campaign management and optimization",
+   "Dashboard and reporting creation"
+  ]
+ },
+ "arbeitsagentur_12908-064103247-S": {
+  "must_have_skills": [
+   "cicd",
+   "docker",
+   "kubernetes",
+   "cloud",
+   "iac_terraform",
+   "monitoring",
+   "model_serving",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "rag",
+   "orchestration",
+   "backend_api"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "MLOps engineer building CI/CD, model serving and observability infrastructure for production AI workloads.",
+  "top_requirements": [
+   "CI/CD pipelines and automated testing",
+   "Model registry and serving infrastructure",
+   "Kubernetes and container orchestration"
+  ]
+ },
+ "4468991347": {
+  "must_have_skills": [
+   "agents",
+   "llm_apis",
+   "statistics_experiments",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "git_testing"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "public_or_research",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Design and execute experiments measuring AI agent coordination with cryptographic trust infrastructure.",
+  "top_requirements": [
+   "LLM-agent engineering with scientific rigor",
+   "Experimental design and statistical analysis",
+   "Building reproducible, auditable agent systems"
+  ]
+ },
+ "4465806730": {
+  "must_have_skills": [
+   "python",
+   "agents",
+   "llm_apis",
+   "prompt_engineering",
+   "docker",
+   "backend_api",
+   "git_testing",
+   "cicd"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "monitoring",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 3,
+  "german_required": "unstated",
+  "role_summary": "Build and deploy LLM-based agent systems and AI microservices in production.",
+  "top_requirements": [
+   "Python software development with testing and CI/CD",
+   "LLM integration and agent system development",
+   "Docker and Openshift deployment experience"
+  ]
+ },
+ "4465987691": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "deep_learning",
+   "git_testing",
+   "cloud",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "orchestration",
+   "computer_vision",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "public_or_research",
+  "seniority": "mid_3_5",
+  "domain": "research_academia",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "ML developer building satellite data pipelines and models for weather and climate applications.",
+  "top_requirements": [
+   "ML model development and evaluation experience",
+   "Python and compiled language programming",
+   "Large dataset and cloud environment experience"
+  ]
+ },
+ "arbeitsagentur_10000-1207869284-S": {
+  "must_have_skills": [
+   "python",
+   "jvm_or_cpp",
+   "git_testing",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "computer_vision",
+   "cloud",
+   "docker",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Software engineer building automation and control systems for scientific measurement hardware.",
+  "top_requirements": [
+   "Master degree in technical discipline",
+   "Strong programming and analytical thinking",
+   "Experience with hardware and embedded systems"
+  ]
+ },
+ "4467377256": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "computer_vision"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "jvm_or_cpp",
+   "optimization_or"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Algorithm engineer developing core computational algorithms for medical imaging software using Python.",
+  "top_requirements": [
+   "Python algorithm development",
+   "2D/3D geometric problem solving",
+   "Medical imaging domain knowledge"
+  ]
+ },
+ "4469463443": {
+  "must_have_skills": [
+   "llm_apis",
+   "rag",
+   "agents",
+   "backend_api",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "data_warehouse",
+   "data_modelling",
+   "etl_pipelines",
+   "python"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build AI automation and RAG solutions using Microsoft Copilot Studio and Azure OpenAI for enterprise clients.",
+  "top_requirements": [
+   "Microsoft Copilot Studio and Power Platform experience",
+   "RAG and LLM architecture understanding",
+   "Process automation and API integration skills"
+  ]
+ },
+ "4464777535": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "backend_api",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "frontend",
+   "inference_optimization",
+   "rag",
+   "agents"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build AI-powered product features from idea to production in healthcare software.",
+  "top_requirements": [
+   "Build AI product features end-to-end",
+   "Design and validate LLM workflows",
+   "Ship quickly with production quality"
+  ]
+ },
+ "arbeitsagentur_19380-asrcn3uapa-S": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "docker",
+   "kubernetes",
+   "cicd",
+   "cloud",
+   "backend_api",
+   "git_testing",
+   "model_serving",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "orchestration",
+   "iac_terraform",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "rnd_lab",
+  "company_stage": "public_or_research",
+  "seniority": "mid_3_5",
+  "domain": "research_academia",
+  "years_required": 3,
+  "german_required": "none",
+  "role_summary": "Deploy and operate AI and Earth observation workflows across HPC, cloud and quantum environments.",
+  "top_requirements": [
+   "Master's degree in CS or related field",
+   "Industry experience in software/data engineering",
+   "Deep learning frameworks and model serving"
+  ]
+ },
+ "4466540447": {
+  "must_have_skills": [
+   "python",
+   "git_testing",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "docker",
+   "cloud",
+   "deep_learning"
+  ],
+  "primary_function": "software_engineering",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "Early-career software engineer building mission-critical AI systems for defence applications.",
+  "top_requirements": [
+   "Strong independent coding ability without LLM reliance",
+   "Systems-level thinking and architectural reasoning",
+   "Clear technical communication skills"
+  ]
+ },
+ "4470967557": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "computer_vision",
+   "nlp",
+   "git_testing",
+   "jvm_or_cpp"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "ml_engineering",
+  "deliverable": "research_output",
+  "team_context": "academic_group",
+  "company_stage": "public_or_research",
+  "seniority": "entry",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Research associate developing ML classification algorithms for pediatric cancer prediction from omics data.",
+  "top_requirements": [
+   "ML classification algorithms on omics data",
+   "Python and PyTorch/TensorFlow expertise",
+   "Representation learning and transformer architectures"
+  ]
+ },
+ "4467887229": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "computer_vision",
+   "statistics_experiments"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "public_or_research",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Develop explainable and generative AI models for antibiotic molecule optimization in iterative research cycles.",
+  "top_requirements": [
+   "Machine Learning / Deep Learning expertise",
+   "Python programming skills",
+   "Interdisciplinary work at AI-chemistry interface"
+  ]
+ },
+ "4465531466": {
+  "must_have_skills": [
+   "python",
+   "git_testing",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "docker",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "primary_function": "software_engineering",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "public_sector",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "Early-career software engineer building AI-enabled defence systems with focus on reliability and real-world deployment.",
+  "top_requirements": [
+   "Strong independent coding ability without LLM reliance",
+   "Systems-level thinking and architectural reasoning",
+   "Clear technical communication and collaboration skills"
+  ]
+ },
+ "4464294428": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "backend_api",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "inference_optimization",
+   "frontend",
+   "rag",
+   "agents"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build production AI features and LLM workflows for healthcare care team software.",
+  "top_requirements": [
+   "Ship production AI features end-to-end",
+   "Design and validate LLM workflows",
+   "Strong Python and software engineering"
+  ]
+ },
+ "4463959655": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "agents",
+   "rag",
+   "computer_vision",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "llm_evaluation",
+   "vector_databases",
+   "classical_ml",
+   "backend_api"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI engineer building Chat-to-CAD product combining LLMs with CAD automation pipelines.",
+  "top_requirements": [
+   "AI methods for CAD design automation",
+   "Unstructured input to structured output",
+   "Agentic workflows and tool use"
+  ]
+ },
+ "4464860783": {
+  "must_have_skills": [
+   "python",
+   "time_series",
+   "classical_ml",
+   "model_serving",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "cloud",
+   "backend_api"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and deploy energy forecasting models for live trading operations with direct impact on outcomes.",
+  "top_requirements": [
+   "Production forecasting or time-series models deployed",
+   "Clean, maintainable Python across full stack",
+   "End-to-end project ownership from scoping to outcome"
+  ]
+ },
+ "4468671171": {
+  "must_have_skills": [
+   "prompt_engineering",
+   "llm_apis",
+   "js_ts",
+   "python",
+   "sql",
+   "git_testing",
+   "backend_api",
+   "frontend"
+  ],
+  "nice_to_have_skills": [
+   "cicd",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Fullstack developer who builds production systems using AI tools and prompt engineering to accelerate development.",
+  "top_requirements": [
+   "Practical experience with AI tools and prompt engineering",
+   "Fullstack web development with Vue, JavaScript/TypeScript, Python",
+   "PostgreSQL and relational database experience"
+  ]
+ },
+ "4401339009": {
+  "must_have_skills": [
+   "python",
+   "docker",
+   "cloud",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "iac_terraform",
+   "deep_learning",
+   "backend_api",
+   "cicd"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "tech_saas",
+  "years_required": 2,
+  "german_required": "unstated",
+  "role_summary": "Software engineer building deep learning experimentation infrastructure and ML platform tooling.",
+  "top_requirements": [
+   "2+ years relevant work experience",
+   "Strong Python proficiency",
+   "Experience with tech stack tools"
+  ]
+ },
+ "4443288375": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "agents",
+   "rag",
+   "prompt_engineering"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "prototype_poc",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Scout and prototype AI solutions for engineering, simulation, and predictive maintenance in industrial sealing.",
+  "top_requirements": [
+   "Master's or PhD in engineering/computational sciences",
+   "Applied research or industrial development experience",
+   "Neural networks, GenAI/LLMs, or surrogate models expertise"
+  ]
+ },
+ "4465975988": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "statistics_experiments",
+   "data_modelling",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "llm_apis"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 3,
+  "german_required": "nice-to-have",
+  "role_summary": "Data scientist developing predictive models and analytics for pharmacy management systems.",
+  "top_requirements": [
+   "Python, R, SQL programming",
+   "Machine learning and predictive modeling",
+   "Data analysis and business insight"
+  ]
+ },
+ "4467188622": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "deep_learning",
+   "git_testing",
+   "backend_api",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "rag",
+   "prompt_engineering",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Applied AI developer building production AI solutions for internal knowledge and process improvement.",
+  "top_requirements": [
+   "Production AI solution development",
+   "Python and modern engineering practices",
+   "Business-to-technical translation"
+  ]
+ },
+ "4386355137": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "iac_terraform",
+   "cicd",
+   "data_warehouse",
+   "spark_databricks"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "monitoring",
+   "docker",
+   "kubernetes"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 3,
+  "german_required": "unstated",
+  "role_summary": "Platform engineer building analytics, ML and GenAI infrastructure for enterprise retail operations.",
+  "top_requirements": [
+   "Platform engineering for analytics and ML",
+   "Cloud data warehouse experience (Snowflake/BigQuery/Databricks)",
+   "Infrastructure-as-Code and CI/CD"
+  ]
+ },
+ "4465214470": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "streaming",
+   "docker",
+   "cloud",
+   "iac_terraform",
+   "orchestration"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "jvm_or_cpp",
+   "js_ts",
+   "monitoring"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "public_sector",
+  "years_required": 1,
+  "german_required": "nice-to-have",
+  "role_summary": "Data engineer building streaming data infrastructure for German government urban data hub.",
+  "top_requirements": [
+   "1-3 years data engineering and software development",
+   "Python, SQL, Airflow, Kafka, Docker",
+   "Cloud infrastructure and IaC experience"
+  ]
+ },
+ "4456905971": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "time_series",
+   "cloud",
+   "deep_learning"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Entry-level data science consultant developing regulatory and risk models for banking, insurance, energy clients.",
+  "top_requirements": [
+   "Regulatory and risk model development",
+   "Statistical programming (Python, R, SAS)",
+   "Modeling techniques (logit, trees, clustering)"
+  ]
+ },
+ "4471124259": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning",
+   "backend_api",
+   "cloud",
+   "git_testing",
+   "llm_apis",
+   "rag",
+   "agents",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "statistics_experiments"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 2,
+  "german_required": "B2",
+  "role_summary": "Data Scientist building and deploying AI solutions across DHL business units end-to-end.",
+  "top_requirements": [
+   "2-3 years Data Science or AI experience",
+   "Python and SQL proficiency",
+   "ML/LLM production deployment experience"
+  ]
+ },
+ "4471424338": {
+  "must_have_skills": [
+   "sql",
+   "spreadsheet_reporting",
+   "bi_dashboards",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Data analyst extracting, analyzing and visualizing business data from ERP systems for decision support.",
+  "top_requirements": [
+   "SQL Server and Power BI expertise",
+   "Excel pivot tables and Power Query",
+   "ERP data analysis experience"
+  ]
+ },
+ "4463888672": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "statistics_experiments",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "kubernetes",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "Data scientist owning end-to-end ML services for e-commerce marketing or product, from prototyping to production.",
+  "top_requirements": [
+   "End-to-end ML service ownership from prototype to production",
+   "Python and SQL expertise with statistical modeling foundation",
+   "Production experience in cloud environment (GCP preferred)"
+  ]
+ },
+ "4469915294": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "finetuning",
+   "monitoring"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Graduate rotational program in embodied AI, robot learning, and foundation models across global sites.",
+  "top_requirements": [
+   "MSc/PhD in CS, Robotics, AI or related",
+   "Strong Python and deep learning fundamentals",
+   "Reinforcement learning and computer vision experience"
+  ]
+ },
+ "4466920450": {
+  "must_have_skills": [
+   "sql",
+   "spreadsheet_reporting",
+   "bi_dashboards",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "data_modelling"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "startup_lt50",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Entry-level analyst supporting data collection, reporting, and business intelligence initiatives.",
+  "top_requirements": [
+   "Data collection and cleaning",
+   "SQL querying and reporting",
+   "Dashboard and visualization development"
+  ]
+ },
+ "4312704611": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "docker"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "kubernetes",
+   "iac_terraform",
+   "classical_ml"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_data_platform",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Consultant designing cloud architectures and AI solutions for digital transformation clients.",
+  "top_requirements": [
+   "Cloud architecture design and implementation",
+   "Python or Java programming",
+   "Data-driven development and MLOps"
+  ]
+ },
+ "arbeitsagentur_10001-1003704433-S": {
+  "must_have_skills": [
+   "llm_apis",
+   "prompt_engineering",
+   "etl_pipelines",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "js_ts",
+   "classical_ml",
+   "cloud"
+  ],
+  "primary_function": "ops_automation",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and deploy AI-driven automation workflows to optimize e-commerce operations and business processes.",
+  "top_requirements": [
+   "Practical experience with AI automation platforms",
+   "Build functioning solutions independently",
+   "Understand business impact and ROI"
+  ]
+ },
+ "4466759132": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "docker",
+   "cicd",
+   "model_serving",
+   "monitoring",
+   "data_warehouse",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "optimization_or",
+   "statistics_experiments",
+   "cloud"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "ML Engineer operationalizing pricing models into production systems with monitoring and deployment ownership.",
+  "top_requirements": [
+   "MLOps and production model deployment",
+   "Python and scikit-learn expertise",
+   "Snowflake data platform experience"
+  ]
+ },
+ "arbeitsagentur_12811-2335245-S": {
+  "must_have_skills": [
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI execution lead driving digital transformation and AI adoption across the organization.",
+  "top_requirements": [
+   "Digital transformation and AI project experience",
+   "Complex project management end-to-end",
+   "Business acumen and structured analysis"
+  ]
+ },
+ "arbeitsagentur_12811-2335280-S": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "cloud",
+   "model_serving"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "senior_5_plus",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Senior data scientist building predictive customer behavior models and analytics for e-commerce optimization.",
+  "top_requirements": [
+   "Predictive modeling and customer behavior analytics",
+   "Python/R and machine learning expertise",
+   "Production ML models and e-commerce experience"
+  ]
+ },
+ "4464921016": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "llm_apis",
+   "rag"
+  ],
+  "nice_to_have_skills": [
+   "finetuning",
+   "inference_optimization",
+   "agents",
+   "prompt_engineering"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "academic_group",
+  "company_stage": "public_or_research",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Develop LLM-based RAG search system with prompt optimization and model fine-tuning.",
+  "top_requirements": [
+   "LLM-based RAG search system development",
+   "System prompt definition and optimization",
+   "Language model fine-tuning"
+  ]
+ },
+ "arbeitsagentur_12811-2335203-S": {
+  "must_have_skills": [
+   "sql",
+   "etl_pipelines",
+   "data_warehouse",
+   "data_modelling",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "bi_dashboards",
+   "monitoring"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data Engineer maintaining Microsoft Fabric data warehouse, pipelines, and BI infrastructure.",
+  "top_requirements": [
+   "Microsoft Fabric and data warehouse expertise",
+   "SQL and ETL/ELT process knowledge",
+   "BI and data modelling experience"
+  ]
+ },
+ "4459396674": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "git_testing",
+   "time_series",
+   "classical_ml"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior analyst supporting daily risk reporting and analytics for commodity derivatives and market risk.",
+  "top_requirements": [
+   "Strong SQL and relational database experience",
+   "Python programming proficiency",
+   "Risk analytics and derivatives knowledge"
+  ]
+ },
+ "4469605210": {
+  "must_have_skills": [
+   "llm_apis",
+   "agents",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "consulting_delivery",
+  "secondary_function": null,
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "C1-fluent",
+  "role_summary": "AI consultant designing and launching enterprise AI agent solutions with measurable business outcomes.",
+  "top_requirements": [
+   "AI agent architecture and design experience",
+   "Business analysis and process design skills",
+   "Enterprise customer-facing consulting background"
+  ]
+ },
+ "4463007524": {
+  "must_have_skills": [
+   "python",
+   "js_ts",
+   "sql",
+   "git_testing",
+   "backend_api",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "docker",
+   "orchestration",
+   "monitoring",
+   "bi_dashboards"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Full-stack engineer building AI-integrated production systems solving real business problems end-to-end.",
+  "top_requirements": [
+   "Production systems shipped and live",
+   "TypeScript/JavaScript or Python",
+   "REST APIs and webhooks"
+  ]
+ },
+ "4460618331": {
+  "must_have_skills": [
+   "python"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "backend_api"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": null,
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Junior consultant delivering AI-powered enterprise network solutions to clients across industries.",
+  "top_requirements": [
+   "MINT/Informatik degree or Fachinformatiker training",
+   "Interest in networking, AI or automation",
+   "German and English fluency"
+  ]
+ },
+ "arbeitsagentur_19213-0067343965-S": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "git_testing",
+   "docker"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "academic_group",
+  "company_stage": "public_or_research",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Develop deep learning models for bone density detection from CT scans in medical device research project.",
+  "top_requirements": [
+   "PyTorch deep learning model development",
+   "Medical imaging (DICOM, NIfTI) experience",
+   "Semantic segmentation and landmark detection"
+  ]
+ },
+ "4463436509": {
+  "must_have_skills": [
+   "python",
+   "git_testing",
+   "llm_apis",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "backend_api",
+   "docker",
+   "monitoring"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "solo_or_first_hire",
+  "company_stage": "startup_lt50",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "System engineer owning AI pipeline architecture and subsystems at early-stage startup.",
+  "top_requirements": [
+   "Deep systems thinking and causal reasoning",
+   "AI-native development with LLMs",
+   "End-to-end verification and testing discipline"
+  ]
+ },
+ "4431760510": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "bi_dashboards"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Graduate trainee in reinsurance focusing on underwriting, pricing, risk analysis and data-driven insights.",
+  "top_requirements": [
+   "Mathematics or actuarial science degree",
+   "Strong analytical and programming skills",
+   "English fluency required"
+  ]
+ },
+ "4406961616": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "cloud",
+   "etl_pipelines",
+   "data_modelling",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "orchestration",
+   "iac_terraform",
+   "cicd",
+   "monitoring",
+   "rag",
+   "agents"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Junior architect designing and implementing Azure-based global data platform with data mesh principles.",
+  "top_requirements": [
+   "Azure cloud data platform experience",
+   "Data engineering and architecture fundamentals",
+   "Python and SQL proficiency"
+  ]
+ },
+ "4468484210": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "classical_ml",
+   "llm_apis",
+   "rag",
+   "prompt_engineering",
+   "llm_evaluation"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "time_series",
+   "bi_dashboards"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data scientist building predictive models, LLM/RAG systems, and running experiments to drive platform matching and growth decisions.",
+  "top_requirements": [
+   "Build and ship predictive models for matching and pricing",
+   "Develop and improve LLM/RAG-based features",
+   "Design and run A/B tests with clear business impact"
+  ]
+ },
+ "arbeitsagentur_13635-541fd054_JB5252639-S": {
+  "must_have_skills": [
+   "sql",
+   "etl_pipelines",
+   "data_warehouse",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "classical_ml"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and optimize data warehouse infrastructure, ETL pipelines, and data models for insurance analytics.",
+  "top_requirements": [
+   "SQL and relational database expertise",
+   "Data warehouse and ETL experience",
+   "Data modelling and analytics understanding"
+  ]
+ },
+ "4468578212": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "statistics_experiments",
+   "time_series"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "deep_learning",
+   "monitoring"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": null,
+  "deliverable": "prototype_poc",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior AI engineer building ML models for industrial machinery monitoring and predictive analytics.",
+  "top_requirements": [
+   "Python and machine learning fundamentals",
+   "Time series and statistical analysis",
+   "Industrial data and production understanding"
+  ]
+ },
+ "4468555976": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "cloud",
+   "docker",
+   "kubernetes"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "js_ts",
+   "backend_api"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Graduate AI engineer building generative AI features for enterprise banking software.",
+  "top_requirements": [
+   "Generative AI integration into enterprise solutions",
+   "Python or Java programming",
+   "Cloud-native development with Docker/Kubernetes"
+  ]
+ },
+ "arbeitsagentur_19744-fnOTQlzS-S": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "data_modelling",
+   "bi_dashboards",
+   "statistics_experiments",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "classical_ml",
+   "cloud"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data analyst building dashboards, data models and insights across utility company operations.",
+  "top_requirements": [
+   "SQL and Python proficiency",
+   "Data modelling and BI experience",
+   "Statistical methods and data quality expertise"
+  ]
+ },
+ "arbeitsagentur_13644-311622-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "docker",
+   "cloud",
+   "nlp",
+   "llm_apis",
+   "agents",
+   "streaming",
+   "monitoring"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior ML engineer developing, deploying and monitoring machine learning models in production.",
+  "top_requirements": [
+   "ML fundamentals and model evaluation",
+   "Python and clean code",
+   "Data and SQL experience"
+  ]
+ },
+ "arbeitsagentur_12951-eea4a8cc-06d9-4258--S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "data_warehouse",
+   "data_modelling",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "orchestration",
+   "backend_api"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and architect a cloud data platform on Snowflake for a major fitness company.",
+  "top_requirements": [
+   "Build Snowflake-based cloud data platform",
+   "Design ETL/ELT pipelines and data models",
+   "Modernize legacy data infrastructure"
+  ]
+ },
+ "arbeitsagentur_13644-307993-S": {
+  "must_have_skills": [
+   "sql",
+   "python"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "telecom_media",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior data analyst optimizing campaign management through SQL analysis and reporting.",
+  "top_requirements": [
+   "SQL and Python programming experience",
+   "Campaign management optimization",
+   "Data-driven analysis and reporting"
+  ]
+ },
+ "arbeitsagentur_13644-307992-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "git_testing",
+   "cloud",
+   "orchestration"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "monitoring",
+   "cicd"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data Engineer building AWS-based campaign management pipelines with focus on data quality and orchestration.",
+  "top_requirements": [
+   "AWS-based data pipeline development",
+   "Data quality monitoring and alerting",
+   "Python and SQL proficiency"
+  ]
+ },
+ "4468371210": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "backend_api",
+   "docker",
+   "kubernetes"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "prototype_poc",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "telecom_media",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "18-month trainee program in Product & Technology with rotational project assignments across AI, cloud, and digital innovation.",
+  "top_requirements": [
+   "Degree in CS, informatics, or data science",
+   "6+ months relevant digital tech experience",
+   "C1 English, B2 German fluency"
+  ]
+ },
+ "4469291920": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "git_testing",
+   "cloud",
+   "orchestration"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "cicd",
+   "deep_learning"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "ML Engineer building and operating production ML pipelines for retail e-commerce recommendations and analytics.",
+  "top_requirements": [
+   "Python and ML pipeline development",
+   "Full ML lifecycle experience",
+   "Cloud technologies and DevOps practices"
+  ]
+ },
+ "4468425902": {
+  "must_have_skills": [
+   "sql",
+   "etl_pipelines",
+   "data_modelling",
+   "bi_dashboards",
+   "data_warehouse"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "orchestration"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Build and optimize ETL/ELT pipelines, data models, and Power BI dashboards for a mid-market food company.",
+  "top_requirements": [
+   "ETL/ELT process implementation and optimization",
+   "SQL and data modeling expertise",
+   "Power BI dashboard development"
+  ]
+ },
+ "4466693150": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "rag",
+   "agents",
+   "cloud",
+   "backend_api",
+   "model_serving"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "prompt_engineering",
+   "cicd",
+   "monitoring",
+   "finetuning"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "production_system",
+  "team_context": "solo_or_first_hire",
+  "company_stage": "startup_lt50",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI Engineer building production GenAI solutions and consulting clients on AI adoption.",
+  "top_requirements": [
+   "Python and modern AI frameworks",
+   "Generative AI and LLMs (RAG, agents)",
+   "Azure Cloud and Azure OpenAI"
+  ]
+ },
+ "4466697077": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "etl_pipelines",
+   "spark_databricks"
+  ],
+  "nice_to_have_skills": [
+   "backend_api",
+   "streaming",
+   "data_modelling",
+   "classical_ml"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "production_system",
+  "team_context": "solo_or_first_hire",
+  "company_stage": "startup_lt50",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data platform engineer building end-to-end data solutions on Azure Databricks and Fabric for enterprise clients.",
+  "top_requirements": [
+   "Azure cloud development experience",
+   "Databricks or Fabric platform expertise",
+   "Python and data pipeline engineering"
+  ]
+ },
+ "arbeitsagentur_14927-1oz5spp859q-S": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "data_warehouse",
+   "data_modelling",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "bi_dashboards",
+   "cicd",
+   "docker"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and optimize data warehouse on Azure Databricks with focus on architecture and data modeling.",
+  "top_requirements": [
+   "SQL and Python expertise",
+   "Data warehouse architecture experience",
+   "DevOps and deployment automation"
+  ]
+ },
+ "4469865106": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "time_series",
+   "bi_dashboards",
+   "data_warehouse",
+   "git_testing"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data scientist building ML models and analytics for marketing measurement solutions deployed to clients.",
+  "top_requirements": [
+   "Strong SQL and Python skills",
+   "Marketing measurement domain knowledge",
+   "ML model deployment experience"
+  ]
+ },
+ "4460383312": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "bi_dashboards",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "js_ts",
+   "cloud",
+   "data_warehouse"
+  ],
+  "primary_function": "ops_automation",
+  "secondary_function": "build_data_platform",
+  "deliverable": "internal_tooling",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Digitalization specialist building workflows, automations, dashboards and internal tools for energy company.",
+  "top_requirements": [
+   "Digital workflow implementation and maintenance",
+   "Small application and automation development",
+   "Data pipeline and dashboard building"
+  ]
+ },
+ "4465233038": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "agents",
+   "backend_api",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "js_ts",
+   "llm_evaluation",
+   "rag",
+   "prompt_engineering"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 2,
+  "german_required": "unstated",
+  "role_summary": "Build agentic AI systems for autonomous operations in short-term rental service platform.",
+  "top_requirements": [
+   "Multi-step LLM agent development experience",
+   "Shipped software for real users",
+   "Systematic AI quality evaluation approach"
+  ]
+ },
+ "4467228359": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "llm_apis",
+   "agents",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "cloud"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Applied scientist building LLM-based developer tools and AI agent benchmarks for AWS cloud services.",
+  "top_requirements": [
+   "PhD or Master's in CS/ML",
+   "Deep learning model architecture design",
+   "LLM and AI agent development"
+  ]
+ },
+ "4470400792": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "js_ts",
+   "optimization_or",
+   "llm_apis",
+   "time_series"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 1,
+  "german_required": "nice-to-have",
+  "role_summary": "Build ML and analytical models for real estate ESG and value management platform.",
+  "top_requirements": [
+   "1-2 years hands-on programming experience",
+   "Python proficiency",
+   "Problem-solving and stakeholder communication"
+  ]
+ },
+ "4466081363": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "llm_apis",
+   "rag",
+   "agents",
+   "vector_databases",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "docker",
+   "cicd",
+   "frontend"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build production conversational AI systems using LLMs, RAG and agents for healthcare customers.",
+  "top_requirements": [
+   "Python and OOP with backend technologies",
+   "LLM and RAG experience",
+   "Conversational AI development"
+  ]
+ },
+ "arbeitsagentur_12811-2342524-S": {
+  "must_have_skills": [
+   "sql",
+   "data_warehouse",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "data_modelling"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior BI analyst building and maintaining data warehouse systems and ETL pipelines.",
+  "top_requirements": [
+   "Data warehouse system development and maintenance",
+   "ETL process design and implementation",
+   "SQL and database programming"
+  ]
+ },
+ "4450776301": {
+  "must_have_skills": [
+   "deep_learning",
+   "nlp",
+   "computer_vision",
+   "classical_ml",
+   "statistics_experiments",
+   "python"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "startup_lt50",
+  "seniority": "senior_5_plus",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "AI engineer developing human-to-robot learning systems using multimodal foundation models and cross-embodiment transfer.",
+  "top_requirements": [
+   "Multimodal foundation models experience",
+   "Cross-embodiment transfer expertise",
+   "Low-level robotics control understanding"
+  ]
+ },
+ "4469705047": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 2,
+  "german_required": "unstated",
+  "role_summary": "Develop and deploy perception models for autonomous mobile robots using data-centric ML.",
+  "top_requirements": [
+   "2-5 years robotics perception or ML experience",
+   "Strong Python and neural network training skills",
+   "Data-centric ML: synthetic data, sim2real, auto-labeling"
+  ]
+ },
+ "4467210176": {
+  "must_have_skills": [
+   "deep_learning",
+   "computer_vision",
+   "python",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 3,
+  "german_required": "nice-to-have",
+  "role_summary": "AI engineer developing end-to-end models and safety algorithms for autonomous driving systems.",
+  "top_requirements": [
+   "3+ years end-to-end model experience",
+   "Neural network architectures for autonomous driving",
+   "AI-based safety problem solving"
+  ]
+ },
+ "arbeitsagentur_17311-44459230-922-S": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "rag",
+   "agents",
+   "cloud",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "backend_api"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Gen AI solutions consultant designing and implementing agentic AI and RAG systems for enterprise clients.",
+  "top_requirements": [
+   "Agentic AI and RAG system design",
+   "Python and LLM frameworks",
+   "Cloud platform experience"
+  ]
+ },
+ "4468904246": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "statistics_experiments",
+   "nlp",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "docker",
+   "kubernetes",
+   "backend_api"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 2,
+  "german_required": "none",
+  "role_summary": "Applied researcher developing NLP and ML solutions for eBay's query understanding and search platform.",
+  "top_requirements": [
+   "PhD in ML/AI or 2+ years industry experience",
+   "Applied research track record in AI/ML",
+   "ML fundamentals: classification, regression, clustering, optimization"
+  ]
+ },
+ "4467057503": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "llm_apis",
+   "prompt_engineering",
+   "llm_evaluation",
+   "sql",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "agents",
+   "rag",
+   "cloud",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI Product Engineer building LLM-powered healthcare delivery platform with full ownership from conception to production.",
+  "top_requirements": [
+   "LLM-based feature development and evaluation",
+   "Full-stack product ownership from requirement to production",
+   "Hands-on software engineering with demonstrated shipped products"
+  ]
+ },
+ "4469036342": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "statistics_experiments",
+   "optimization_or"
+  ],
+  "nice_to_have_skills": [
+   "cloud"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Develop AI and hybrid models for chemical process optimization and prediction.",
+  "top_requirements": [
+   "Master or PhD in engineering or data science",
+   "Machine learning and AI expertise",
+   "Python programming experience"
+  ]
+ },
+ "4469395425": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "cloud"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Graduate data analyst supporting production digital transformation through analytics and AI deployment.",
+  "top_requirements": [
+   "University degree in Data Science or equivalent",
+   "Advanced Python, PySpark, SQL programming",
+   "Machine learning and big data foundation"
+  ]
+ },
+ "4461597877": {
+  "must_have_skills": [
+   "sql",
+   "statistics_experiments",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "cloud"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "ops_automation",
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior data analyst and project manager driving data insights and analytics initiatives across hotel comparison platform.",
+  "top_requirements": [
+   "SQL and data visualization skills",
+   "Quantitative or technical background",
+   "Project management and analytics experience"
+  ]
+ },
+ "4469388157": {
+  "must_have_skills": [
+   "js_ts",
+   "frontend",
+   "backend_api",
+   "git_testing",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "data_warehouse"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "entry",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Junior engineer shipping AI-native features with TypeScript, React, Node.js using AI coding tools.",
+  "top_requirements": [
+   "TypeScript, React, Node.js fundamentals",
+   "Hands-on AI coding tools experience",
+   "Code review and debugging instinct"
+  ]
+ },
+ "4469330731": {
+  "must_have_skills": [
+   "bi_dashboards",
+   "data_modelling",
+   "sql"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "statistics_experiments"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "agency_or_staffing",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Business Intelligence analyst building dashboards and data models for media agency clients.",
+  "top_requirements": [
+   "Power BI, Power Query, DAX experience",
+   "Database query and data modelling skills",
+   "Strong analytical and storytelling abilities"
+  ]
+ },
+ "4459245272": {
+  "must_have_skills": [
+   "python",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "cloud"
+  ],
+  "primary_function": "software_engineering",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Graduate programme in technology, data and innovation with rotations across engineering, infrastructure and analytics.",
+  "top_requirements": [
+   "Recent graduate or final-year student",
+   "Programming experience",
+   "Fluent English and basic German"
+  ]
+ },
+ "4468598522": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "js_ts",
+   "frontend",
+   "llm_apis",
+   "prompt_engineering",
+   "agents"
+  ],
+  "nice_to_have_skills": [
+   "llm_evaluation",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Full-stack founding engineer building AI agent platform for enterprise supply chain automation.",
+  "top_requirements": [
+   "Full-stack Python and TypeScript development",
+   "LLM and agentic framework experience",
+   "High agency and pragmatic execution"
+  ]
+ },
+ "arbeitsagentur_12634-BB-645426-7878-3437-S": {
+  "must_have_skills": [
+   "sql",
+   "spreadsheet_reporting",
+   "bi_dashboards",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Data analyst extracting, analyzing and visualizing business data from ERP systems for decision support.",
+  "top_requirements": [
+   "SQL Server and Power BI expertise",
+   "Excel proficiency with Pivot Tables",
+   "Data analysis and reporting skills"
+  ]
+ },
+ "4467548140": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning",
+   "statistics_experiments",
+   "nlp",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "cloud"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build ML models and generative AI applications for SAP-based energy utility solutions.",
+  "top_requirements": [
+   "Python and ML frameworks expertise",
+   "SQL and data architecture knowledge",
+   "Generative AI and LLM understanding"
+  ]
+ },
+ "arbeitsagentur_15747-16686701-S": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "etl_pipelines",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "git_testing",
+   "data_warehouse",
+   "bi_dashboards"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "entry",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and maintain cloud data pipelines, models and dashboards on Snowflake and Azure.",
+  "top_requirements": [
+   "SQL and Python fundamentals",
+   "ETL/ELT and data warehouse concepts",
+   "Relational database knowledge"
+  ]
+ },
+ "4468249730": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "data_modelling",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "orchestration"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build data pipelines and architectures for finance digital transformation projects.",
+  "top_requirements": [
+   "SQL and Python data modelling",
+   "Data pipeline development and implementation",
+   "Finance process understanding"
+  ]
+ },
+ "4447581382": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "llm_apis",
+   "rag",
+   "agents",
+   "prompt_engineering",
+   "cloud",
+   "cicd",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "docker",
+   "kubernetes",
+   "jvm_or_cpp",
+   "nlp",
+   "llm_evaluation"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 2,
+  "german_required": "B2",
+  "role_summary": "Build production GenAI and agentic workflows with RAG, orchestration, and RPA integration for enterprise clients.",
+  "top_requirements": [
+   "GenAI engineering and RAG pipelines",
+   "Python and API integration",
+   "Production deployment and monitoring"
+  ]
+ },
+ "4466249946": {
+  "must_have_skills": [
+   "sql",
+   "etl_pipelines",
+   "data_modelling",
+   "bi_dashboards",
+   "spreadsheet_reporting"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "cloud",
+   "llm_apis"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "analytics_insight",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Junior data engineer supporting mobile app marketing infrastructure, tracking systems, and campaign analytics for agency clients.",
+  "top_requirements": [
+   "Mobile Measurement Partner (MMP) setup and maintenance",
+   "Data pipeline and product feed management",
+   "Campaign analytics dashboard creation"
+  ]
+ },
+ "4447698989": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "git_testing",
+   "llm_apis",
+   "rag",
+   "docker"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "classical_ml",
+   "backend_api",
+   "cicd"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Early-career AI engineer building production AI applications within customer-embedded delivery teams.",
+  "top_requirements": [
+   "Production-grade cloud-native AI applications",
+   "Python and cloud platform proficiency",
+   "LLMs, RAG pipelines, and agent-based components"
+  ]
+ },
+ "4471111653": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "build_ai_product",
+  "secondary_function": "research_science",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "entry",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Entry-level robot learning engineer applying deep learning and computer vision to real factory automation hardware.",
+  "top_requirements": [
+   "Python and PyTorch/TensorFlow proficiency",
+   "Computer vision and deep learning for robotics",
+   "Deploy AI models to real hardware"
+  ]
+ },
+ "4461715393": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [
+   "time_series",
+   "nlp",
+   "sql"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "research_science",
+  "deliverable": "prototype_poc",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Trainee applying data science and ML to finance challenges within a structured 18-month program.",
+  "top_requirements": [
+   "Data science and ML applied to finance",
+   "Python and statistics foundation",
+   "6+ months audit or consulting experience"
+  ]
+ },
+ "arbeitsagentur_10001-1003683560-S": {
+  "must_have_skills": [
+   "python",
+   "js_ts",
+   "backend_api",
+   "git_testing",
+   "agents"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "llm_apis",
+   "prompt_engineering",
+   "docker",
+   "cloud"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Software engineer building parcel station platform using AI coding agents for full-stack development.",
+  "top_requirements": [
+   "AI-assisted software development with coding agents",
+   "Full-stack feature development from concept to production",
+   "Quality assurance and code review of AI-generated code"
+  ]
+ },
+ "arbeitsagentur_12336-a26f868j0454257-S": {
+  "must_have_skills": [
+   "spreadsheet_reporting",
+   "bi_dashboards",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "retail_ecommerce",
+  "years_required": 2,
+  "german_required": "unstated",
+  "role_summary": "Convert Amazon eCommerce sales and traffic data into dashboards and strategic insights.",
+  "top_requirements": [
+   "2+ years analytics experience",
+   "Advanced Excel and Power BI",
+   "Fluent English"
+  ]
+ },
+ "4410029391": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "classical_ml",
+   "bi_dashboards",
+   "spreadsheet_reporting"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 3,
+  "german_required": "unstated",
+  "role_summary": "HR-focused data scientist building predictive models and dashboards for people analytics.",
+  "top_requirements": [
+   "3+ years data science or analytics experience",
+   "Python or R and SQL proficiency",
+   "BI tools and Excel expertise"
+  ]
+ },
+ "4452361782": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "kubernetes",
+   "streaming",
+   "time_series",
+   "classical_ml",
+   "deep_learning",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 3,
+  "german_required": "unstated",
+  "role_summary": "AI-driven software engineer building smart factory applications with production data analytics and anomaly detection.",
+  "top_requirements": [
+   "Multiple years software development experience",
+   "Azure, Kubernetes, MQTT, time series data",
+   "AI-assisted development and production understanding"
+  ]
+ },
+ "arbeitsagentur_13644-311035-S": {
+  "must_have_skills": [
+   "sql",
+   "jvm_or_cpp",
+   "cloud",
+   "docker",
+   "kubernetes",
+   "etl_pipelines",
+   "streaming",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "monitoring",
+   "cicd",
+   "data_modelling"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and evolve AI-driven cloud data platforms with modern streaming and containerization technologies.",
+  "top_requirements": [
+   "Cloud-native data platform development",
+   "Kafka, Kubernetes, Docker expertise",
+   "AI/LLM tool integration and evaluation"
+  ]
+ },
+ "4464894074": {
+  "must_have_skills": [
+   "prompt_engineering",
+   "llm_apis",
+   "rag",
+   "nlp"
+  ],
+  "nice_to_have_skills": [
+   "agents",
+   "llm_evaluation",
+   "statistics_experiments"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "C1-fluent",
+  "role_summary": "Optimize prompts and dialogue logic for customer-facing AI chatbots and voice assistants.",
+  "top_requirements": [
+   "Generative AI and LLM experience",
+   "Customer-centric product thinking",
+   "Prompt engineering and dialogue design"
+  ]
+ },
+ "4418824220": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "agents",
+   "rag",
+   "backend_api",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "finetuning",
+   "vector_databases",
+   "frontend",
+   "prompt_engineering"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Forward-deployed engineer building production LLM agents and agentic workflows for enterprise customers.",
+  "top_requirements": [
+   "Production-grade Python software engineering",
+   "Built and deployed RAG and agentic applications",
+   "LLM stack expertise and evaluation frameworks"
+  ]
+ },
+ "4467433945": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "statistics_experiments",
+   "bi_dashboards",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data analyst generating insights and dashboards from complex datasets for business decision-making.",
+  "top_requirements": [
+   "SQL for querying relational databases",
+   "Data visualization tools (Tableau, Power BI)",
+   "Python or R for data processing"
+  ]
+ },
+ "4467443874": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning",
+   "statistics_experiments",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "git_testing",
+   "model_serving",
+   "monitoring"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "consultancy",
+  "company_stage": "agency_or_staffing",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Remote ML engineer building and deploying classification and regression models via MLOps pipelines.",
+  "top_requirements": [
+   "Python and ML libraries (scikit-learn, TensorFlow, PyTorch)",
+   "SQL for data extraction and transformation",
+   "Cloud platform experience (AWS, GCP, Azure)"
+  ]
+ },
+ "4466220027": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "docker",
+   "iac_terraform",
+   "cicd",
+   "git_testing",
+   "sql",
+   "llm_apis",
+   "backend_api",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "rag",
+   "agents",
+   "finetuning"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ops_automation",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 2,
+  "german_required": "nice-to-have",
+  "role_summary": "Platform engineer building and operating shared AI Hub infrastructure for 55+ portfolio companies.",
+  "top_requirements": [
+   "2+ years platform engineering or DevOps",
+   "Production cloud infrastructure (Azure/AWS)",
+   "Python beyond scripting"
+  ]
+ },
+ "4450665266": {
+  "must_have_skills": [
+   "python",
+   "jvm_or_cpp",
+   "deep_learning",
+   "computer_vision"
+  ],
+  "nice_to_have_skills": [
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Software engineer applying AI techniques to meshing and simulation on CAD platform.",
+  "top_requirements": [
+   "Python and C++ proficiency",
+   "Neural network training experience",
+   "Meshing or computational geometry knowledge"
+  ]
+ },
+ "arbeitsagentur_15861-44437174-911-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "data_warehouse",
+   "cloud"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "rnd_lab",
+  "company_stage": "public_or_research",
+  "seniority": "entry",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Student assistant building data platforms and ML analysis for battery cell manufacturing.",
+  "top_requirements": [
+   "Python and data analysis libraries experience",
+   "Database and SQL knowledge",
+   "MINT degree or relevant studies"
+  ]
+ },
+ "4466262939": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "statistics_experiments",
+   "deep_learning",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "time_series"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "research_science",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Consultant developing ML solutions and advising clients on data science strategy and implementation.",
+  "top_requirements": [
+   "Machine learning model development and validation",
+   "Python and ML frameworks expertise",
+   "Customer consulting and workshop facilitation"
+  ]
+ },
+ "4466396891": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "llm_apis",
+   "agents",
+   "prompt_engineering",
+   "rag",
+   "backend_api",
+   "git_testing",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "monitoring",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "tech_saas",
+  "years_required": 1,
+  "german_required": "unstated",
+  "role_summary": "Build agentic AI systems and ML models for consumer insights platform serving 300+ brands.",
+  "top_requirements": [
+   "Agentic AI systems and LLM-powered applications",
+   "Production-grade Python and ML engineering",
+   "Cross-functional collaboration on AI platform"
+  ]
+ },
+ "4467461053": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "spark_databricks",
+   "orchestration",
+   "cloud",
+   "data_modelling"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "data_warehouse"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Design and maintain scalable data pipelines and infrastructure for analytics and operations.",
+  "top_requirements": [
+   "Design and optimize data pipelines",
+   "ETL/ELT process implementation",
+   "Cloud platform expertise"
+  ]
+ },
+ "4466785118": {
+  "must_have_skills": [
+   "llm_apis",
+   "python",
+   "agents"
+  ],
+  "nice_to_have_skills": [
+   "data_modelling",
+   "backend_api"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ops_automation",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build practical AI tools and automations using Claude Code to solve business problems in payments.",
+  "top_requirements": [
+   "Claude Code and AI tooling expertise",
+   "Track record building useful tools",
+   "Bias towards action and business impact"
+  ]
+ },
+ "4466873003": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "agents",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "rag",
+   "finetuning",
+   "backend_api"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI specialist delivering generative AI solutions and automation to consulting clients and internal processes.",
+  "top_requirements": [
+   "Generative AI and LLM experience",
+   "Programming ability and prototyping",
+   "Process and business model understanding"
+  ]
+ },
+ "4465557641": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning",
+   "nlp",
+   "llm_apis",
+   "cloud",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "statistics_experiments",
+   "optimization_or"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "analytics_insight",
+  "deliverable": "client_deliverable",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI business analyst identifying and translating AI use cases into solutions for operational processes.",
+  "top_requirements": [
+   "Identify and structure AI use cases with business value",
+   "Translate business requirements into AI solution concepts",
+   "Assess technical feasibility and economic viability"
+  ]
+ },
+ "4465776708": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "deep_learning"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_ai_product",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 3,
+  "german_required": "C1-fluent",
+  "role_summary": "Data scientist developing pricing models and strategies using ML for insurance direct market.",
+  "top_requirements": [
+   "Python programming expertise",
+   "Pricing model development experience",
+   "Modern AI/ML techniques"
+  ]
+ },
+ "arbeitsagentur_15170-484326719-S": {
+  "must_have_skills": [],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "energy_utilities",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior analyst monitoring emerging technologies and startups for grid technology scouting and innovation intelligence.",
+  "top_requirements": [
+   "Technology scouting and market intelligence",
+   "Research and analysis of emerging technologies",
+   "Structured information synthesis and documentation"
+  ]
+ },
+ "arbeitsagentur_13644-310058-S": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "llm_apis",
+   "agents",
+   "docker"
+  ],
+  "nice_to_have_skills": [
+   "vector_databases",
+   "kubernetes",
+   "rag",
+   "cloud"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI engineer building LLM-based supply chain automation and platform infrastructure.",
+  "top_requirements": [
+   "LLM and AI agent development experience",
+   "Backend API and service integration",
+   "Container and cloud technologies"
+  ]
+ },
+ "4469731873": {
+  "must_have_skills": [
+   "js_ts",
+   "agents",
+   "llm_apis",
+   "backend_api",
+   "frontend"
+  ],
+  "nice_to_have_skills": [
+   "rag",
+   "prompt_engineering",
+   "computer_vision",
+   "nlp"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Founding AI engineer building multi-agent document systems and decision graphs for construction project memory.",
+  "top_requirements": [
+   "Multi-agent harness engineering for documents",
+   "End-to-end ownership including frontend",
+   "Prototype fast, measure everything"
+  ]
+ },
+ "arbeitsagentur_12862-254870-S": {
+  "must_have_skills": [
+   "sql",
+   "cloud",
+   "data_warehouse",
+   "data_modelling",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "monitoring",
+   "iac_terraform"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Build and optimize modern data warehouse platforms on Microsoft Azure technologies.",
+  "top_requirements": [
+   "Data warehouse design and optimization",
+   "Microsoft Azure cloud platform",
+   "ETL/ELT process development"
+  ]
+ },
+ "4462195670": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "cloud",
+   "docker"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Computer vision engineer developing drone detection and tracking algorithms for counter-drone defence systems.",
+  "top_requirements": [
+   "Deep learning frameworks (TensorFlow, PyTorch)",
+   "Computer vision algorithms and object detection",
+   "Python and C++ proficiency"
+  ]
+ },
+ "arbeitsagentur_19301-971233912-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Data scientist developing fraud detection models and analytics for insurance underwriting and claims.",
+  "top_requirements": [
+   "Python or R and SQL expertise",
+   "Fraud detection and risk analytics experience",
+   "Business case development and stakeholder communication"
+  ]
+ },
+ "4464769042": {
+  "must_have_skills": [
+   "python",
+   "js_ts",
+   "cloud",
+   "backend_api",
+   "rag",
+   "llm_apis",
+   "agents"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "classical_ml",
+   "nlp",
+   "llm_evaluation"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Build AI-powered solutions including RAG systems and chatbots for logistics platform CPMS.",
+  "top_requirements": [
+   "AI-powered solutions for CPMS platform",
+   "RAG architectures on Microsoft Azure",
+   "REST API integration and chatbot development"
+  ]
+ },
+ "4470911110": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Trainee data analyst supporting internal audit and risk assessment across Lidl operations.",
+  "top_requirements": [
+   "Data analysis and visualization experience",
+   "Python and SQL knowledge",
+   "Fluent English"
+  ]
+ },
+ "arbeitsagentur_16371-44458879-922-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "llm_apis"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI transformation specialist identifying and implementing AI solutions across business functions.",
+  "top_requirements": [
+   "AI application identification and implementation",
+   "Process optimization through AI technologies",
+   "Technical understanding and Python knowledge"
+  ]
+ },
+ "4420102503": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "cloud",
+   "data_modelling"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "agency_or_staffing",
+  "seniority": "junior_1_2",
+  "domain": "automotive_manufacturing",
+  "years_required": 1,
+  "german_required": "unstated",
+  "role_summary": "Data analyst delivering dashboards and analytics solutions for automotive and industrial consulting clients.",
+  "top_requirements": [
+   "1-3 years data analytics experience",
+   "Python and SQL proficiency",
+   "BI tool experience (QuickSight, Tableau, Grafana)"
+  ]
+ },
+ "arbeitsagentur_13635-00603522_JB5245990-S": {
+  "must_have_skills": [
+   "sql",
+   "spreadsheet_reporting",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "llm_apis"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data analyst supporting sales back office with dashboards, process optimization and digitalization initiatives.",
+  "top_requirements": [
+   "Dashboard and KPI reporting creation",
+   "Data analysis and process optimization",
+   "Cross-functional coordination and digitalization support"
+  ]
+ },
+ "4469389749": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "etl_pipelines",
+   "data_modelling"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 2,
+  "german_required": "nice-to-have",
+  "role_summary": "Marketplace data analyst building scalable analytics and forecasting to drive commercial decisions across European markets.",
+  "top_requirements": [
+   "2-5 years data analytics or commercial planning",
+   "Python, SQL, R, Power BI proficiency",
+   "Forecasting, advanced analytics, business case development"
+  ]
+ },
+ "4466906047": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "sql",
+   "git_testing",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "agents",
+   "cloud",
+   "data_modelling"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Backend developer building analytics APIs and services for private capital investment platform.",
+  "top_requirements": [
+   "Python backend development for analytics",
+   "Database and data pipeline experience",
+   "Mathematical-statistical model understanding"
+  ]
+ },
+ "4459489067": {
+  "must_have_skills": [],
+  "nice_to_have_skills": [],
+  "primary_function": "consulting_delivery",
+  "secondary_function": null,
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Entry-level consultant implementing cloud and AI solutions for life sciences customers.",
+  "top_requirements": [
+   "Recent bachelor's or master's degree",
+   "Fluent English communication",
+   "Willingness to travel 20-30%"
+  ]
+ },
+ "4467054261": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "git_testing",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "telecom_media",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data Scientist developing ML models for customer lifecycle management on AWS platform.",
+  "top_requirements": [
+   "Python and SQL proficiency",
+   "ML model development experience",
+   "AWS cloud platform knowledge"
+  ]
+ },
+ "4467069569": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "finetuning",
+   "inference_optimization",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "llm_apis",
+   "monitoring"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "automotive_manufacturing",
+  "years_required": 3,
+  "german_required": "nice-to-have",
+  "role_summary": "ML engineer optimizing GenAI models for edge deployment in BMW voice assistants.",
+  "top_requirements": [
+   "PyTorch and Transformers expertise",
+   "Model compression and optimization",
+   "Edge device constraints knowledge"
+  ]
+ },
+ "4465986561": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "agents",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "finetuning",
+   "backend_api",
+   "git_testing"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "research_science",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build agentic AI systems and assistants into furniture design and manufacturing software.",
+  "top_requirements": [
+   "Build production AI systems with Python",
+   "Understand LLMs, agents, and tool calling",
+   "Ship prototypes to real-world products"
+  ]
+ },
+ "4466334606": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "build_ai_product",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build and optimize recommendation systems and ML solutions for financial content personalization.",
+  "top_requirements": [
+   "Recommendation systems development",
+   "Machine learning and AI expertise",
+   "Statistical analysis and experimentation"
+  ]
+ },
+ "arbeitsagentur_13644-309841-S": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "llm_apis"
+  ],
+  "nice_to_have_skills": [
+   "nlp",
+   "cloud",
+   "statistics_experiments"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior AI engineer building conversational AI and LLM-powered sales solutions on AWS.",
+  "top_requirements": [
+   "Python and machine learning fundamentals",
+   "Interest in LLMs and conversational AI",
+   "Completed degree in CS or related field"
+  ]
+ },
+ "4464785489": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "prompt_engineering",
+   "rag",
+   "agents",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "vector_databases",
+   "orchestration"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "prototype_poc",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Build and prototype generative AI solutions across ecommerce and business operations using LLMs and RAG.",
+  "top_requirements": [
+   "Generative AI solution design and LLM application development",
+   "Python, AI agents and workflow automation",
+   "Azure Databricks and modern data platforms"
+  ]
+ },
+ "4355932185": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "nlp",
+   "computer_vision",
+   "finetuning"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "research_science",
+  "secondary_function": "ml_engineering",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Research engineer training and fine-tuning vision-language models on multimodal sensor data for autonomous capabilities.",
+  "top_requirements": [
+   "MSc/PhD in ML, CS, or Mathematics",
+   "Train foundational models (LLMs, VLMs, multimodal)",
+   "Python and PyTorch/JAX expertise"
+  ]
+ },
+ "4343355220": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "classical_ml",
+   "deep_learning",
+   "statistics_experiments",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "etl_pipelines",
+   "orchestration",
+   "docker",
+   "kubernetes",
+   "iac_terraform"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "analytics_insight",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build ML models for recommendation, ranking, pricing and experimentation in gaming/adtech platform.",
+  "top_requirements": [
+   "ML models for real-time recommendation and ranking systems",
+   "Experimentation and causal inference expertise",
+   "Python, SQL, cloud platform proficiency"
+  ]
+ },
+ "4465414432": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "llm_apis",
+   "agents",
+   "rag"
+  ],
+  "nice_to_have_skills": [
+   "prompt_engineering",
+   "llm_evaluation",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "none",
+  "role_summary": "Build AI-native workflows and agents for fintech platform, integrating LLMs into production systems.",
+  "top_requirements": [
+   "Build AI-powered workflows and agents",
+   "Integrate LLMs with real product workflows",
+   "Ship practical production systems"
+  ]
+ },
+ "4464349064": {
+  "must_have_skills": [
+   "llm_apis",
+   "prompt_engineering",
+   "rag",
+   "agents",
+   "finetuning",
+   "inference_optimization",
+   "vector_databases",
+   "cloud",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "nlp",
+   "orchestration",
+   "monitoring"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 2,
+  "german_required": "none",
+  "role_summary": "AI & LLM solution architect designing enterprise AI applications on Tencent Cloud platform.",
+  "top_requirements": [
+   "Enterprise AI architecture design",
+   "LLM and generative AI expertise",
+   "Customer-facing technical consulting"
+  ]
+ },
+ "4467064192": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "cloud",
+   "git_testing",
+   "cicd"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "orchestration",
+   "backend_api"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "telecom_media",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build and operate ML and data platforms on AWS for customer lifecycle automation.",
+  "top_requirements": [
+   "Python and SQL expertise",
+   "Data pipeline development experience",
+   "Cloud platform knowledge"
+  ]
+ },
+ "4464772777": {
+  "must_have_skills": [
+   "statistics_experiments",
+   "classical_ml",
+   "sql",
+   "python"
+  ],
+  "nice_to_have_skills": [
+   "bi_dashboards",
+   "spreadsheet_reporting"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Design and execute data-driven analyses to solve client business problems using statistical models and analytics tools.",
+  "top_requirements": [
+   "Quantitative degree with strong analytics coursework",
+   "Proficiency in R, SAS, Tableau or VBA",
+   "Client-facing analytical problem-solving"
+  ]
+ },
+ "4464786154": {
+  "must_have_skills": [
+   "python",
+   "backend_api",
+   "frontend",
+   "git_testing",
+   "llm_apis",
+   "cloud",
+   "iac_terraform"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "docker",
+   "classical_ml"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "software_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "AI-driven software builder solving internal process problems with Python, React, and agentic coding.",
+  "top_requirements": [
+   "Solved real AI problems independently",
+   "Python backend and React frontend",
+   "AWS infrastructure with Terraform"
+  ]
+ },
+ "4466288032": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "docker",
+   "iac_terraform",
+   "cicd",
+   "git_testing",
+   "backend_api",
+   "llm_apis",
+   "sql"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "monitoring",
+   "rag",
+   "agents",
+   "finetuning"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ops_automation",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "cross_industry",
+  "years_required": 2,
+  "german_required": "nice-to-have",
+  "role_summary": "Platform engineer building and operating shared AI Hub infrastructure for 55+ portfolio companies.",
+  "top_requirements": [
+   "2+ years platform engineering or DevOps",
+   "Production cloud infrastructure (Azure/AWS)",
+   "Python beyond scripting"
+  ]
+ },
+ "arbeitsagentur_10000-1207908873-S": {
+  "must_have_skills": [
+   "python",
+   "deep_learning"
+  ],
+  "nice_to_have_skills": [
+   "statistics_experiments"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": null,
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data scientist developing transformer models for medical prediction tasks in rheumatology research.",
+  "top_requirements": [
+   "Master's degree in data science or related field",
+   "Strong Python skills",
+   "Deep learning framework experience"
+  ]
+ },
+ "4465420391": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "rag",
+   "agents",
+   "js_ts",
+   "docker",
+   "cicd",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "kubernetes",
+   "finetuning",
+   "prompt_engineering"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Forward-deployed AI engineer building production LLM applications and agentic systems for enterprise clients.",
+  "top_requirements": [
+   "Production Python and LLM application experience",
+   "RAG and agentic workflow design",
+   "React/Next.js web application development"
+  ]
+ },
+ "arbeitsagentur_10001-1003710548-S": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "etl_pipelines",
+   "orchestration",
+   "data_modelling",
+   "git_testing",
+   "docker",
+   "iac_terraform",
+   "cicd",
+   "monitoring"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "data_warehouse",
+   "backend_api",
+   "llm_apis"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Data Engineer building ETL pipelines, data warehouses and AI integrations with Python, SQL and Airflow.",
+  "top_requirements": [
+   "Data warehouse and ETL/ELT pipeline design",
+   "Python and SQL proficiency",
+   "Airflow orchestration and dbt transformation"
+  ]
+ },
+ "4467178134": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "statistics_experiments",
+   "classical_ml"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Data scientist developing fraud detection models and analytics for insurance underwriting and claims.",
+  "top_requirements": [
+   "Python or R and SQL expertise",
+   "Fraud detection and risk analytics experience",
+   "Business case translation and stakeholder communication"
+  ]
+ },
+ "4312714260": {
+  "must_have_skills": [
+   "python",
+   "cloud",
+   "docker"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "iac_terraform",
+   "classical_ml",
+   "deep_learning"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_data_platform",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Cloud and data consultant delivering digital transformation and AI solutions to enterprise clients.",
+  "top_requirements": [
+   "Cloud architecture design and implementation",
+   "Python or Java programming",
+   "Data-driven project development"
+  ]
+ },
+ "arbeitsagentur_17338-40225a25660fac6cf3-S": {
+  "must_have_skills": [
+   "python",
+   "js_ts",
+   "rag",
+   "llm_apis",
+   "agents",
+   "prompt_engineering",
+   "backend_api",
+   "frontend",
+   "vector_databases",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "finetuning",
+   "llm_evaluation"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Build LLM platform layer and AI features for SaaS pricing intelligence product.",
+  "top_requirements": [
+   "RAG pipelines in production",
+   "LLM frameworks and orchestration",
+   "Full-stack AI application engineering"
+  ]
+ },
+ "4452487274": {
+  "must_have_skills": [
+   "python",
+   "classical_ml",
+   "optimization_or",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "rag",
+   "agents",
+   "deep_learning"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "analytics_insight",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "mittelstand",
+  "seniority": "entry",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Research scientist developing supply chain optimization models and AI agent solutions.",
+  "top_requirements": [
+   "Master's degree in relevant field",
+   "Mathematical modeling and optimization expertise",
+   "Python and ML libraries proficiency"
+  ]
+ },
+ "4468674071": {
+  "must_have_skills": [
+   "sql",
+   "python",
+   "statistics_experiments",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "junior_1_2",
+  "domain": "finance_insurance",
+  "years_required": 1,
+  "german_required": "unstated",
+  "role_summary": "Junior analyst driving data-informed product decisions for customer identity platform.",
+  "top_requirements": [
+   "1+ years product or analytics experience",
+   "SQL and Python/R proficiency",
+   "A/B testing and experimentation expertise"
+  ]
+ },
+ "4468669232": {
+  "must_have_skills": [
+   "cloud",
+   "iac_terraform",
+   "monitoring",
+   "python",
+   "sql"
+  ],
+  "nice_to_have_skills": [
+   "js_ts",
+   "kubernetes",
+   "docker"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ops_automation",
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "telecom_media",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Cloud/Platform Engineer building and operating AWS data infrastructure with DataOps focus.",
+  "top_requirements": [
+   "AWS cloud infrastructure design and operation",
+   "Infrastructure-as-Code development",
+   "DataOps process development"
+  ]
+ },
+ "4467452154": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "sql",
+   "cloud",
+   "git_testing",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "classical_ml",
+   "model_serving",
+   "monitoring"
+  ],
+  "primary_function": "ml_engineering",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "consultancy",
+  "company_stage": "agency_or_staffing",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Machine Learning Engineer designing, developing, and deploying ML models to production.",
+  "top_requirements": [
+   "Python and ML frameworks (TensorFlow/PyTorch)",
+   "Cloud platform experience (AWS/GCP/Azure)",
+   "MLOps and model deployment practices"
+  ]
+ },
+ "arbeitsagentur_10001-1003703208-S": {
+  "must_have_skills": [
+   "python",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "data_modelling",
+   "bi_dashboards"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": "build_data_platform",
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "large_enterprise",
+  "seniority": "junior_1_2",
+  "domain": "automotive_manufacturing",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior data analyst developing insights from weapon systems operational and maintenance data.",
+  "top_requirements": [
+   "Python programming and data analysis",
+   "Complex technical data interpretation",
+   "Data integration and pipeline work"
+  ]
+ },
+ "4467460057": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "classical_ml",
+   "cloud",
+   "cicd"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "ml_engineering",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "agency_or_staffing",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI/ML Engineer developing and deploying machine learning models in production environments.",
+  "top_requirements": [
+   "Python with TensorFlow or PyTorch",
+   "Data preprocessing and feature engineering",
+   "Cloud deployment and MLOps practices"
+  ]
+ },
+ "4361562595": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "nlp",
+   "llm_apis",
+   "rag",
+   "finetuning",
+   "model_serving",
+   "backend_api"
+  ],
+  "nice_to_have_skills": [
+   "git_testing",
+   "vector_databases",
+   "inference_optimization",
+   "prompt_engineering"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "startup_lt50",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "ML Engineer integrating LLMs, ASR, and RAG into clinical healthcare software platform.",
+  "top_requirements": [
+   "Deploy ML systems to production with PyTorch",
+   "Integrate LLMs, ASR, RAG into clinical workflows",
+   "Fine-tune models for healthcare use cases"
+  ]
+ },
+ "4465572942": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision"
+  ],
+  "nice_to_have_skills": [
+   "git_testing",
+   "model_serving",
+   "monitoring"
+  ],
+  "primary_function": "software_engineering",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "tech_saas",
+  "years_required": 2,
+  "german_required": "unstated",
+  "role_summary": "Software engineer building synthetic data and ML infrastructure for XR/AI products.",
+  "top_requirements": [
+   "2 years software development experience",
+   "1 year ML infrastructure experience",
+   "Computer Vision or video generation experience"
+  ]
+ },
+ "arbeitsagentur_13644-312273-S": {
+  "must_have_skills": [
+   "monitoring",
+   "llm_evaluation",
+   "agents"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "rag"
+  ],
+  "primary_function": "ops_automation",
+  "secondary_function": "research_science",
+  "deliverable": "internal_tooling",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "mid_3_5",
+  "domain": "finance_insurance",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "AI reliability and quality engineer ensuring safe, transparent, and stable AI system deployment.",
+  "top_requirements": [
+   "AI system reliability and safety assurance",
+   "Quality measurement and testing frameworks",
+   "Risk-based AI system evaluation"
+  ]
+ },
+ "4466698318": {
+  "must_have_skills": [
+   "python",
+   "llm_apis",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "sql",
+   "rag",
+   "finetuning",
+   "prompt_engineering",
+   "agents"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "consulting_delivery",
+  "deliverable": "client_deliverable",
+  "team_context": "embedded_product_team",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "B2",
+  "role_summary": "Junior engineer developing generative AI applications and LLM solutions for client projects.",
+  "top_requirements": [
+   "Generative AI and LLM practical experience",
+   "Python or R programming",
+   "Cloud platform familiarity"
+  ]
+ },
+ "4465847016": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "statistics_experiments"
+  ],
+  "nice_to_have_skills": [
+   "nlp"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "academic_group",
+  "company_stage": "public_or_research",
+  "seniority": "junior_1_2",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "nice-to-have",
+  "role_summary": "Develop deep learning models for bone density detection from CT scans in medical device project.",
+  "top_requirements": [
+   "PyTorch deep learning model development",
+   "Medical imaging (DICOM, NIfTI) experience",
+   "Semantic segmentation and classification expertise"
+  ]
+ },
+ "4464739299": {
+  "must_have_skills": [
+   "python",
+   "js_ts",
+   "backend_api",
+   "llm_apis",
+   "rag",
+   "agents",
+   "vector_databases"
+  ],
+  "nice_to_have_skills": [
+   "deep_learning",
+   "monitoring"
+  ],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "solo_or_first_hire",
+  "company_stage": "startup_lt50",
+  "seniority": "junior_1_2",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Full-stack engineer building and shipping enterprise agentic AI systems for large corporates.",
+  "top_requirements": [
+   "Full-stack development with TypeScript and Python",
+   "Hands-on experience building with LLMs and agent frameworks",
+   "Backend engineering fundamentals and API design"
+  ]
+ },
+ "4353717216": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "computer_vision",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "jvm_or_cpp",
+   "inference_optimization",
+   "classical_ml",
+   "statistics_experiments"
+  ],
+  "primary_function": "research_science",
+  "secondary_function": "build_ai_product",
+  "deliverable": "research_output",
+  "team_context": "rnd_lab",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "public_sector",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Computer vision researcher developing and optimizing state-of-the-art detection, tracking, and classification models for defence applications.",
+  "top_requirements": [
+   "MSc in computer science or ML",
+   "Hands-on computer vision model development",
+   "Deep learning architectures for visual perception"
+  ]
+ },
+ "4469153880": {
+  "must_have_skills": [
+   "python",
+   "sql"
+  ],
+  "nice_to_have_skills": [
+   "etl_pipelines",
+   "data_modelling",
+   "bi_dashboards",
+   "cloud",
+   "git_testing"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": null,
+  "deliverable": "production_system",
+  "team_context": "central_data_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "logistics_mobility",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior Data Engineer building internal data products for market intelligence and pricing decisions.",
+  "top_requirements": [
+   "Python or Java/Scala programming experience",
+   "SQL and data fundamentals",
+   "Curiosity about data systems and pipelines"
+  ]
+ },
+ "4468082744": {
+  "must_have_skills": [
+   "sql",
+   "data_modelling",
+   "statistics_experiments",
+   "bi_dashboards"
+  ],
+  "nice_to_have_skills": [
+   "python",
+   "nlp"
+  ],
+  "primary_function": "analytics_insight",
+  "secondary_function": null,
+  "deliverable": "recurring_analysis",
+  "team_context": "central_data_team",
+  "company_stage": "scaleup",
+  "seniority": "entry",
+  "domain": "cross_industry",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior analyst building data models and deriving customer insights from survey and feedback data.",
+  "top_requirements": [
+   "SQL and data modeling expertise",
+   "Statistical analysis and text analysis methods",
+   "BI tools experience (Pyramid, Python, R)"
+  ]
+ },
+ "4468243338": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "deep_learning",
+   "llm_apis",
+   "rag",
+   "agents",
+   "prompt_engineering"
+  ],
+  "nice_to_have_skills": [],
+  "primary_function": "build_ai_product",
+  "secondary_function": "build_data_platform",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "mittelstand",
+  "seniority": "junior_1_2",
+  "domain": "retail_ecommerce",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Junior AI engineer building generative AI solutions, RAG systems and intelligent assistants for production deployment.",
+  "top_requirements": [
+   "Generative AI and LLM expertise",
+   "Python and SQL proficiency",
+   "AI/ML development experience"
+  ]
+ },
+ "4467577090": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "cloud",
+   "etl_pipelines",
+   "orchestration",
+   "data_warehouse",
+   "data_modelling",
+   "llm_apis",
+   "git_testing"
+  ],
+  "nice_to_have_skills": [
+   "docker",
+   "agents",
+   "llm_evaluation",
+   "bi_dashboards"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "build_ai_product",
+  "deliverable": "production_system",
+  "team_context": "embedded_product_team",
+  "company_stage": "scaleup",
+  "seniority": "mid_3_5",
+  "domain": "healthcare_pharma",
+  "years_required": 2,
+  "german_required": "nice-to-have",
+  "role_summary": "Build data pipelines and AI-ready datasets on BigQuery, using LLM agents as engineering tools.",
+  "top_requirements": [
+   "2+ years data engineering or science",
+   "Daily LLM coding agent use with critical review",
+   "BigQuery, Airflow, SQL, Python, Git expertise"
+  ]
+ },
+ "4465921072": {
+  "must_have_skills": [
+   "python",
+   "deep_learning",
+   "docker",
+   "kubernetes",
+   "cicd",
+   "cloud",
+   "git_testing",
+   "backend_api",
+   "monitoring",
+   "etl_pipelines"
+  ],
+  "nice_to_have_skills": [
+   "spark_databricks",
+   "orchestration",
+   "iac_terraform",
+   "model_serving"
+  ],
+  "primary_function": "build_data_platform",
+  "secondary_function": "ml_engineering",
+  "deliverable": "production_system",
+  "team_context": "rnd_lab",
+  "company_stage": "public_or_research",
+  "seniority": "mid_3_5",
+  "domain": "research_academia",
+  "years_required": 3,
+  "german_required": "none",
+  "role_summary": "Deploy and operate AI and Earth observation workflows across HPC, cloud and quantum environments.",
+  "top_requirements": [
+   "Deploy end-to-end EO and AI workflows",
+   "Build containerised cluster-based AI services",
+   "Develop and optimise scientific software across HPC and cloud"
+  ]
+ },
+ "4389883847": {
+  "must_have_skills": [
+   "python",
+   "sql",
+   "jvm_or_cpp",
+   "js_ts",
+   "backend_api",
+   "cloud"
+  ],
+  "nice_to_have_skills": [
+   "llm_apis",
+   "docker"
+  ],
+  "primary_function": "consulting_delivery",
+  "secondary_function": "build_ai_product",
+  "deliverable": "client_deliverable",
+  "team_context": "consultancy",
+  "company_stage": "large_enterprise",
+  "seniority": "entry",
+  "domain": "healthcare_pharma",
+  "years_required": 0,
+  "german_required": "unstated",
+  "role_summary": "Entry-level technical consultant building production code and custom integrations for Life Sciences SaaS clients.",
+  "top_requirements": [
+   "Object-oriented programming foundation",
+   "Production code delivery capability",
+   "Customer-facing technical communication"
+  ]
  }
 }

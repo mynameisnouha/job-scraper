@@ -159,6 +159,22 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m maintenance.job_manager
 
+      # After scoring, so the rows it removes have a score to judge them by.
+      # Only touches postings nobody acted on - never an applied job, never a
+      # dismissal, because those carry decisions and a low score is not a reason
+      # to erase one. Every delete leaves a tombstone, so a purged posting does
+      # not come back on the next scrape and get re-screened at our expense.
+      # Never fatal: housekeeping must not fail a run whose real work is saved.
+      - name: Purge low-scoring jobs
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Both overridable as repository variables without touching this file.
+          PURGE_MIN_SCORE: ${{ vars.PURGE_MIN_SCORE }}
+          PURGE_LIMIT: ${{ vars.PURGE_LIMIT }}
+        run: python -m maintenance.purge_low_scores
+
       - name: Generate Dashboard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

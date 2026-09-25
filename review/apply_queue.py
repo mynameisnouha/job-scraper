@@ -53,7 +53,12 @@ DELETE_REASONS = [
     "other",
 ]
 
+# Not in DELETE_REASONS: the purge writes it, the UI never offers it as a
+# button. Labelled here so a tombstone carrying it still reads as a sentence.
+PURGE_REASON = "below_score_floor"
+
 DELETE_REASON_LABELS = {
+    PURGE_REASON: "Scored below the floor — purged automatically",
     "not_relevant": "Not this field at all",
     "agency_repost": "Agency / staffing repost",
     "duplicate_posting": "Duplicate of another posting",

@@ -30,3 +30,14 @@ CREATE TABLE IF NOT EXISTS public.deleted_jobs (
 
 CREATE INDEX IF NOT EXISTS deleted_jobs_dedup_key_idx
     ON public.deleted_jobs (dedup_key);
+
+-- Added with the automatic low-score purge. A purge removes ~1000 rows at a
+-- time, and those rows carry the only record of what the cheap screen rejected:
+-- score_jobs.py deliberately stores a breakdown even for screened-out jobs so
+-- the corpus-wide language picture describes the whole scrape rather than only
+-- the postings that passed. Keeping these three fields on the tombstone means a
+-- purge costs the descriptions and the reasoning, not the distribution.
+ALTER TABLE public.deleted_jobs
+    ADD COLUMN IF NOT EXISTS resume_score integer,
+    ADD COLUMN IF NOT EXISTS german_required text,
+    ADD COLUMN IF NOT EXISTS jd_language text;
