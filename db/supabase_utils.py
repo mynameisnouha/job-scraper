@@ -161,7 +161,11 @@ def get_jobs_to_score(limit: int) -> list:
                            .limit(limit)\
                            .execute()
 
-        base_cols = "job_id, job_title, company, description, level"
+        # scraped_at is not used for scoring. It is here because the dashboard
+        # filters these rows to "found today", and without the column that test
+        # failed for every row — so the Unscored table was structurally always
+        # empty and the stat above it always read 0.
+        base_cols = "job_id, job_title, company, description, level, scraped_at"
         try:
             response = _query(base_cols + ", program_type")
         except Exception as inner_e:
