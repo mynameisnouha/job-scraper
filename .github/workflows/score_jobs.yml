@@ -6,6 +6,24 @@ on:
     # Runs every 4 hours (configurable — adjust to match your quota)
   #  - cron: "0 */4 * * *"
   workflow_dispatch: # Allows manual triggering from the Actions tab
+    inputs:
+      # Defaults match a scheduled run. Raise them to clear a backlog in one go:
+      # screening is cheap (Haiku); full scores are what cost, ~EUR0.05 each, so
+      # score_limit is the spend ceiling.
+      screen_limit:
+        description: "Jobs to screen with the cheap model (Haiku)"
+        required: false
+        default: "40"
+      score_limit:
+        description: "Max jobs to fully score with Sonnet (~EUR0.05 each)"
+        required: false
+        default: "15"
+
+# Same group as run_all.yml: a backfill must not score alongside a scheduled run,
+# or both pick up the same unscored rows and score them twice.
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
 
 jobs:
   score:
@@ -48,6 +66,8 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          JOBS_TO_SCREEN_PER_RUN: ${{ github.event.inputs.screen_limit }}
+          JOBS_TO_SCORE_PER_RUN: ${{ github.event.inputs.score_limit }}
         run: python -m scoring.score_jobs # Execute the job scoring script
 
       - name: Generate Dashboard
