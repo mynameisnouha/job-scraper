@@ -303,7 +303,9 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
 {CANDIDATE_PROFILE}
 
 ## RULES — set passes=false if ANY of these apply:
-1. The JD explicitly requires fluent/native German (fließend/verhandlungssicher/muttersprachlich).
+1. The JD explicitly requires fluent/native or C1+ German: fließend, verhandlungssicher,
+   muttersprachlich, "sehr gute" / "exzellente" / "ausgezeichnete Deutschkenntnisse",
+   "excellent German", C1 or C2. "Sehr gut" is NOT an intermediate level — it fails this rule.
    The language the ad is WRITTEN IN is not a requirement and never fails this rule. A German-language
    ad that names no German level passes — most German-language ads name no level at all, and rejecting
    them would discard most of the German market on a proxy rather than on what the employer asked for.
@@ -323,8 +325,9 @@ cohort, rotations or an assessment centre, even when the title does not say prog
 ## ALSO EXTRACT (for every job, whether it passes or fails)
 - jd_language: 'en', 'de' or 'mixed' — the language the ad is WRITTEN in.
 - german_required: the level the ad DEMANDS. These are different facts; do not infer one
-  from the other. 'C1-fluent' only when fluent/native/verhandlungssicher is explicitly
-  demanded; 'B2' when an intermediate level is named; 'nice-to-have' when German is a plus
+  from the other. 'C1-fluent' when fluent/native/verhandlungssicher, "sehr gute" /
+  "exzellente Deutschkenntnisse", "excellent German", C1 or C2 is explicitly demanded;
+  'B2' when an intermediate level is named ("gute Deutschkenntnisse", B1, B2); 'nice-to-have' when German is a plus
   ("von Vorteil", "wünschenswert"); 'none' when English is named as the working language
   or German is explicitly not needed; 'unstated' when the ad names no German level at all —
   the usual case for a German-language ad, and NOT the same as 'none'; 'unclear' only when
@@ -418,6 +421,15 @@ def run_screening_phase() -> list:
             continue
         consecutive_errors = 0
 
+        # A C1 demand ends the job here, whatever the screen's own verdict. The full
+        # scorer caps these anyway, so a full Sonnet call on one buys a long
+        # explanation of a score that was decided before it started. Observed: about
+        # a third of full scores went to jobs the scorer then capped on German. The
+        # screen's one-line reason is the context kept for them.
+        if result.passes and result.german_required == "C1-fluent":
+            result.passes = False
+            result.reason = f"Requires C1/fluent German. {result.reason}"
+
         if result.passes:
             if result.is_graduate_program and not job.get("program_type"):
                 # The title hid it and the screen saw it; the full scorer and the
@@ -433,6 +445,7 @@ def run_screening_phase() -> list:
                 "overall_score": capped,
                 "recommendation": "skip",
                 "reasoning": f"Screened out: {result.reason}",
+                "one_line_verdict": result.reason,
                 "key_gaps": [result.reason],
                 # Kept even on a screen-out: these rows never reach full scoring, so
                 # without this the corpus-wide language picture would only ever describe
@@ -659,8 +672,9 @@ answer. If the JD is thin, estimate from what's there and say so in calibration_
   different facts and conflating them is a bug: across the current corpus 65% of
   German-language ads were labelled 'C1-fluent' while only ~35% actually demand strong
   German, so roughly half of them were capped for no stated reason.
-    * 'C1-fluent'   — fluent/native/verhandlungssicher/muttersprachlich explicitly demanded.
-    * 'B2'          — an intermediate level is named.
+    * 'C1-fluent'   — fluent/native/verhandlungssicher/muttersprachlich, "sehr gute" /
+                      "exzellente Deutschkenntnisse", "excellent German", C1 or C2 explicitly demanded.
+    * 'B2'          — an intermediate level is named ("gute Deutschkenntnisse", B1, B2).
     * 'nice-to-have'— German listed as a plus / "von Vorteil" / "wünschenswert".
     * 'none'        — English is named as the working language, or German is explicitly not needed.
     * 'unstated'    — the JD names NO German level. Use this for a German-language ad that

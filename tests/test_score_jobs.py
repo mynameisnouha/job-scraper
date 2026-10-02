@@ -317,6 +317,31 @@ class TestScreenGermanLabelling:
         assert written["jd_language"] == "de"
         assert written["screen_only"] is True
 
+    def test_a_c1_demand_never_reaches_full_scoring(self, monkeypatch):
+        """The full scorer caps C1 jobs anyway; a Sonnet call on one is spend
+        that cannot change the outcome. The screen's reason is kept as context."""
+        from models import ScreenResult
+        written = {}
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score",
+                            lambda limit: [{"job_id": "j1", "job_title": "Data Scientist",
+                                            "description": "Sehr gute Deutschkenntnisse"}])
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai",
+                            lambda job: ScreenResult(passes=True, rough_score=78,
+                                                     reason="Strong data role",
+                                                     german_required="C1-fluent", jd_language="de"))
+
+        def capture(job_id, score, resume_score_stage=None, score_breakdown=None):
+            written.update(score_breakdown or {}, score=score)
+            return True
+
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", capture)
+        passers = score_jobs.run_screening_phase()
+
+        assert passers == []
+        assert written["score"] == 49
+        assert written["screen_only"] is True
+        assert "C1" in written["one_line_verdict"]
+
     def test_the_distribution_counts_every_level(self, caplog):
         labels = [("de", "unstated")] * 6 + [("de", "C1-fluent")] * 3 + [("en", "none")]
         with caplog.at_level(logging.INFO):

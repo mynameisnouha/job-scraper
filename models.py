@@ -69,7 +69,8 @@ class ScreenResult(BaseModel):
     # actually reachable.
     german_required: str = Field(..., description=(
         "German level the JD DEMANDS, never the language it is written in: 'none', "
-        "'nice-to-have', 'B2', 'C1-fluent', 'unstated' (no level named at all — the "
+        "'nice-to-have', 'B2', 'C1-fluent' (includes 'sehr gute Deutschkenntnisse'), "
+        "'unstated' (no level named at all — the "
         "usual case for a German-language ad), or 'unclear'"))
     jd_language: str = Field(..., description="Language the ad is written in: 'en', 'de', or 'mixed'")
     # The title regex at scrape time catches most programmes; this catches the rest
@@ -156,7 +157,8 @@ class ScoreBreakdown(BaseModel):
         "German level the JD ACTUALLY DEMANDS — not the language the ad happens to be "
         "written in. One of: 'none' (English named as the working language, or German "
         "explicitly not needed), 'nice-to-have' (a plus / von Vorteil), 'B2' (intermediate "
-        "named), 'C1-fluent' (fluent/native/verhandlungssicher explicitly demanded), "
+        "named), 'C1-fluent' (fluent/native/verhandlungssicher, 'sehr gute Deutschkenntnisse', "
+        "C1 or C2 explicitly demanded), "
         "'unstated' (the JD names no German level at all — common in German-language ads, "
         "where German is often the de-facto working language but nothing is required), or "
         "'unclear' (the wording is genuinely ambiguous). 'unstated' is NOT 'none': it means "

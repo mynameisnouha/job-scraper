@@ -143,7 +143,14 @@ def get_jobs_to_score(limit: int) -> list:
     Fetches jobs from the Supabase 'jobs' table that need scoring.
     Filters by is_active = true and resume_score = null.
     Selects only necessary fields (job_id, job_title, description).
-    Orders by scraped_at ascending to process older jobs first.
+    Orders by scraped_at descending: newest first.
+
+    Newest first because intake now outruns the per-run screen cap. Oldest-first
+    let the backlog grow (35 -> 250 unscored, Sep 27 -> Oct 1), so a job scraped
+    today waited days for a score and never appeared on the dashboard, which
+    only shows today's finds. Raising the cap would cost more per day; this costs
+    nothing. When intake beats the cap, the jobs left unscreened are the stalest
+    ones, and the 14-day cleanup removes them without a model ever seeing them.
     """
     if limit <= 0:
         logging.warning("Limit for jobs to score must be positive.")
@@ -158,7 +165,7 @@ def get_jobs_to_score(limit: int) -> list:
                            .select(columns)\
                            .eq("is_active", True)\
                            .is_("resume_score", None)\
-                           .order("scraped_at", desc=False)\
+                           .order("scraped_at", desc=True)\
                            .limit(limit)\
                            .execute()
 

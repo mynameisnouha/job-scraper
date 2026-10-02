@@ -62,6 +62,41 @@ class TestUnscoredJobsCarryTheirScrapeDate:
         assert dashboard.found_today(rows[0]) is True
 
 
+class TestUnscoredJobsComeNewestFirst:
+    def test_the_query_orders_by_scrape_date_descending(self, monkeypatch):
+        """The screen takes the first JOBS_TO_SCREEN_PER_RUN of these rows.
+
+        Oldest-first, a backlog bigger than the cap meant today's finds were never
+        scored today, and the dashboard (today's finds only) went stale.
+        """
+        orders = []
+
+        class FakeQuery:
+            def select(self, columns):
+                return self
+
+            def eq(self, *a, **k):
+                return self
+
+            def is_(self, *a, **k):
+                return self
+
+            def order(self, column, desc=False):
+                orders.append((column, desc))
+                return self
+
+            def limit(self, *a, **k):
+                return self
+
+            def execute(self):
+                return type("R", (), {"data": []})()
+
+        monkeypatch.setattr(supabase_utils, "supabase",
+                            type("C", (), {"table": lambda self, name: FakeQuery()})())
+        supabase_utils.get_jobs_to_score(10)
+        assert orders == [("scraped_at", True)]
+
+
 class TestBuildDashboard:
     def test_it_counts_todays_unscored_jobs(self, monkeypatch, tmp_path):
         """End to end: a job scraped today reaches the page, an old one does not."""
