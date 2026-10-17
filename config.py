@@ -167,6 +167,30 @@ ARBEITSAGENTUR_SEARCH_QUERIES = [
     *GRADUATE_PROGRAM_QUERIES_EN,
 ]
 ARBEITSAGENTUR_LOCATION = "Deutschland"
+
+# --- Career-page feeds (sources/ats) ---
+# A feed lists every opening at the company, worldwide, so postings are kept only
+# when the title is on-topic and the location is German or remote-open-to-Germany.
+# Matched as whole words (sources/intent.py), so "AI" never matches "Mail".
+ATS_TITLE_TERMS = sorted({
+    *(q.lower() for q in LINKEDIN_SEARCH_QUERIES),
+    *(q.lower() for q in ARBEITSAGENTUR_SEARCH_QUERIES),
+    "data", "machine learning", "ml", "ai", "ki", "künstliche intelligenz",
+    "analytics", "llm", "nlp", "genai",
+})
+# Whole-word matches on a location part. "de" catches "Hamburg, DE".
+ATS_LOCATION_KEEP = [
+    "germany", "deutschland", "de",
+    "berlin", "hamburg", "münchen", "munich", "köln", "cologne", "frankfurt",
+    "stuttgart", "düsseldorf", "dusseldorf", "leipzig", "dortmund", "essen", "bremen",
+    "dresden", "hannover", "nürnberg", "nuremberg", "duisburg", "bochum", "wuppertal",
+    "bielefeld", "bonn", "münster", "karlsruhe", "mannheim", "augsburg", "wiesbaden",
+    "mainz", "aachen", "heidelberg", "darmstadt", "regensburg", "freiburg", "potsdam",
+    "walldorf", "ingolstadt", "erlangen", "jena", "kiel", "braunschweig",
+]
+# A remote posting is kept unless it names one of these regions.
+ATS_LOCATION_DROP = ["us", "usa", "united states", "uk", "united kingdom", "india",
+                     "canada", "latam", "apac", "americas"]
 ARBEITSAGENTUR_PAGE_SIZE = 100
 # Day granularity is all the API offers. 1 suits a pipeline that runs several times
 # a day; raise it to 2-3 as insurance if scheduled runs start getting dropped —
