@@ -22,8 +22,19 @@ from sources.ats import ADAPTERS
 from sources.ats.base import PROVIDER
 
 
+def _fill_apply_url(job_id: str, adapter, raw: Dict[str, Any], slug: str, name: str,
+                    outcome: scrape_guard.SourceOutcome) -> None:
+    """A stored job (usually LinkedIn's, whose guest page hides the employer link)
+    gets this feed's apply URL for the same posting."""
+    detailed = adapter.enrich(raw, slug, outcome=outcome)
+    record = adapter.normalize(detailed, slug, name) if detailed else None
+    if record and record.get("apply_url"):
+        supabase_utils.set_apply_url(job_id, record["apply_url"], record.get("ats_type"))
+
+
 def _poll_company(company: Dict[str, Any], adapter, outcome: scrape_guard.SourceOutcome,
-                  existing_ids: set, existing_keys: set) -> List[Dict[str, Any]]:
+                  existing_ids: set, existing_keys: set,
+                  missing_links: Dict[tuple, str]) -> List[Dict[str, Any]]:
     from sources.scraper import is_freelance_role, is_internship_role, program_type_of
 
     slug, name = company["ats_slug"], company.get("name")
@@ -47,6 +58,8 @@ def _poll_company(company: Dict[str, Any], adapter, outcome: scrape_guard.Source
         key = dedup.identity_key(name, title, location)
         if all(key) and key in existing_keys:
             outcome.record_filtered("repost_same_company_title")
+            if key in missing_links:
+                _fill_apply_url(missing_links.pop(key), adapter, raw, slug, name, outcome)
             continue
         detailed = adapter.enrich(raw, slug, outcome=outcome)
         if detailed is None:
@@ -77,6 +90,7 @@ def run_ats() -> scrape_guard.SourceOutcome:
         return outcome
 
     existing_ids, existing_keys = supabase_utils.get_existing_jobs_from_supabase()
+    missing_links = supabase_utils.get_jobs_missing_apply_url_by_key()
     delay = getattr(config, "ATS_COMPANY_DELAY_SECONDS", 1)
     for index, company in enumerate(companies):
         adapter = ADAPTERS.get(company.get("ats_type"))
@@ -85,7 +99,7 @@ def run_ats() -> scrape_guard.SourceOutcome:
             continue
         if index:
             time.sleep(delay)
-        records = _poll_company(company, adapter, outcome, existing_ids, existing_keys)
+        records = _poll_company(company, adapter, outcome, existing_ids, existing_keys, missing_links)
         if records:
             saved = supabase_utils.save_jobs_to_supabase(records)
             outcome.record_query(new=saved)

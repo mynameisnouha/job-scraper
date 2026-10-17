@@ -1669,3 +1669,41 @@ def get_job_titles_by_company(batch_size: int = 1000) -> dict:
     except Exception as e:
         logging.error(f"Error fetching job titles by company: {e}")
     return titles
+
+
+def get_jobs_missing_apply_url_by_key(batch_size: int = 1000) -> dict:
+    """{identity key: job_id} for active jobs without an employer apply link, so a
+    career feed carrying the same posting can supply one (sources/ats/run.py)."""
+    result, offset = {}, 0
+    try:
+        while True:
+            response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                               .select("job_id, company, job_title, location")\
+                               .eq("is_active", True)\
+                               .is_("apply_url", "null")\
+                               .range(offset, offset + batch_size - 1)\
+                               .execute()
+            if not response.data:
+                break
+            for row in response.data:
+                key = dedup.identity_key(row.get("company"), row.get("job_title"), row.get("location"))
+                if all(key):
+                    result.setdefault(key, str(row["job_id"]))
+            offset += batch_size
+    except Exception as e:
+        logging.error(f"Error fetching jobs without an apply URL: {e}")
+    return result
+
+
+def set_apply_url(job_id: str, apply_url: str, ats_type: Optional[str]) -> bool:
+    """Give a job its employer apply link, never overwriting one it already has."""
+    try:
+        supabase.table(config.SUPABASE_TABLE_NAME)\
+                .update({"apply_url": apply_url, "ats_type": ats_type})\
+                .eq("job_id", job_id)\
+                .is_("apply_url", "null")\
+                .execute()
+        return True
+    except Exception as e:
+        logging.error(f"Error setting apply URL for {job_id}: {e}")
+        return False

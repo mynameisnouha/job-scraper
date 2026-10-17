@@ -130,3 +130,21 @@ def test_get_job_titles_by_company_groups_normalized_titles(rec):
                   {"company": "ACME", "job_title": "ML Engineer"},
                   {"company": None, "job_title": "x"}], []]
     assert supabase_utils.get_job_titles_by_company() == {"acme": {"data scientist", "ml engineer"}}
+
+
+def test_get_jobs_missing_apply_url_by_key(rec):
+    rec.pages = [[{"job_id": "linkedin_1", "company": "Acme GmbH", "job_title": "Data Scientist (m/w/d)",
+                   "location": "Berlin"}], []]
+    from sources import dedup
+    result = supabase_utils.get_jobs_missing_apply_url_by_key()
+    assert result == {dedup.identity_key("Acme GmbH", "Data Scientist (m/w/d)", "Berlin"): "linkedin_1"}
+    assert ("is_", ("apply_url", "null"), {}) in rec.calls
+    assert ("eq", ("is_active", True), {}) in rec.calls
+
+
+def test_set_apply_url_only_fills_an_empty_link(rec):
+    assert supabase_utils.set_apply_url("linkedin_1", "https://jobs.lever.co/a/b", "lever") is True
+    (_, args, _), = rec.called("update")
+    assert args[0] == {"apply_url": "https://jobs.lever.co/a/b", "ats_type": "lever"}
+    assert ("eq", ("job_id", "linkedin_1"), {}) in rec.calls
+    assert ("is_", ("apply_url", "null"), {}) in rec.calls

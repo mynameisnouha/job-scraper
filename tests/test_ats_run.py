@@ -62,6 +62,8 @@ def env(monkeypatch):
         return len(records) if state["save_result"] is None else state["save_result"]
     monkeypatch.setattr(run.supabase_utils, "save_jobs_to_supabase", save)
     monkeypatch.setattr(run.supabase_utils, "mark_polled", lambda cid: state["polled"].append(cid) or True)
+    monkeypatch.setattr(run.supabase_utils, "get_jobs_missing_apply_url_by_key", lambda: {})
+    monkeypatch.setattr(run.supabase_utils, "set_apply_url", lambda *a: True)
     monkeypatch.setattr(run.time, "sleep", lambda s: None)
     return state
 
@@ -173,3 +175,38 @@ def test_runner_is_registered():
     assert "ats" in config.SCRAPING_SOURCES
     assert dedup.SOURCE_PRIORITY == {"ats": 0, "arbeitsagentur": 1, "xing": 2,
                                      "stepstone": 3, "linkedin": 4}
+
+
+# --- Task 9b: a feed fills in the employer link of a job stored from elsewhere ---
+
+@pytest.fixture
+def missing(monkeypatch, env):
+    state = {"missing": {}, "set": []}
+    monkeypatch.setattr(run.supabase_utils, "get_jobs_missing_apply_url_by_key", lambda: state["missing"])
+    monkeypatch.setattr(run.supabase_utils, "set_apply_url",
+                        lambda job_id, url, ats: state["set"].append((job_id, url, ats)) or True)
+    return state
+
+
+def test_a_repost_gives_the_stored_job_its_apply_url(env, missing, monkeypatch):
+    key = dedup.identity_key("Acme GmbH", "Data Scientist", "Berlin, Germany")
+    env["companies"] = [{"id": 2, "name": "Acme GmbH", "ats_type": "lever", "ats_slug": "acme"}]
+    env["existing_keys"] = {key}
+    missing["missing"] = {key: "linkedin_4430986464"}
+    _use(monkeypatch, FakeAdapter("lever", {"acme": [GERMAN_DATA]}))
+    outcome = run.run_ats()
+    assert missing["set"] == [("linkedin_4430986464", "https://x/1", "lever")]
+    assert outcome.filtered_out == {"repost_same_company_title": 1}
+    assert env["saved"] == []
+
+
+def test_a_repost_whose_stored_job_already_has_a_link_is_left_alone(env, missing, monkeypatch):
+    key = dedup.identity_key("Acme GmbH", "Data Scientist", "Berlin, Germany")
+    env["companies"] = [{"id": 2, "name": "Acme GmbH", "ats_type": "lever", "ats_slug": "acme"}]
+    env["existing_keys"] = {key}
+    missing["missing"] = {}
+    adapter = FakeAdapter("lever", {"acme": [GERMAN_DATA]})
+    _use(monkeypatch, adapter)
+    run.run_ats()
+    assert missing["set"] == []
+    assert adapter.enriched == []
