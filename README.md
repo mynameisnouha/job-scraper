@@ -103,6 +103,7 @@ reported missing.
 | `add_alt_sources.sql` | Cross-source dedup |
 | `add_program_type.sql` | Graduate / trainee programme tag |
 | `raise_customization_threshold.sql` | Tailoring picks only jobs scored 70+ at the database level |
+| `add_apply_url.sql` | Employer apply link and ATS type |
 
 ### Switching LLM provider
 

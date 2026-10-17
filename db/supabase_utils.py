@@ -92,7 +92,7 @@ def save_jobs_to_supabase(jobs_data: list) -> int:
         "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
         "is_active", "status", "job_state", "scraped_at", "last_checked",
         "customized_resume_id", "resume_link", "score_breakdown", "alt_sources",
-        "program_type",
+        "program_type", "apply_url", "ats_type", "linkedin_apply_mode",
     }
 
     processed_jobs_data = []
