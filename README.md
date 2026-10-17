@@ -219,6 +219,8 @@ landed still deserves to be looked at.
 | `python -m maintenance.mark_applied <job_id>` | Mark applied without opening the app |
 | `python -m maintenance.detect_ats` | Find which companies publish a career feed (`--dry-run` to preview) |
 | `python -m maintenance.backfill_apply_url` | Fill the employer apply link on stored jobs (dry run; `--apply` to write) |
+| `python -m apply.resolve_link --login` | Once: log into LinkedIn in a browser profile kept outside the repo (`~/.job-scraper/browser`) |
+| `python -m apply.resolve_link <job_id>` | Find a LinkedIn job's employer link in that browser (also the *Find employer link* button). No LLM; never clicks Easy Apply |
 
 ## Tests
 

@@ -240,3 +240,14 @@ class TestApplyLinks:
 
     def test_the_o_shortcut_opens_the_application(self):
         assert ("o", "Open application") in apply_queue.SHORTCUTS
+
+
+class TestWantsEmployerLink:
+    def test_linkedin_without_a_link(self):
+        assert apply_queue.wants_employer_link({"provider": "linkedin", "linkedin_apply_mode": "offsite"})
+        assert apply_queue.wants_employer_link({"provider": "linkedin"})
+
+    def test_not_when_known_easy_apply_or_another_source(self):
+        assert not apply_queue.wants_employer_link({"provider": "linkedin", "apply_url": "https://x"})
+        assert not apply_queue.wants_employer_link({"provider": "linkedin", "linkedin_apply_mode": "easy_apply"})
+        assert not apply_queue.wants_employer_link({"provider": "xing"})

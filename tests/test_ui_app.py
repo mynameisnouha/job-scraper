@@ -1044,3 +1044,41 @@ class TestApplyLinksInTheQueue:
         text = markdown_text(app)
         assert "ML Engineer" in text and "Data Scientist" not in text
         assert any("Any ATS" in b.label for b in app.button)
+
+
+class TestFindEmployerLink:
+    """A LinkedIn job without an employer link offers to find it in the owner's
+    logged-in browser (apply/resolve_link.py), run as a separate process."""
+
+    @staticmethod
+    def _linkedin(monkeypatch, **extra):
+        job = dict(FAKE_TODAY_JOBS[0], job_id="4430986464", provider="linkedin",
+                   job_url="https://www.linkedin.com/jobs/view/4430986464/", **extra)
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: [job])
+
+    def test_offered_for_a_linkedin_job_without_a_link(self, app, monkeypatch):
+        self._linkedin(monkeypatch, linkedin_apply_mode="offsite")
+        app.run()
+        assert any(b.label == "Find employer link" for b in app.button)
+
+    @pytest.mark.parametrize("extra", [{"apply_url": "https://jobs.lever.co/a/1"},
+                                       {"linkedin_apply_mode": "easy_apply"}])
+    def test_not_offered_when_it_cannot_help(self, app, monkeypatch, extra):
+        self._linkedin(monkeypatch, **extra)
+        app.run()
+        assert not any(b.label == "Find employer link" for b in app.button)
+
+    def test_clicking_runs_the_resolver_for_that_job(self, app, monkeypatch):
+        import subprocess
+        self._linkedin(monkeypatch, linkedin_apply_mode="offsite")
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout="Employer link: https://jobs.lever.co/a/1\n", stderr="")
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        app.run()
+        next(b for b in app.button if b.label == "Find employer link").click().run()
+        assert calls and calls[0][-3:] == ["-m", "apply.resolve_link", "4430986464"]
+        assert any("jobs.lever.co" in s.value for s in app.success) or \
+            "jobs.lever.co" in markdown_text(app) or any("jobs.lever.co" in t.value for t in app.toast)

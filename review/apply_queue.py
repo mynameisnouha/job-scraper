@@ -158,6 +158,13 @@ def open_url(job: Dict[str, Any]) -> Optional[str]:
     return job.get("apply_url") or job.get("job_url")
 
 
+def wants_employer_link(job: Dict[str, Any]) -> bool:
+    """A LinkedIn job whose employer link is unknown and could be found in the
+    owner's logged-in browser. Easy Apply jobs have none to find."""
+    return (job.get("provider") == "linkedin" and not job.get("apply_url")
+            and job.get("linkedin_apply_mode") != "easy_apply")
+
+
 def matches_ats(job: Dict[str, Any], mode: str) -> bool:
     ats_type = job.get("ats_type")
     if mode == "known":

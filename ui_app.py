@@ -11,6 +11,8 @@ Run with: streamlit run ui_app.py
 """
 import logging
 import os
+import subprocess
+import sys
 from datetime import date, datetime, timezone
 
 import pandas as pd
@@ -715,6 +717,11 @@ def render_overflow(job, prefix, with_keys=False):
         else:
             st.button(f"Open application{k('o')}", key=f"{prefix}_open_{job_id}", disabled=True,
                       width="stretch", help="This posting has no URL.")
+        if apply_queue.wants_employer_link(job):
+            if st.button("Find employer link", key=f"{prefix}_resolve_{job_id}", width="stretch",
+                         help="Opens this job in your logged-in LinkedIn browser profile and "
+                              "saves where its Apply button leads. Never clicks Easy Apply."):
+                find_employer_link(job)
         if st.button(f"Build application pack{k('p')}", key=f"{prefix}_pack_{job_id}",
                      width="stretch",
                      help="Write answers, checklist, pitch and the routed CV to "
@@ -1045,6 +1052,28 @@ def job_details_dialog(job):
     if st.button("Mark applied", key=f"dlg_apply_{job.get('job_id')}", type="primary"):
         close_details()
         mark_applied(job)
+
+
+def find_employer_link(job):
+    """Run apply/resolve_link.py for one job in its own process (Playwright's sync
+    API does not run inside Streamlit's event loop) and report what it found."""
+    try:
+        result = subprocess.run([sys.executable, "-m", "apply.resolve_link", str(job.get("job_id"))],
+                                capture_output=True, text=True, timeout=180,
+                                cwd=os.path.dirname(os.path.abspath(__file__)))
+    except subprocess.TimeoutExpired:
+        st.error("The browser took too long. Try again, or open the posting by hand.")
+        return
+    lines = [line for line in (result.stdout or "").splitlines() if line.strip()]
+    message = lines[-1] if lines else (result.stderr or "No output.").strip()[-300:]
+    if result.returncode == 0:
+        flash_saved(message)
+        refresh_data()
+        st.rerun()
+    elif result.returncode == 3:
+        st.warning(f"{message}  (one-time step, in a terminal)")
+    else:
+        st.info(message)
 
 
 def build_application_pack(job):
