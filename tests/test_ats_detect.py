@@ -48,3 +48,30 @@ def test_is_job_board():
 def test_every_returned_type_is_declared():
     assert "other" in ats_detect.ATS_TYPES
     assert ats_detect.detect("https://jobs.lever.co/a/b") in ats_detect.ATS_TYPES
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("https://job-boards.greenhouse.io/celonis/jobs/123", ("greenhouse", "celonis")),
+    ("https://boards.greenhouse.io/embed/job_app?for=n26&token=1", ("greenhouse", "n26")),
+    ("https://jobs.lever.co/contentsquare/d872f05c/apply", ("lever", "contentsquare")),
+    ("https://jobs.ashbyhq.com/deepl/5d5ed7b1", ("ashby", "deepl")),
+    ("https://jobs.smartrecruiters.com/DeutscheGlasfaser/744000153151708-data", ("smartrecruiters", "DeutscheGlasfaser")),
+    ("https://apply.workable.com/blueground/j/ABC123/", ("workable", "blueground")),
+    ("https://make.recruitee.com/o/delivery-lead-3", ("recruitee", "make")),
+    ("https://thermondo.jobs.personio.de/job/123?language=de", ("personio", "thermondo")),
+    ("https://ottonova.jobs.personio.com/job/9", ("personio", "ottonova")),
+])
+def test_slug_from_url_reads_the_exact_feed_name(url, expected):
+    assert ats_detect.slug_from_url(url) == expected
+
+
+@pytest.mark.parametrize("url", [
+    "https://turck.wd3.myworkdayjobs.com/de-DE/Turck_Careers/job/x",  # no Workday adapter
+    "https://www.henkel.de/karriere/job/1",
+    "https://www.linkedin.com/jobs/view/1/",
+    "https://jobs.lever.co/",
+    "https://www.recruitee.com/",
+    None, "",
+])
+def test_slug_from_url_is_none_without_a_readable_feed_name(url):
+    assert ats_detect.slug_from_url(url) is None

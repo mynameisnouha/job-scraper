@@ -10,7 +10,7 @@ extended with the ATSs the feeds cover.
 """
 
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 ATS_TYPES = (
     "workday", "greenhouse", "ashby", "lever", "successfactors", "icims",
@@ -75,3 +75,46 @@ def detect(url: Optional[str]) -> Optional[str]:
         if _matches(host, fragment):
             return ats_type
     return "other"
+
+
+# Hosts whose first path segment is the company's feed name.
+_PATH_SLUG_HOSTS = {
+    "boards.greenhouse.io": "greenhouse",
+    "job-boards.greenhouse.io": "greenhouse",
+    "jobs.lever.co": "lever",
+    "jobs.ashbyhq.com": "ashby",
+    "jobs.smartrecruiters.com": "smartrecruiters",
+    "careers.smartrecruiters.com": "smartrecruiters",
+    "apply.workable.com": "workable",
+}
+# Hosts where the feed name is the subdomain: {slug}.<suffix>.
+_SUBDOMAIN_SLUG_SUFFIXES = {
+    ".recruitee.com": "recruitee",
+    ".jobs.personio.de": "personio",
+    ".jobs.personio.com": "personio",
+}
+_NOT_A_SLUG = {"www", "app", "api", "careers", "jobs", "embed", "j", ""}
+
+
+def slug_from_url(url: Optional[str]) -> Optional[tuple]:
+    """(ats_type, feed name) when an apply link names the company's feed exactly,
+    e.g. jobs.lever.co/<name>/... or <name>.jobs.personio.de. Only for the ATSs
+    there is a feed adapter for. None otherwise."""
+    host = _hostname(url)
+    if not host:
+        return None
+    parts = urlsplit(url.strip())
+    segments = [s for s in parts.path.split("/") if s]
+    if host in _PATH_SLUG_HOSTS:
+        ats_type = _PATH_SLUG_HOSTS[host]
+        if ats_type == "greenhouse" and segments[:1] == ["embed"]:
+            found = parse_qs(parts.query).get("for") or [""]
+            slug = found[0]
+        else:
+            slug = segments[0] if segments else ""
+        return (ats_type, slug) if slug.lower() not in _NOT_A_SLUG else None
+    for suffix, ats_type in _SUBDOMAIN_SLUG_SUFFIXES.items():
+        if host.endswith(suffix):
+            slug = host[:-len(suffix)]
+            return (ats_type, slug) if slug and "." not in slug and slug not in _NOT_A_SLUG else None
+    return None

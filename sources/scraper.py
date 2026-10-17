@@ -628,6 +628,12 @@ def run_linkedin() -> scrape_guard.SourceOutcome:
     return outcome
 
 
+def _harvest_feeds(records: list) -> None:
+    """Switch polling on for companies whose apply links name their career feed."""
+    from sources.ats import harvest
+    harvest.harvest(records)
+
+
 def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
     logging.info("\n--- Starting Bundesagentur für Arbeit Job Scraping ---")
     from sources import arbeitsagentur
@@ -635,6 +641,7 @@ def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
     outcome = scrape_guard.SourceOutcome(arbeitsagentur.SOURCE)
     max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get(
         arbeitsagentur.SOURCE, getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    collected = []
     for query in config.ARBEITSAGENTUR_SEARCH_QUERIES:
         logging.info(f"Processing Arbeitsagentur Search Query: '{query}'")
 
@@ -645,8 +652,10 @@ def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
             saved = supabase_utils.save_jobs_to_supabase(new_jobs)
             outcome.record_query(new=saved)
             outcome.record_filtered(scrape_guard.SAVE_FAILED, len(new_jobs) - saved)
+            collected.extend(new_jobs)
         else:
             logging.info(f"No new job details were fetched or processed for query '{query}'.")
+    _harvest_feeds(collected)
     return outcome
 
 
@@ -657,6 +666,7 @@ def run_xing() -> scrape_guard.SourceOutcome:
     outcome = scrape_guard.SourceOutcome(xing.SOURCE)
     max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get(
         xing.SOURCE, getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    collected = []
     for query in config.XING_SEARCH_QUERIES:
         logging.info(f"Processing Xing Search Query: '{query}'")
         new_jobs = xing.process_query(query, limit=max_jobs_per_search, outcome=outcome)
@@ -664,6 +674,8 @@ def run_xing() -> scrape_guard.SourceOutcome:
             saved = supabase_utils.save_jobs_to_supabase(new_jobs)
             outcome.record_query(new=saved)
             outcome.record_filtered(scrape_guard.SAVE_FAILED, len(new_jobs) - saved)
+            collected.extend(new_jobs)
+    _harvest_feeds(collected)
     return outcome
 
 
