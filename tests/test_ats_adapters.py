@@ -204,3 +204,15 @@ def test_id_of_matches_the_record_job_id(monkeypatch, ats_type):
 def test_personio_id_of_matches_the_record_job_id(personio):
     raw = personio.fetch("acme")[0]
     assert personio.normalize(raw, "acme", "A")["job_id"] == f"ats_personio_acme_{personio.id_of(raw)}"
+
+
+@pytest.mark.parametrize("ats_type, expected", [
+    ("greenhouse", True), ("smartrecruiters", True), ("recruitee", True), ("workable", True),
+    ("lever", False), ("ashby", False),
+])
+def test_company_name_of_reads_the_name_a_feed_states(monkeypatch, ats_type, expected):
+    """Detection uses it to reject a slug that belongs to another company."""
+    adapter = ADAPTERS[ats_type]
+    _serve(monkeypatch, ats_type, adapter.module)
+    name = adapter.company_name_of(adapter.fetch("acme")[0])
+    assert bool(name) is expected

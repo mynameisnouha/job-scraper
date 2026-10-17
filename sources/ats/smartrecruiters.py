@@ -46,6 +46,9 @@ class SmartRecruiters(FeedAdapter):
     def title_of(self, raw):
         return raw.get("name")
 
+    def company_name_of(self, raw):
+        return (raw.get("company") or {}).get("name")
+
     def location_of(self, raw):
         location = raw.get("location") or {}
         place = location.get("fullLocation") or ", ".join(

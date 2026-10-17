@@ -17,7 +17,11 @@ class Workable(FeedAdapter):
         return f"https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true"
 
     def items(self, payload):
-        return payload.get("jobs") or []
+        # The account name sits beside the job list, not in each job.
+        return [dict(job, _account_name=payload.get("name")) for job in payload.get("jobs") or []]
+
+    def company_name_of(self, raw):
+        return raw.get("_account_name")
 
     def id_of(self, raw):
         return raw.get("shortcode")

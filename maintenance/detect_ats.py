@@ -18,7 +18,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 import config
 from db import supabase_utils
@@ -46,12 +46,31 @@ def slug_candidates(company: Optional[str]) -> List[str]:
     return list(dict.fromkeys(candidates))[:MAX_CANDIDATES]
 
 
-def probe(company: str, adapters=None) -> Optional[Tuple[str, str]]:
-    """(ats_type, slug) of the first feed with postings, or None."""
+def _belongs_to(company: str, adapter, raws: list, known_titles: Set[str]) -> bool:
+    """Is this feed really the company's? A guessed slug is often someone else's:
+    on 2026-10-17 personio:amazon was a small agency and greenhouse:abacus a
+    different ABACUS. The feed's own company name settles it when it matches
+    exactly; otherwise (a partial match, or a feed that names no company) one of
+    its titles must be a title already stored for this company."""
+    target = dedup.normalize_company(company)
+    name_of = getattr(adapter, "company_name_of", lambda raw: None)
+    names = {dedup.normalize_company(n) for n in (name_of(raw) for raw in raws) if n}
+    if target in names:
+        return True
+    if names and not any(target.startswith(f"{n} ") or n.startswith(f"{target} ") for n in names):
+        return False
+    titles = {dedup.normalize_title(adapter.title_of(raw)) for raw in raws}
+    return bool(titles & (known_titles or set()))
+
+
+def probe(company: str, adapters=None, known_titles: Optional[Set[str]] = None) -> Optional[Tuple[str, str]]:
+    """(ats_type, slug) of the first feed that has postings and belongs to the
+    company, or None. `known_titles` are the normalized titles already stored for it."""
     adapters = adapters if adapters is not None else ADAPTERS
     for slug in slug_candidates(company):
         for ats_type, adapter in adapters.items():
-            if adapter.fetch(slug):
+            raws = adapter.fetch(slug)
+            if raws and _belongs_to(company, adapter, raws, known_titles or set()):
                 return ats_type, slug
     return None
 
@@ -91,6 +110,7 @@ def main(argv: Optional[list] = None) -> int:
 
     now = datetime.now(timezone.utc)
     known = {row["name_normalized"]: row for row in supabase_utils.get_all_companies()}
+    titles_by_company = supabase_utils.get_job_titles_by_company()
     targets = _load_targets(TARGETS_PATH)
 
     seeds = {}
@@ -121,7 +141,7 @@ def main(argv: Optional[list] = None) -> int:
     for index, row in enumerate(to_probe):
         if index and not args.dry_run:
             time.sleep(config.ATS_COMPANY_DELAY_SECONDS)
-        hit = probe(row["name"])
+        hit = probe(row["name"], known_titles=titles_by_company.get(row["name_normalized"], set()))
         if hit:
             found[hit[0]] = found.get(hit[0], 0) + 1
         else:

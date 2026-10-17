@@ -19,6 +19,9 @@ class Greenhouse(FeedAdapter):
     def title_of(self, raw):
         return raw.get("title")
 
+    def company_name_of(self, raw):
+        return raw.get("company_name")
+
     def location_of(self, raw):
         return (raw.get("location") or {}).get("name")
 

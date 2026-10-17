@@ -19,6 +19,9 @@ class Recruitee(FeedAdapter):
     def title_of(self, raw):
         return raw.get("title")
 
+    def company_name_of(self, raw):
+        return raw.get("company_name")
+
     def location_of(self, raw):
         place = raw.get("location") or ", ".join(
             p for p in (raw.get("city"), raw.get("country")) if p)

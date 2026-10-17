@@ -1646,3 +1646,26 @@ def get_all_companies(batch_size: int = 1000) -> list:
     except Exception as e:
         logging.error(f"Error fetching companies: {e}")
     return rows
+
+
+def get_job_titles_by_company(batch_size: int = 1000) -> dict:
+    """{normalized company: {normalized titles}} over every stored job. Feed detection
+    uses it to confirm that a guessed feed really is that company's."""
+    titles, offset = {}, 0
+    try:
+        while True:
+            response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                               .select("company, job_title")\
+                               .range(offset, offset + batch_size - 1)\
+                               .execute()
+            if not response.data:
+                break
+            for row in response.data:
+                company = dedup.normalize_company(row.get("company"))
+                title = dedup.normalize_title(row.get("job_title"))
+                if company and title:
+                    titles.setdefault(company, set()).add(title)
+            offset += batch_size
+    except Exception as e:
+        logging.error(f"Error fetching job titles by company: {e}")
+    return titles

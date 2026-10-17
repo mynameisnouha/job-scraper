@@ -44,11 +44,15 @@ class Personio(FeedAdapter):
                 "descriptions": [(_text(jd, "name"), _text(jd, "value"))
                                  for jd in position.findall("jobDescriptions/jobDescription")],
                 "created_at": _text(position, "createdAt"),
+                "subcompany": _text(position, "subcompany"),
             })
         return positions
 
     def title_of(self, raw):
         return raw.get("name")
+
+    def company_name_of(self, raw):
+        return raw.get("subcompany")
 
     def location_of(self, raw):
         return join_places(*raw.get("offices") or [])

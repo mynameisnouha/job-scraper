@@ -123,3 +123,10 @@ def test_get_all_companies_reads_the_probe_state(rec):
     rec.pages = [[{"name_normalized": "acme", "last_probe_at": None}], []]
     assert supabase_utils.get_all_companies() == [{"name_normalized": "acme", "last_probe_at": None}]
     assert rec.tables[0] == "companies"
+
+
+def test_get_job_titles_by_company_groups_normalized_titles(rec):
+    rec.pages = [[{"company": "Acme GmbH", "job_title": "Data Scientist (m/w/d)"},
+                  {"company": "ACME", "job_title": "ML Engineer"},
+                  {"company": None, "job_title": "x"}], []]
+    assert supabase_utils.get_job_titles_by_company() == {"acme": {"data scientist", "ml engineer"}}

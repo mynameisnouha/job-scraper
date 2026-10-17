@@ -75,6 +75,11 @@ class FeedAdapter:
     def title_of(self, raw: Dict[str, Any]) -> Optional[str]:
         raise NotImplementedError
 
+    def company_name_of(self, raw: Dict[str, Any]) -> Optional[str]:
+        """The employer name the feed itself states, where it states one. Feed
+        detection compares it with the company it was looking for."""
+        return None
+
     def location_of(self, raw: Dict[str, Any]) -> Optional[str]:
         raise NotImplementedError
 
