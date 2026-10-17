@@ -392,7 +392,7 @@ def preferred_apply_url(group: List[Dict[str, Any]]) -> Optional[str]:
 def merge_group(group: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Collapse a duplicate group into one row plus the alt_sources to record.
 
-    Returns {"survivor", "duplicates", "alt_sources", "apply_url"}. `apply_url` is
+    Returns {"survivor", "duplicates", "alt_sources", "apply_url", "best_apply_url"}. `apply_url` is
     None when the survivor has already been applied to — its job_url is then the
     record of where the application actually went, and rewriting it would falsify
     that. The better URL still lands in alt_sources.
@@ -425,9 +425,18 @@ def merge_group(group: List[Dict[str, Any]]) -> Dict[str, Any]:
             and best_rank < _source_rank(survivor)):
         apply_url = best_url
 
+    # The application form, as opposed to the posting page: the first copy that has
+    # one, nearest the employer first. Kept even when the survivor was applied to,
+    # because it rewrites nothing the application depends on.
+    best = next((job for job in sorted(group, key=_source_rank) if job.get("apply_url")), None)
+
     return {
         "survivor": survivor,
         "duplicates": duplicates,
         "alt_sources": alt_sources,
         "apply_url": apply_url,
+        "best_apply_url": best.get("apply_url") if best else None,
+        # The feed's own type: a Greenhouse board on the company's domain reads as
+        # "other" from its URL alone.
+        "best_ats_type": best.get("ats_type") if best else None,
     }

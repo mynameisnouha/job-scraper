@@ -297,3 +297,54 @@ class TestWhichCopyIsKept:
         group = [_deloitte("low", "Consultant Data Engineering in Hamburg", "Hamburg", resume_score=25),
                  _deloitte("high", "Consultant Data Engineering in Munich", "Munich", resume_score=52)]
         assert dedup.merge_group(group)["apply_url"] is None
+
+
+class TestBestApplyUrl:
+    """job_url keeps meaning "the best posting page"; apply_url is the form. A merge
+    keeps the form link from whichever copy has one, nearest the employer first."""
+
+    @staticmethod
+    def _row(provider, job_id, apply_url=None, **extra):
+        return {"provider": provider, "job_id": job_id, "company": "Acme", "job_title": "Data Scientist",
+                "job_url": f"https://{provider}.example/{job_id}", "apply_url": apply_url, **extra}
+
+    def test_the_feed_link_survives_a_merge_into_an_applied_linkedin_row(self):
+        linkedin = self._row("linkedin", "l1", status="applied", application_stage="applied")
+        ats = self._row("ats", "a1", apply_url="https://jobs.lever.co/acme/1")
+        merged = dedup.merge_group([linkedin, ats])
+        assert merged["survivor"] is linkedin
+        assert merged["best_apply_url"] == "https://jobs.lever.co/acme/1"
+
+    def test_nearest_source_wins(self):
+        xing = self._row("xing", "x1", apply_url="https://acme.de/jobs/1")
+        ats = self._row("ats", "a1", apply_url="https://jobs.lever.co/acme/1")
+        assert dedup.merge_group([xing, ats])["best_apply_url"] == "https://jobs.lever.co/acme/1"
+
+    def test_no_copy_has_one(self):
+        assert dedup.merge_group([self._row("linkedin", "l1"), self._row("stepstone", "s1")])["best_apply_url"] is None
+
+
+class TestDedupExistingPayload:
+    def test_the_survivor_gets_the_link_and_its_ats_when_it_had_none(self):
+        from maintenance import dedup_existing
+        survivor = {"job_id": "l1", "apply_url": None, "alt_sources": []}
+        merged = {"survivor": survivor, "alt_sources": [], "apply_url": None,
+                  "best_apply_url": "https://jobs.lever.co/acme/1"}
+        payload = dedup_existing.survivor_payload(merged, has_apply_url=True)
+        assert payload["apply_url"] == "https://jobs.lever.co/acme/1"
+        assert payload["ats_type"] == "lever"
+
+    def test_an_existing_link_is_left_alone(self):
+        from maintenance import dedup_existing
+        survivor = {"job_id": "a1", "apply_url": "https://jobs.ashbyhq.com/acme/1", "alt_sources": []}
+        merged = {"survivor": survivor, "alt_sources": [], "apply_url": None,
+                  "best_apply_url": "https://jobs.lever.co/acme/1"}
+        assert "apply_url" not in dedup_existing.survivor_payload(merged, has_apply_url=True)
+
+    def test_without_the_column_nothing_about_links_is_written(self):
+        from maintenance import dedup_existing
+        survivor = {"job_id": "l1", "alt_sources": []}
+        merged = {"survivor": survivor, "alt_sources": [], "apply_url": None,
+                  "best_apply_url": "https://jobs.lever.co/acme/1"}
+        payload = dedup_existing.survivor_payload(merged, has_apply_url=False)
+        assert "apply_url" not in payload and "ats_type" not in payload

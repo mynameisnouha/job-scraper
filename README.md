@@ -217,6 +217,8 @@ landed still deserves to be looked at.
 | `python -m maintenance.dedup_existing` | Collapse duplicates already stored (dry run; `--apply` to write) |
 | `python -m maintenance.rescore_degraded` | Re-score rows missing calibration fields |
 | `python -m maintenance.mark_applied <job_id>` | Mark applied without opening the app |
+| `python -m maintenance.detect_ats` | Find which companies publish a career feed (`--dry-run` to preview) |
+| `python -m maintenance.backfill_apply_url` | Fill the employer apply link on stored jobs (dry run; `--apply` to write) |
 
 ## Tests
 

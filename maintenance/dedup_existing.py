@@ -15,7 +15,7 @@ import os
 from datetime import datetime, timezone
 
 import config
-from sources import dedup
+from sources import ats_detect, dedup
 from db import supabase_utils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -28,34 +28,60 @@ BASE_COLUMNS = ("job_id, provider, company, job_title, location, description, "
                 "application_date, dismissed_at")
 
 
-def fetch_all_jobs() -> tuple:
-    """(rows, alt_sources_exists).
+LINK_COLUMNS = ", apply_url, ats_type"
 
-    The report is useful before add_alt_sources.sql has been run — that migration
-    needs a human in the Supabase SQL editor — so a missing column degrades to a
-    read-only run rather than a crash.
+
+def survivor_payload(merged: dict, has_apply_url: bool) -> dict:
+    """What to write onto a group's surviving row."""
+    survivor = merged["survivor"]
+    existing_alts = survivor.get("alt_sources") or []
+    known_urls = {alt.get("job_url") for alt in existing_alts}
+    payload = {"alt_sources": existing_alts + [alt for alt in merged["alt_sources"]
+                                               if alt.get("job_url") not in known_urls]}
+    if merged["apply_url"]:
+        payload["job_url"] = merged["apply_url"]
+    if has_apply_url and merged.get("best_apply_url") and not survivor.get("apply_url"):
+        payload["apply_url"] = merged["best_apply_url"]
+        payload["ats_type"] = merged.get("best_ats_type") or ats_detect.detect(merged["best_apply_url"])
+    return payload
+
+
+def fetch_all_jobs() -> tuple:
+    """(rows, alt_sources_exists, apply_url_exists).
+
+    The report is useful before add_alt_sources.sql / add_apply_url.sql have been
+    run — those migrations need a human in the Supabase SQL editor — so a missing
+    column degrades to a run without it rather than a crash.
     """
-    columns = BASE_COLUMNS + ", alt_sources"
-    has_alt_sources = True
+    has_alt_sources, has_apply_url = True, True
+
+    def columns():
+        return (BASE_COLUMNS + (", alt_sources" if has_alt_sources else "")
+                + (LINK_COLUMNS if has_apply_url else ""))
     rows, page, size = [], 0, 1000
     while True:
         try:
             response = (supabase_utils.supabase.table(config.SUPABASE_TABLE_NAME)
-                        .select(columns)
+                        .select(columns())
                         .range(page * size, page * size + size - 1).execute())
         except Exception as e:
             if has_alt_sources and "alt_sources" in str(e):
                 logging.warning("No alt_sources column yet — run "
                                 "supabase_setup/add_alt_sources.sql before --apply. "
                                 "Reporting without it.")
-                columns, has_alt_sources = BASE_COLUMNS, False
+                has_alt_sources = False
+                continue
+            if has_apply_url and ("apply_url" in str(e) or "ats_type" in str(e)):
+                logging.warning("No apply_url column yet — run supabase_setup/add_apply_url.sql "
+                                "to carry employer links through merges. Continuing without it.")
+                has_apply_url = False
                 continue
             raise
         rows.extend(response.data or [])
         if len(response.data or []) < size:
             break
         page += 1
-    return rows, has_alt_sources
+    return rows, has_alt_sources, has_apply_url
 
 
 def back_up(rows: list) -> str:
@@ -80,7 +106,7 @@ def main(argv=None) -> int:
                         help="Description-similarity floor for a looser match.")
     args = parser.parse_args(argv)
 
-    jobs, has_alt_sources = fetch_all_jobs()
+    jobs, has_alt_sources, has_apply_url = fetch_all_jobs()
     logging.info(f"Fetched {len(jobs)} rows.")
 
     groups = dedup.group_duplicates(jobs, threshold=args.threshold)
@@ -99,15 +125,7 @@ def main(argv=None) -> int:
     for group in groups:
         merged = dedup.merge_group(group)
         survivor = merged["survivor"]
-        existing_alts = survivor.get("alt_sources") or []
-        known_urls = {alt.get("job_url") for alt in existing_alts}
-        new_alts = existing_alts + [alt for alt in merged["alt_sources"]
-                                    if alt.get("job_url") not in known_urls]
-
-        payload = {"alt_sources": new_alts}
-        if merged["apply_url"]:
-            payload["job_url"] = merged["apply_url"]
-        updates.append((survivor, payload))
+        updates.append((survivor, survivor_payload(merged, has_apply_url)))
         # A copy you applied to or dismissed is kept even when it is a duplicate:
         # it is the only record of that decision. It stays out of the queue anyway,
         # because the queue shows neither applied nor dismissed rows.
