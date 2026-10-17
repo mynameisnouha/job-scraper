@@ -92,7 +92,7 @@ def save_jobs_to_supabase(jobs_data: list) -> int:
         "provider", "posted_at", "job_url", "resume_score", "resume_score_stage",
         "is_active", "status", "job_state", "scraped_at", "last_checked",
         "customized_resume_id", "resume_link", "score_breakdown", "alt_sources",
-        "program_type", "apply_url", "ats_type", "linkedin_apply_mode",
+        "program_type", "apply_url", "ats_type", "linkedin_apply_mode", "company_id",
     }
 
     processed_jobs_data = []
@@ -1547,3 +1547,84 @@ def get_base_resume() -> Optional[dict]:
         logging.error(f"Error fetching base resume from Supabase: {e}", exc_info=True)
         return None
 
+
+
+# --- Companies (career-page feeds, sources/ats) ---
+
+COMPANIES_TABLE = "companies"
+
+
+def _now_iso() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def get_companies_to_poll() -> list:
+    """Companies with a known feed and polling switched on."""
+    try:
+        response = supabase.table(COMPANIES_TABLE)\
+                           .select("id, name, name_normalized, ats_type, ats_slug")\
+                           .eq("poll_enabled", True)\
+                           .not_.is_("ats_type", "null")\
+                           .not_.is_("ats_slug", "null")\
+                           .execute()
+        return response.data or []
+    except Exception as e:
+        logging.error(f"Error fetching companies to poll: {e}")
+        return []
+
+
+def upsert_companies(rows: list) -> int:
+    """Insert or update companies by normalized name. Returns rows written, 0 on error."""
+    if not rows:
+        return 0
+    try:
+        supabase.table(COMPANIES_TABLE).upsert(rows, on_conflict="name_normalized").execute()
+        return len(rows)
+    except Exception as e:
+        logging.error(f"Error upserting {len(rows)} companies: {e}")
+        return 0
+
+
+def record_probe(name_normalized: str, ats_type: Optional[str], ats_slug: Optional[str],
+                 result: str) -> bool:
+    """Store the outcome of probing a company for a feed. A hit switches polling on;
+    a miss only stamps the date, so it is not probed again too soon."""
+    payload = {"last_probe_at": _now_iso(), "last_probe_result": result}
+    if ats_type:
+        payload.update({"ats_type": ats_type, "ats_slug": ats_slug, "poll_enabled": True})
+    try:
+        supabase.table(COMPANIES_TABLE).update(payload)\
+                .eq("name_normalized", name_normalized).execute()
+        return True
+    except Exception as e:
+        logging.error(f"Error recording probe for '{name_normalized}': {e}")
+        return False
+
+
+def mark_polled(company_id: int) -> bool:
+    try:
+        supabase.table(COMPANIES_TABLE).update({"last_polled_at": _now_iso()})\
+                .eq("id", company_id).execute()
+        return True
+    except Exception as e:
+        logging.error(f"Error marking company {company_id} polled: {e}")
+        return False
+
+
+def get_distinct_job_companies(batch_size: int = 1000) -> list:
+    """Every company name in the jobs table, once. The seed for feed detection."""
+    names, offset = set(), 0
+    try:
+        while True:
+            response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                               .select("company")\
+                               .range(offset, offset + batch_size - 1)\
+                               .execute()
+            data = response.data
+            if not data:
+                break
+            names.update(row["company"] for row in data if row.get("company"))
+            offset += batch_size
+    except Exception as e:
+        logging.error(f"Error fetching distinct job companies: {e}")
+    return sorted(names)
