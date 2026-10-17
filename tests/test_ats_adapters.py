@@ -132,3 +132,59 @@ def test_title_and_location_accessors_see_the_raw_posting(monkeypatch):
         assert [adapter.title_of(r) for r in raws] == [
             "Data Scientist (m/w/d)", "Senior Data Engineer", "Account Executive DACH"]
         assert "New York" in adapter.location_of(raws[1])
+
+
+# --- Personio (XML) -----------------------------------------------------------
+# Real feed captured 2026-10-17 from appliedai.jobs.personio.de, trimmed to three
+# positions and edited like the JSON fixtures.
+
+PERSONIO_XML = (FIXTURES / "ats_personio.xml").read_bytes()
+
+
+def _xml_response(body, status_code=200):
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = body
+    response.url = "https://acme.jobs.personio.de/xml"
+    return response
+
+
+@pytest.fixture
+def personio(monkeypatch):
+    adapter = ADAPTERS["personio"]
+    monkeypatch.setattr(adapter.module.requests, "get", lambda *a, **k: _xml_response(PERSONIO_XML))
+    return adapter
+
+
+def test_personio_fetch_reads_every_position(personio):
+    outcome = scrape_guard.SourceOutcome("ats")
+    raws = personio.fetch("acme", outcome=outcome)
+    assert [personio.title_of(r) for r in raws] == [
+        "Data Scientist (m/w/d)", "Senior Data Engineer", "Account Executive DACH"]
+    assert personio.location_of(raws[1]) == "New York"
+    assert outcome.attempts[0].status_code == 200 and outcome.attempts[0].items_parsed == 3
+
+
+def test_personio_normalize_produces_the_shared_record(personio):
+    raw = personio.fetch("acme")[0]
+    record = personio.normalize(personio.enrich(raw, "acme"), "acme", "Acme GmbH")
+    assert record["provider"] == "ats" and record["ats_type"] == "personio"
+    assert record["job_id"] == f"ats_personio_acme_{raw['id']}"
+    assert record["job_url"] == f"https://acme.jobs.personio.de/job/{raw['id']}"
+    assert record["apply_url"] == record["job_url"]
+    assert record["location"] == "Berlin"
+    assert record["description"] and "&lt;" not in record["description"]
+    assert record["posted_at"]
+
+
+def test_personio_position_without_descriptions_is_dropped(personio):
+    raw = dict(personio.fetch("acme")[0], descriptions=[])
+    assert personio.normalize(raw, "acme", "Acme") is None
+
+
+def test_personio_malformed_xml_is_an_empty_feed_with_the_error_recorded(monkeypatch):
+    adapter = ADAPTERS["personio"]
+    monkeypatch.setattr(adapter.module.requests, "get", lambda *a, **k: _xml_response(b"<workzag-jobs><position>"))
+    outcome = scrape_guard.SourceOutcome("ats")
+    assert adapter.fetch("acme", outcome=outcome) == []
+    assert outcome.attempts[0].error
