@@ -180,6 +180,9 @@ XING_FOREIGN_PLACES = [
     "schweiz", "switzerland",
 ]
 
+# --- StepStone (sources/stepstone.py) ---
+STEPSTONE_SEARCH_QUERIES = list(LINKEDIN_SEARCH_QUERIES)
+
 # --- Career-page feeds (sources/ats) ---
 # A feed lists every opening at the company, worldwide, so postings are kept only
 # when the title is on-topic and the location is German or remote-open-to-Germany.
@@ -276,7 +279,7 @@ ONBOARDING_MODEL = os.environ.get("ONBOARDING_MODEL") or LLM_SCREEN_MODEL
 ONBOARDING_DRAFT_PATH = "onboarding_draft.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats", "xing"]
+SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats", "xing", "stepstone"]
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 # About a quarter of screened jobs pass, so a full screen of 100 yields ~25. A
@@ -315,6 +318,7 @@ MAX_JOBS_PER_SEARCH = {
     # Every new Xing job costs one page fetch with a 3-8 s pause, so 10 per query
     # keeps a 14-query run near ten minutes.
     "xing": _int_env("XING_MAX_JOBS_PER_SEARCH", 10),
+    "stepstone": _int_env("STEPSTONE_MAX_JOBS_PER_SEARCH", 10),
 }
 
 # =================================================================

@@ -24,7 +24,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
-from sources import ats_detect, dedup
+from sources import ats_detect, dedup, jsonld
 
 SOURCE = "xing"
 SEARCH_URL = "https://www.xing.com/jobs/search?keywords={}&sort=date&sincePeriod={}"
@@ -39,7 +39,6 @@ HEADERS = {
 
 _NATIVE_LINK = re.compile(r"^(?:https://www\.xing\.com)?/jobs/[a-z0-9-]+-(\d+)$")
 _MORE_PLACES = re.compile(r"\s*\+\s*\d+\s+weitere\s*$")
-_LD_JSON = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 _APPLY_URL = re.compile(r'"applyUrl":"((?:[^"\\]|\\.)*)"')
 _POSTING_ID = re.compile(r"jobs:posting:(\d+)")
 
@@ -105,17 +104,6 @@ def fetch_detail(url: str) -> Optional[str]:
     return _text(response) if response.status_code == 200 else None
 
 
-def _job_posting(page: str) -> Optional[Dict[str, Any]]:
-    for block in _LD_JSON.findall(page):
-        try:
-            data = json.loads(block)
-        except ValueError:
-            continue
-        if isinstance(data, dict) and data.get("@type") == "JobPosting":
-            return data
-    return None
-
-
 def _own_apply_url(page: str, posting_id: str) -> Optional[str]:
     for match in _APPLY_URL.finditer(page):
         before = _POSTING_ID.findall(page[max(0, match.start() - 1500):match.start()])
@@ -138,15 +126,13 @@ def _clean_description(text: Optional[str]) -> str:
 
 
 def parse_detail(page: str, posting_id: str) -> Dict[str, Any]:
-    posting = _job_posting(page) or {}
-    places = [p.get("address") or {} for p in posting.get("jobLocation") or [] if isinstance(p, dict)]
+    posting = jsonld.job_posting(page) or {}
     return {
         "title": posting.get("title"),
         "description_html": _clean_description(posting.get("description")),
         "company": (posting.get("hiringOrganization") or {}).get("name"),
-        "location": ", ".join(dict.fromkeys(a.get("addressLocality") for a in places
-                                            if a.get("addressLocality"))) or None,
-        "country": next((a.get("addressCountry") for a in places if a.get("addressCountry")), None),
+        "location": jsonld.locality(posting),
+        "country": jsonld.country(posting),
         "posted_at": posting.get("datePosted"),
         "apply_url": _own_apply_url(page, posting_id),
     }

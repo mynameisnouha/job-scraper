@@ -50,7 +50,7 @@ jobs:
         run: |
           # Default matrix. Add a leg here when a new source lands (the ATS
           # adapters in B.2) — scraper.py --source must know the same name.
-          DEFAULT='["linkedin","arbeitsagentur","ats","xing"]'
+          DEFAULT='["linkedin","arbeitsagentur","ats","xing","stepstone"]'
           if [ -z "$REQUESTED" ]; then
             echo "list=$DEFAULT" >> "$GITHUB_OUTPUT"
           else
