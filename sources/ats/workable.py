@@ -19,6 +19,9 @@ class Workable(FeedAdapter):
     def items(self, payload):
         return payload.get("jobs") or []
 
+    def id_of(self, raw):
+        return raw.get("shortcode")
+
     def title_of(self, raw):
         return raw.get("title")
 
@@ -30,7 +33,7 @@ class Workable(FeedAdapter):
         return join_places(*places, remote=bool(raw.get("telecommuting")))
 
     def normalize(self, raw, slug, company):
-        return to_record(self.ats_type, slug, raw.get("shortcode"), self.title_of(raw), company,
+        return to_record(self.ats_type, slug, self.id_of(raw), self.title_of(raw), company,
                          self.location_of(raw), raw.get("description"),
                          raw.get("published_on") or raw.get("created_at"),
                          raw.get("url") or raw.get("shortlink"), raw.get("application_url"))

@@ -117,3 +117,9 @@ def test_a_db_error_returns_falsy_instead_of_raising(monkeypatch, call):
 def test_get_companies_to_poll_on_error_returns_empty(monkeypatch):
     monkeypatch.setattr(supabase_utils, "supabase", Recorder(fail=True))
     assert supabase_utils.get_companies_to_poll() == []
+
+
+def test_get_all_companies_reads_the_probe_state(rec):
+    rec.pages = [[{"name_normalized": "acme", "last_probe_at": None}], []]
+    assert supabase_utils.get_all_companies() == [{"name_normalized": "acme", "last_probe_at": None}]
+    assert rec.tables[0] == "companies"

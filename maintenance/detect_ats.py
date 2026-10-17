@@ -1,0 +1,135 @@
+"""Find which companies publish a career feed, and switch polling on for them.
+
+    python -m maintenance.detect_ats [--limit 50] [--dry-run]
+
+Seeds the companies table from every company already in `jobs`, plus an optional
+`target_companies.json` (see the .example). Each company without a feed is probed
+by guessing its slug on every ATS adapter; the first feed with at least one posting
+wins. A miss is stored with its date and not retried for ATS_PROBE_RETRY_DAYS, so a
+run costs a bounded number of requests and never an LLM call.
+
+A target entry with ats_type and ats_slug is saved as given, without probing.
+"""
+
+import argparse
+import json
+import logging
+import os
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional, Tuple
+
+import config
+from db import supabase_utils
+from sources import dedup
+from sources.ats import ADAPTERS
+
+TARGETS_PATH = "target_companies.json"
+MAX_CANDIDATES = 4
+
+
+def slug_candidates(company: Optional[str]) -> List[str]:
+    """Plausible feed slugs for a company name: joined, hyphenated, first word."""
+    words = dedup.normalize_company(company).split()
+    if not words:
+        return []
+    candidates = ["".join(words), "-".join(words)]
+    # The first word alone finds "deutschebahn" as "deutsche"-less brands like
+    # "zalando", but a short first word ("the", "dr") would match other companies.
+    if len(words) > 1 and len(words[0]) >= 4:
+        candidates.append(words[0])
+    return list(dict.fromkeys(candidates))[:MAX_CANDIDATES]
+
+
+def probe(company: str, adapters=None) -> Optional[Tuple[str, str]]:
+    """(ats_type, slug) of the first feed with postings, or None."""
+    adapters = adapters if adapters is not None else ADAPTERS
+    for slug in slug_candidates(company):
+        for ats_type, adapter in adapters.items():
+            if adapter.fetch(slug):
+                return ats_type, slug
+    return None
+
+
+def _load_targets(path: str) -> list:
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return [t for t in data if isinstance(t, dict) and t.get("name")]
+    except (OSError, json.JSONDecodeError) as e:
+        logging.error(f"Could not read {path}: {e}")
+        return []
+
+
+def _probed_recently(row: dict, now: datetime) -> bool:
+    stamp = row.get("last_probe_at")
+    if not stamp:
+        return False
+    try:
+        when = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return now - when < timedelta(days=config.ATS_PROBE_RETRY_DAYS)
+
+
+def main(argv: Optional[list] = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--limit", type=int, default=50, help="Companies to probe this run.")
+    parser.add_argument("--dry-run", action="store_true", help="Probe, print, write nothing.")
+    args = parser.parse_args(argv)
+
+    now = datetime.now(timezone.utc)
+    known = {row["name_normalized"]: row for row in supabase_utils.get_all_companies()}
+    targets = _load_targets(TARGETS_PATH)
+
+    seeds = {}
+    for name in supabase_utils.get_distinct_job_companies() + [t["name"] for t in targets]:
+        norm = dedup.normalize_company(name)
+        if norm and norm not in seeds:
+            seeds[norm] = name
+    new_rows = [{"name": name, "name_normalized": norm}
+                for norm, name in seeds.items() if norm not in known]
+    if new_rows and not args.dry_run:
+        supabase_utils.upsert_companies(new_rows)
+    for row in new_rows:
+        known[row["name_normalized"]] = row
+
+    pinned = set()
+    for target in targets:
+        if target.get("ats_type") and target.get("ats_slug"):
+            norm = dedup.normalize_company(target["name"])
+            pinned.add(norm)
+            if not args.dry_run:
+                supabase_utils.record_probe(norm, target["ats_type"], target["ats_slug"], "manual")
+
+    to_probe = [row for norm, row in known.items()
+                if norm not in pinned and not row.get("ats_type") and not _probed_recently(row, now)]
+    to_probe = to_probe[:args.limit]
+
+    found, missed = {}, 0
+    for index, row in enumerate(to_probe):
+        if index and not args.dry_run:
+            time.sleep(config.ATS_COMPANY_DELAY_SECONDS)
+        hit = probe(row["name"])
+        if hit:
+            found[hit[0]] = found.get(hit[0], 0) + 1
+        else:
+            missed += 1
+        print(f"{row['name']}: {f'{hit[0]}:{hit[1]}' if hit else 'no feed'}")
+        if not args.dry_run:
+            if hit:
+                supabase_utils.record_probe(row["name_normalized"], hit[0], hit[1], "found")
+            else:
+                supabase_utils.record_probe(row["name_normalized"], None, None, "not_found")
+
+    print(f"\nProbed {len(to_probe)} | found {sum(found.values())} {found} | no feed {missed}"
+          f" | pinned {len(pinned)}" + (" | DRY RUN, nothing written" if args.dry_run else ""))
+    return 0
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    sys.exit(main())

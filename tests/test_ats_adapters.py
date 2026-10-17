@@ -188,3 +188,19 @@ def test_personio_malformed_xml_is_an_empty_feed_with_the_error_recorded(monkeyp
     outcome = scrape_guard.SourceOutcome("ats")
     assert adapter.fetch("acme", outcome=outcome) == []
     assert outcome.attempts[0].error
+
+
+@pytest.mark.parametrize("ats_type", JSON_TYPES)
+def test_id_of_matches_the_record_job_id(monkeypatch, ats_type):
+    """run_ats checks the job_id against the database before any detail call, so
+    the id read off the raw posting must be the one normalize puts in job_id."""
+    adapter = ADAPTERS[ats_type]
+    _serve(monkeypatch, ats_type, adapter.module)
+    raw = adapter.fetch("acme")[0]
+    record = adapter.normalize(adapter.enrich(raw, "acme"), "acme", "Acme")
+    assert record["job_id"] == f"ats_{ats_type}_acme_{adapter.id_of(raw)}"
+
+
+def test_personio_id_of_matches_the_record_job_id(personio):
+    raw = personio.fetch("acme")[0]
+    assert personio.normalize(raw, "acme", "A")["job_id"] == f"ats_personio_acme_{personio.id_of(raw)}"

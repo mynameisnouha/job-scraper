@@ -634,11 +634,18 @@ def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
     return outcome
 
 
-# Every source this script knows how to run. Adding a source (the ATS adapters in
-# Step B.2) means adding one entry here and one matrix leg in run_all.yml.
+def run_ats() -> scrape_guard.SourceOutcome:
+    logging.info("\n--- Starting career-page feed scraping (ATS) ---")
+    from sources.ats import run
+    return run.run_ats()
+
+
+# Every source this script knows how to run. Adding a source means adding one entry
+# here and one matrix leg in run_all.yml.
 SOURCE_RUNNERS = {
     "linkedin": run_linkedin,
     "arbeitsagentur": run_arbeitsagentur,
+    "ats": run_ats,
 }
 
 

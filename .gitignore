@@ -33,3 +33,6 @@ weekly_settings.json
 
 # Throwaway probes and spikes (never committed).
 scratch/
+
+# Your own list of companies to poll directly (see target_companies.json.example).
+target_companies.json

@@ -22,7 +22,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 SOURCE_PRIORITY = {
     "ats": 0,
     "arbeitsagentur": 1,
-    "linkedin": 2,
+    "xing": 2,
+    "stepstone": 3,
+    "linkedin": 4,
 }
 UNKNOWN_SOURCE_PRIORITY = 9
 

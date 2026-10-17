@@ -1628,3 +1628,21 @@ def get_distinct_job_companies(batch_size: int = 1000) -> list:
     except Exception as e:
         logging.error(f"Error fetching distinct job companies: {e}")
     return sorted(names)
+
+
+def get_all_companies(batch_size: int = 1000) -> list:
+    """Every company row with its probe state, for maintenance/detect_ats.py."""
+    rows, offset = [], 0
+    try:
+        while True:
+            response = supabase.table(COMPANIES_TABLE)\
+                               .select("id, name, name_normalized, ats_type, ats_slug, last_probe_at")\
+                               .range(offset, offset + batch_size - 1)\
+                               .execute()
+            if not response.data:
+                break
+            rows.extend(response.data)
+            offset += batch_size
+    except Exception as e:
+        logging.error(f"Error fetching companies: {e}")
+    return rows

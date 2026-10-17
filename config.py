@@ -189,6 +189,10 @@ ATS_LOCATION_KEEP = [
     "walldorf", "ingolstadt", "erlangen", "jena", "kiel", "braunschweig",
 ]
 # A remote posting is kept unless it names one of these regions.
+# A company with no detectable feed is probed again only after this many days.
+ATS_PROBE_RETRY_DAYS = 30
+# Pause between companies; the feeds are public APIs, this is politeness only.
+ATS_COMPANY_DELAY_SECONDS = 1
 # Big employers list thousands of postings; 10 pages of 100 covers the recent ones.
 ATS_SMARTRECRUITERS_MAX_PAGES = 10
 ATS_LOCATION_DROP = ["us", "usa", "united states", "uk", "united kingdom", "india",
@@ -260,7 +264,7 @@ ONBOARDING_MODEL = os.environ.get("ONBOARDING_MODEL") or LLM_SCREEN_MODEL
 ONBOARDING_DRAFT_PATH = "onboarding_draft.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin", "arbeitsagentur"]
+SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats"]
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 # About a quarter of screened jobs pass, so a full screen of 100 yields ~25. A

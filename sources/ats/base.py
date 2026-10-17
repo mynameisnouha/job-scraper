@@ -68,6 +68,10 @@ class FeedAdapter:
     def items(self, payload: Any) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
+    def id_of(self, raw: Dict[str, Any]) -> Any:
+        """The native id normalize puts in job_id, readable before any detail call."""
+        return raw.get("id")
+
     def title_of(self, raw: Dict[str, Any]) -> Optional[str]:
         raise NotImplementedError
 
