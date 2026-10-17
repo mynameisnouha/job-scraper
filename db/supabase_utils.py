@@ -14,6 +14,10 @@ if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_ROLE_KEY:
 
 supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY)
 
+# Job columns added by later migrations; see save_jobs_to_supabase.
+OPTIONAL_JOB_COLUMNS = ("program_type", "apply_url", "ats_type", "linkedin_apply_mode", "company_id")
+LINK_COLUMNS = "job_id, apply_url, ats_type, linkedin_apply_mode"
+
 # --- Supabase Functions ---
 def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
     """
@@ -118,18 +122,24 @@ def save_jobs_to_supabase(jobs_data: list) -> int:
         # or update existing rows if a job_id conflict occurs based on the primary key.
         # Ensure 'job_id' is the primary key or has a unique constraint in your Supabase table.
         # By default, supabase-py's upsert updates the row on conflict.
-        try:
-            data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
-        except Exception as inner_e:
-            # Column not added yet (supabase_setup/add_program_type.sql). Losing the
-            # tag is recoverable — the queue re-derives it from the title — losing
-            # the whole run's postings is not.
-            if "program_type" not in str(inner_e):
-                raise
-            logging.warning("program_type column missing in Supabase — saving jobs without it.")
-            for job in processed_jobs_data:
-                job.pop("program_type", None)
-            data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
+        # Columns a migration adds, which a run may meet before the migration has
+        # been applied (add_program_type.sql, add_apply_url.sql, add_companies.sql).
+        # Losing one of them for a run is recoverable; losing the run's postings is not.
+        data = count = None
+        for _ in range(len(OPTIONAL_JOB_COLUMNS) + 1):
+            try:
+                data, count = supabase.table(config.SUPABASE_TABLE_NAME).upsert(processed_jobs_data).execute()
+                break
+            except Exception as inner_e:
+                missing = [c for c in OPTIONAL_JOB_COLUMNS
+                           if c in str(inner_e) and any(c in job for job in processed_jobs_data)]
+                if not missing:
+                    raise
+                logging.warning(f"Column(s) {missing} missing in Supabase — saving jobs without them. "
+                                "Run the matching supabase_setup/ migration.")
+                for job in processed_jobs_data:
+                    for column in missing:
+                        job.pop(column, None)
 
         # Check the actual response structure from your Supabase client version for upsert
         # It might differ slightly from insert's response structure
@@ -310,6 +320,30 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
     except Exception as e:
         logging.error(f"Error fetching top-scored jobs to apply for from Supabase: {e}")
         return []
+
+def attach_apply_links(jobs: list) -> list:
+    """Add apply_url / ats_type / linkedin_apply_mode to queue rows, in place.
+
+    A separate query so the queue keeps loading before add_apply_url.sql has been
+    run: then this logs once and the jobs come back without links, and `o` opens
+    the posting as it always did."""
+    if not jobs:
+        return jobs
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select(LINK_COLUMNS)\
+                           .in_("job_id", [job["job_id"] for job in jobs if job.get("job_id")])\
+                           .execute()
+        links = {row["job_id"]: row for row in response.data or []}
+    except Exception as e:
+        logging.warning(f"Apply links unavailable (run supabase_setup/add_apply_url.sql?): {e}")
+        return jobs
+    for job in jobs:
+        row = links.get(job.get("job_id"))
+        if row:
+            job.update({k: v for k, v in row.items() if k != "job_id"})
+    return jobs
+
 
 def get_job_with_description(job_id: str) -> Optional[Dict[str, Any]]:
     """One job including its full description.
