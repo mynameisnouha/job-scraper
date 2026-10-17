@@ -142,7 +142,7 @@ def _read(loader, *args, **kwargs):
 
 @st.cache_data(ttl=DATA_TTL_SECONDS, show_spinner=False)
 def _cached_queue():
-    return _keep_if_present(supabase_utils.get_top_scored_jobs_to_apply(999))
+    return _keep_if_present(supabase_utils.attach_apply_links(supabase_utils.get_top_scored_jobs_to_apply(999)))
 
 
 @st.cache_data(ttl=DATA_TTL_SECONDS, show_spinner=False)
@@ -346,6 +346,7 @@ FILTER_KEYS = {
     "min_score": {"default": DEFAULT_MIN_SCORE, "open": 0},
     "date_window": {"default": apply_queue.DEFAULT_DATE_WINDOW, "open": "all"},
     "role_type": {"default": "all", "open": "all"},
+    "ats_filter": {"default": "all", "open": "all"},
     "german_max": {"default": "any", "open": "any"},
 }
 
@@ -398,6 +399,10 @@ def hidden_by_filters(jobs):
     if role != "all":
         n = sum(1 for j in jobs if not apply_queue.matches_role_type(j, role))
         out.append(("role_type", "Programmes" if role == "roles" else "Standard roles", n))
+    ats_mode = st.session_state["ats_filter"]
+    if ats_mode != "all":
+        n = sum(1 for j in jobs if not apply_queue.matches_ats(j, ats_mode))
+        out.append(("ats_filter", apply_queue.ATS_FILTER_LABELS["all"], n))
     german = st.session_state["german_max"]
     if german != "any":
         n = sum(1 for j in jobs if not apply_queue.matches_german(j, german))
@@ -453,6 +458,10 @@ def render_queue_page():
                          help="Graduate/trainee programmes have one intake a year and an "
                               "assessment centre; standard roles have a recruiter reading "
                               "CVs this week. Work them in separate sittings.")
+            st.selectbox("Apply via", apply_queue.ATS_FILTERS, key="ats_filter",
+                         format_func=lambda a: apply_queue.ATS_FILTER_LABELS[a],
+                         help="Which application form the job leads to. Batch the "
+                              "single-page ones (Greenhouse, Lever, Ashby) in one sitting.")
             st.selectbox("German", apply_queue.GERMAN_FILTERS, key="german_max",
                          format_func=lambda g: apply_queue.GERMAN_FILTER_LABELS[g],
                          help="What the ad demands, not the language it is written in. "
@@ -464,11 +473,13 @@ def render_queue_page():
     date_window = st.session_state["date_window"]
     min_score = st.session_state["min_score"]
     role_type = st.session_state["role_type"]
+    ats_mode = st.session_state["ats_filter"]
     german_max = st.session_state["german_max"]
     sort_by = st.session_state["sort_mode"]
 
     jobs = [j for j in jobs if apply_queue.within_window(j, date_window)]
     jobs = [j for j in jobs if apply_queue.matches_role_type(j, role_type)]
+    jobs = [j for j in jobs if apply_queue.matches_ats(j, ats_mode)]
     jobs = [j for j in jobs if apply_queue.matches_german(j, german_max)]
     jobs = [j for j in jobs if (j.get("resume_score") or 0) >= min_score]
     jobs = [j for j in jobs if matches_search(j, search)]
@@ -482,7 +493,7 @@ def render_queue_page():
     # Changing the filters or the sort is an explicit "re-shuffle the queue",
     # so the cursor goes back to the top. Only an incidental refresh — a scrape
     # run landing, a job leaving — keeps your place.
-    signature = (sort_by, date_window, min_score, role_type, german_max,
+    signature = (sort_by, date_window, min_score, role_type, ats_mode, german_max,
                  (search or "").strip().lower())
     if st.session_state.get("queue_signature") != signature:
         st.session_state["queue_signature"] = signature
@@ -684,7 +695,7 @@ def render_overflow(job, prefix, with_keys=False):
     overflow holds the actions that are not a decision about the job.
     """
     job_id = job.get("job_id")
-    url = job.get("job_url")
+    url = apply_queue.open_url(job)
 
     def k(key):
         return f" `{key}`" if with_keys else ""
@@ -698,9 +709,11 @@ def render_overflow(job, prefix, with_keys=False):
                 st.session_state["open_job"] = job_id
                 st.rerun()
         if url:
-            st.link_button(f"Open posting{k('o')}", url, width="stretch")
+            st.link_button(f"Open application{k('o')}", url, width="stretch",
+                           help=None if job.get("apply_url") else
+                           "No employer form known for this job yet; this opens the posting.")
         else:
-            st.button(f"Open posting{k('o')}", key=f"{prefix}_open_{job_id}", disabled=True,
+            st.button(f"Open application{k('o')}", key=f"{prefix}_open_{job_id}", disabled=True,
                       width="stretch", help="This posting has no URL.")
         if st.button(f"Build application pack{k('p')}", key=f"{prefix}_pack_{job_id}",
                      width="stretch",
@@ -734,6 +747,9 @@ def card_facts(job, breakdown):
         facts.append(("Scorer", REC_LABELS[rec]))
     elif rec == "apply_now":
         facts.append(("Scorer", "Apply now"))
+    via = apply_queue.ats_label(job)
+    if via:
+        facts.append(("Apply via", via))
     if tailor_store.exists(job.get("job_id")):
         facts.append(("CV", "tailored"))
     elif apply_queue.worth_tailoring(job, config.RESUME_CUSTOMIZATION_MIN_SCORE):

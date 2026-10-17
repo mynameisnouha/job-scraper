@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timedelta, timezone
 
 from review import apply_queue
@@ -202,3 +203,40 @@ class TestWorthTailoring:
     def test_unscored_is_not(self):
         assert not apply_queue.worth_tailoring({"resume_score": None}, 55)
         assert not apply_queue.worth_tailoring({}, 55)
+
+
+class TestApplyLinks:
+    def test_open_url_prefers_the_application_form(self):
+        job = {"apply_url": "https://jobs.lever.co/a/1", "job_url": "https://www.linkedin.com/jobs/view/1/"}
+        assert apply_queue.open_url(job) == "https://jobs.lever.co/a/1"
+
+    def test_open_url_falls_back_to_the_posting(self):
+        assert apply_queue.open_url({"apply_url": None, "job_url": "https://x/1"}) == "https://x/1"
+        assert apply_queue.open_url({}) is None
+
+    @pytest.mark.parametrize("ats_type, everything, known, simple", [
+        (None, True, False, False),
+        ("other", True, False, False),
+        ("workday", True, True, False),
+        ("lever", True, True, True),
+    ])
+    def test_matches_ats(self, ats_type, everything, known, simple):
+        job = {"ats_type": ats_type}
+        assert apply_queue.matches_ats(job, "all") is everything
+        assert apply_queue.matches_ats(job, "known") is known
+        assert apply_queue.matches_ats(job, "simple") is simple
+
+    def test_ats_filters_have_labels(self):
+        assert apply_queue.ATS_FILTERS == ["all", "known", "simple"]
+        assert set(apply_queue.ATS_FILTER_LABELS) == set(apply_queue.ATS_FILTERS)
+
+    def test_ats_label(self):
+        assert apply_queue.ats_label({"ats_type": "lever"}) == "Lever"
+        assert apply_queue.ats_label({"ats_type": "successfactors"}) == "SuccessFactors"
+        assert apply_queue.ats_label({"ats_type": "other"}) == "Company site"
+        assert apply_queue.ats_label({"ats_type": None, "linkedin_apply_mode": "easy_apply"}) == "LinkedIn Easy Apply"
+        assert apply_queue.ats_label({"ats_type": None, "linkedin_apply_mode": "offsite"}) is None
+        assert apply_queue.ats_label({}) is None
+
+    def test_the_o_shortcut_opens_the_application(self):
+        assert ("o", "Open application") in apply_queue.SHORTCUTS

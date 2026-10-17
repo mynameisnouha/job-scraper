@@ -98,6 +98,7 @@ def app(monkeypatch, tmp_path):
                         lambda limit=999: list(FAKE_APPLIED_JOBS))
     # Sidebar and calibration reads that would otherwise go to the network.
     monkeypatch.setattr(supabase_utils, "get_scrape_pulse", lambda **kw: None)
+    monkeypatch.setattr(supabase_utils, "attach_apply_links", lambda jobs: jobs)
     monkeypatch.setattr(supabase_utils, "get_skip_reason_counts", lambda: {})
     # The app opens on Set up when there is no valid profile. These tests are
     # about the other pages, so they run as an already-onboarded user.
@@ -1010,3 +1011,36 @@ class TestWeeklyTracking:
         app.button[[b.label for b in app.button].index("Save")].click().run()
         assert not app.exception
         assert weekly.load_settings()["goal"] == 12
+
+
+
+class TestApplyLinksInTheQueue:
+    """`o` opens the employer's form when the job has one; the ATS shows as a chip
+    and can be filtered on."""
+
+    @staticmethod
+    def _with_links(monkeypatch):
+        jobs = [dict(FAKE_TODAY_JOBS[0], apply_url="https://jobs.lever.co/acme/1", ats_type="lever"),
+                dict(FAKE_TODAY_JOBS[1])]
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: list(jobs))
+
+    def test_open_goes_to_the_application_form(self, app, monkeypatch):
+        self._with_links(monkeypatch)
+        app.run()
+        buttons = [b for b in app.get("link_button") if b.proto.label.startswith("Open application")]
+        assert buttons and buttons[0].proto.url == "https://jobs.lever.co/acme/1"
+
+    def test_the_ats_shows_as_a_chip(self, app, monkeypatch):
+        self._with_links(monkeypatch)
+        app.run()
+        app.radio(key="queue_view").set_value("list").run()
+        assert "Apply via · Lever" in markdown_text(app)
+
+    def test_known_ats_only_hides_jobs_without_one_and_says_so(self, app, monkeypatch):
+        self._with_links(monkeypatch)
+        app.run()
+        app.radio(key="queue_view").set_value("list").run()
+        app.selectbox(key="ats_filter").set_value("known").run()
+        text = markdown_text(app)
+        assert "ML Engineer" in text and "Data Scientist" not in text
+        assert any("Any ATS" in b.label for b in app.button)

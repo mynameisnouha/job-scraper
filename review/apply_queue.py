@@ -94,7 +94,7 @@ SKIP_REASON_SHORT = {
 SHORTCUTS = [
     ("a", "Mark applied"),
     ("s", "Skip"),
-    ("o", "Open posting"),
+    ("o", "Open application"),
     ("p", "Pack"),
     ("c", "Tailor CV"),
     ("j", "Next"),
@@ -136,6 +136,46 @@ def matches_german(job: Dict[str, Any], ceiling: str) -> bool:
 # Standard roles and graduate/trainee programmes are different bets — a
 # programme has one intake a year and an assessment centre, a role has a
 # recruiter reading CVs this week — so they are worked in different sittings.
+# Which form a job leads to. "simple" are the single-page ATSs, the ones worth
+# working through in one sitting.
+ATS_FILTERS = ["all", "known", "simple"]
+ATS_FILTER_LABELS = {
+    "all": "Any ATS",
+    "known": "Known ATS only",
+    "simple": "Greenhouse · Lever · Ashby",
+}
+SIMPLE_ATS = {"greenhouse", "lever", "ashby"}
+ATS_LABELS = {
+    "workday": "Workday", "greenhouse": "Greenhouse", "ashby": "Ashby", "lever": "Lever",
+    "successfactors": "SuccessFactors", "icims": "iCIMS", "teamtailor": "Teamtailor",
+    "join": "JOIN", "personio": "Personio", "smartrecruiters": "SmartRecruiters",
+    "recruitee": "Recruitee", "workable": "Workable", "other": "Company site",
+}
+
+
+def open_url(job: Dict[str, Any]) -> Optional[str]:
+    """Where `o` goes: the employer's application form when known, else the posting."""
+    return job.get("apply_url") or job.get("job_url")
+
+
+def matches_ats(job: Dict[str, Any], mode: str) -> bool:
+    ats_type = job.get("ats_type")
+    if mode == "known":
+        return ats_type not in (None, "other")
+    if mode == "simple":
+        return ats_type in SIMPLE_ATS
+    return True
+
+
+def ats_label(job: Dict[str, Any]) -> Optional[str]:
+    """The chip text for how this job is applied to, or None when nobody knows."""
+    if job.get("ats_type"):
+        return ATS_LABELS.get(job["ats_type"], job["ats_type"])
+    if job.get("linkedin_apply_mode") == "easy_apply":
+        return "LinkedIn Easy Apply"
+    return None
+
+
 ROLE_TYPES = ["all", "roles", "programs"]
 ROLE_TYPE_LABELS = {
     "all": "Roles + programmes",
