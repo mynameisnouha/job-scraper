@@ -102,7 +102,7 @@ class FeedAdapter:
         query = f"{self.ats_type}:{slug}"
         try:
             response = self.get(self.feed_url(slug))
-        except self.module.requests.RequestException as e:
+        except Exception as e:  # any request error (urllib3 parse errors too) is one company's problem
             logging.warning(f"{query}: request failed: {e}")
             if outcome is not None:
                 outcome.record_attempt(query, error=type(e).__name__)

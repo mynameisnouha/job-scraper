@@ -216,3 +216,16 @@ def test_company_name_of_reads_the_name_a_feed_states(monkeypatch, ats_type, exp
     _serve(monkeypatch, ats_type, adapter.module)
     name = adapter.company_name_of(adapter.fetch("acme")[0])
     assert bool(name) is expected
+
+
+@pytest.mark.parametrize("ats_type", JSON_TYPES + ["personio"])
+def test_any_request_error_is_an_empty_feed_not_a_crash(monkeypatch, ats_type):
+    """urllib3's LocationParseError is not a requests.RequestException."""
+    adapter = ADAPTERS[ats_type]
+
+    def boom(*a, **k):
+        raise ValueError("Failed to parse: 'x', label empty or too long")
+    monkeypatch.setattr(adapter.module.requests, "get", boom)
+    outcome = scrape_guard.SourceOutcome("ats")
+    assert adapter.fetch("acme", outcome=outcome) == []
+    assert outcome.attempts[0].error

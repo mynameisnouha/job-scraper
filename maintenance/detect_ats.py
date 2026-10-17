@@ -41,8 +41,10 @@ def slug_candidates(company: Optional[str]) -> List[str]:
         candidates.append(words[0])
     # Short or digit-only slugs ("1-1", "2501") belong to someone else as often as
     # not: the 2026-10-17 dry run matched '1&1' to an unrelated Workable account.
+    # A slug becomes a hostname label on some ATSs ({slug}.recruitee.com), and DNS
+    # labels stop at 63 characters.
     candidates = [c for c in candidates
-                  if len(c.replace("-", "")) >= 3 and any(ch.isalpha() for ch in c)]
+                  if len(c.replace("-", "")) >= 3 and any(ch.isalpha() for ch in c) and len(c) <= 63]
     return list(dict.fromkeys(candidates))[:MAX_CANDIDATES]
 
 

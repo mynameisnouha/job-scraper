@@ -170,3 +170,10 @@ def test_main_survives_a_console_that_cannot_encode_the_name(monkeypatch, tmp_pa
     monkeypatch.setattr(detect_ats, "probe", lambda name, adapters=None, known_titles=None: None)
     monkeypatch.setattr(detect_ats, "TARGETS_PATH", str(tmp_path / "none.json"))
     assert detect_ats.main(["--dry-run"]) == 0
+
+
+def test_slugs_longer_than_a_dns_label_are_never_guessed():
+    """2026-10-17 live run: a 64-character slug became a Recruitee hostname that
+    urllib3 refused to parse, and the error ended the whole run."""
+    name = "Bundesverband der Deutschen Volksbanken und Raiffeisenbanken BVR"
+    assert all(len(slug) <= 63 for slug in detect_ats.slug_candidates(name))
