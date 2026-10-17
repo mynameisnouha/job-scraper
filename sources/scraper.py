@@ -296,6 +296,20 @@ def _fetch_linkedin_job_ids(search_query: str, location: str,
     logging.info(f"--- Finished Phase 1: Found {len(job_ids_list)} unique job IDs during scraping ---")
     return job_ids_list
 
+def linkedin_apply_mode(html: str | None) -> str | None:
+    """'offsite' when the apply control leads to the employer's site, 'easy_apply'
+    when it is LinkedIn's own form, None when the page has no apply control at all
+    (closed posting, or markup this does not recognise). The guest page never shows
+    the employer URL itself; that has to come from another source."""
+    if not html:
+        return None
+    if "apply-link-offsite" in html:
+        return "offsite"
+    if "apply-link-onsite" in html:
+        return "easy_apply"
+    return None
+
+
 def _fetch_linkedin_job_details(job_id: str) -> dict | None:
     """Fetches detailed information for a single job ID with delays, rotating user agents, and retries."""
 
@@ -449,6 +463,8 @@ def _fetch_linkedin_job_details(job_id: str) -> dict | None:
                 job_details["posted_at"] = posted_at
         except Exception as e:
             logging.debug(f"Could not extract posted date for job ID {job_id}: {e}")
+
+        job_details["linkedin_apply_mode"] = linkedin_apply_mode(resp.text)
 
         # --- Set Provider & URL ---
         job_details["provider"] = "linkedin"

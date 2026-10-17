@@ -358,3 +358,25 @@ class TestRepostDedup:
         outcome = scrape_guard.SourceOutcome("arbeitsagentur")
         records = arbeitsagentur.process_query("Data", outcome=outcome)
         assert len(records) == 2
+
+
+class TestApplyUrl:
+    """externeURL usually points at a syndication partner (the fixture's is
+    jobvector.de), which is not where anyone applies. Only a recognised ATS host
+    makes it an employer apply link."""
+
+    def test_partner_board_url_is_not_an_apply_url(self):
+        record = arbeitsagentur.normalize(OFFER, DETAIL)
+        assert record["apply_url"] is None
+        assert record["ats_type"] is None
+
+    def test_ats_url_becomes_the_apply_url(self):
+        detail = dict(DETAIL, externeURL="https://job-boards.greenhouse.io/acme/jobs/123")
+        record = arbeitsagentur.normalize(OFFER, detail)
+        assert record["apply_url"] == "https://job-boards.greenhouse.io/acme/jobs/123"
+        assert record["ats_type"] == "greenhouse"
+
+    def test_missing_externe_url(self):
+        detail = {k: v for k, v in DETAIL.items() if k != "externeURL"}
+        record = arbeitsagentur.normalize(OFFER, detail)
+        assert record["apply_url"] is None and record["ats_type"] is None

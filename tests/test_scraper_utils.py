@@ -216,3 +216,40 @@ class TestFreelanceInTheDescription:
 
     def test_the_title_rule_still_applies_without_a_description(self):
         assert is_freelance_role("Freelance Data Engineer")
+
+
+class TestLinkedinApplyMode:
+    """LinkedIn's guest page never shows the employer URL, but its apply control is
+    tagged offsite (employer site) or onsite (Easy Apply). Fixtures: top cards of
+    jobs 4430986464 and 4463514158, captured 2026-10-17."""
+
+    @staticmethod
+    def _fixture(name):
+        import pathlib
+        return (pathlib.Path(__file__).parent / "fixtures" / f"linkedin_job_{name}.html").read_text(encoding="utf-8")
+
+    def test_offsite(self):
+        from sources.scraper import linkedin_apply_mode
+        assert linkedin_apply_mode(self._fixture("offsite")) == "offsite"
+
+    def test_easy_apply(self):
+        from sources.scraper import linkedin_apply_mode
+        assert linkedin_apply_mode(self._fixture("easyapply")) == "easy_apply"
+
+    def test_no_apply_control_is_unknown_not_easy_apply(self):
+        from sources.scraper import linkedin_apply_mode
+        assert linkedin_apply_mode("<html></html>") is None
+        assert linkedin_apply_mode("") is None
+
+    def test_detail_parse_records_the_mode_and_never_an_apply_url(self, monkeypatch):
+        import requests
+        from sources import scraper
+
+        response = requests.Response()
+        response.status_code = 200
+        response._content = self._fixture("offsite").encode("utf-8")
+        monkeypatch.setattr(scraper.requests, "get", lambda *a, **k: response)
+        monkeypatch.setattr(scraper.time, "sleep", lambda s: None)
+        details = scraper._fetch_linkedin_job_details("4430986464")
+        assert details["linkedin_apply_mode"] == "offsite"
+        assert "apply_url" not in details

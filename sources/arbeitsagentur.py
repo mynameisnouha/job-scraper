@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 import config
-from sources import dedup
+from sources import ats_detect, dedup
 
 SEARCH_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
 DETAIL_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/{}"
@@ -187,6 +187,12 @@ def normalize(offer: Dict[str, Any], detail: Optional[Dict[str, Any]]) -> Option
     if not description:
         return None
 
+    # externeURL usually names a syndication partner, not the employer; only a
+    # recognised ATS host makes it the place to apply.
+    external = detail.get("externeURL")
+    ats_type = ats_detect.detect(external)
+    apply_url = external if ats_type not in (None, "other") else None
+
     published = offer.get("datumErsteVeroeffentlichung") or \
         (offer.get("veroeffentlichungszeitraum") or {}).get("von")
 
@@ -204,6 +210,8 @@ def normalize(offer: Dict[str, Any], detail: Optional[Dict[str, Any]]) -> Option
         "provider": SOURCE,
         "posted_at": published,
         "job_url": POSTING_URL.format(reference_number),
+        "apply_url": apply_url,
+        "ats_type": ats_type if apply_url else None,
     }
 
 
