@@ -168,6 +168,18 @@ ARBEITSAGENTUR_SEARCH_QUERIES = [
 ]
 ARBEITSAGENTUR_LOCATION = "Deutschland"
 
+# --- Xing (sources/xing.py) ---
+# Same intent as the LinkedIn queries. LAST_24_HOURS suits four runs a day.
+XING_SEARCH_QUERIES = list(LINKEDIN_SEARCH_QUERIES)
+XING_SINCE_PERIOD = os.environ.get("XING_SINCE_PERIOD") or "LAST_24_HOURS"
+# Xing lists Austrian and Swiss jobs in German searches. Checked on the card before
+# the detail fetch; the job page's addressCountry catches the rest.
+XING_FOREIGN_PLACES = [
+    "wien", "vienna", "graz", "linz", "salzburg", "innsbruck", "österreich", "austria",
+    "zürich", "zurich", "basel", "bern", "genf", "geneva", "lausanne", "luzern",
+    "schweiz", "switzerland",
+]
+
 # --- Career-page feeds (sources/ats) ---
 # A feed lists every opening at the company, worldwide, so postings are kept only
 # when the title is on-topic and the location is German or remote-open-to-Germany.
@@ -264,7 +276,7 @@ ONBOARDING_MODEL = os.environ.get("ONBOARDING_MODEL") or LLM_SCREEN_MODEL
 ONBOARDING_DRAFT_PATH = "onboarding_draft.json"
 
 # --- Processing Limits ---
-SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats"]
+SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats", "xing"]
 # Indeed was removed in Step A.0: every search came back 403/401 from GitHub-hosted
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 # About a quarter of screened jobs pass, so a full screen of 100 yields ~25. A
@@ -300,6 +312,9 @@ MAX_JOBS_PER_SEARCH = {
     # Higher than LinkedIn's: a JSON API with no politeness delays and no blocking,
     # so the only cost of a larger number is the screening pass downstream.
     "arbeitsagentur": _int_env("ARBEITSAGENTUR_MAX_JOBS_PER_SEARCH", 25),
+    # Every new Xing job costs one page fetch with a 3-8 s pause, so 10 per query
+    # keeps a 14-query run near ten minutes.
+    "xing": _int_env("XING_MAX_JOBS_PER_SEARCH", 10),
 }
 
 # =================================================================

@@ -634,6 +634,23 @@ def run_arbeitsagentur() -> scrape_guard.SourceOutcome:
     return outcome
 
 
+def run_xing() -> scrape_guard.SourceOutcome:
+    logging.info("\n--- Starting Xing Job Scraping ---")
+    from sources import xing
+
+    outcome = scrape_guard.SourceOutcome(xing.SOURCE)
+    max_jobs_per_search = config.MAX_JOBS_PER_SEARCH.get(
+        xing.SOURCE, getattr(config, 'DEFAULT_MAX_JOBS_PER_SEARCH', 10))
+    for query in config.XING_SEARCH_QUERIES:
+        logging.info(f"Processing Xing Search Query: '{query}'")
+        new_jobs = xing.process_query(query, limit=max_jobs_per_search, outcome=outcome)
+        if new_jobs:
+            saved = supabase_utils.save_jobs_to_supabase(new_jobs)
+            outcome.record_query(new=saved)
+            outcome.record_filtered(scrape_guard.SAVE_FAILED, len(new_jobs) - saved)
+    return outcome
+
+
 def run_ats() -> scrape_guard.SourceOutcome:
     logging.info("\n--- Starting career-page feed scraping (ATS) ---")
     from sources.ats import run
@@ -646,6 +663,7 @@ SOURCE_RUNNERS = {
     "linkedin": run_linkedin,
     "arbeitsagentur": run_arbeitsagentur,
     "ats": run_ats,
+    "xing": run_xing,
 }
 
 
