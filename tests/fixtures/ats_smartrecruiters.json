@@ -1,0 +1,199 @@
+{
+ "offset": 0,
+ "limit": 100,
+ "totalFound": 3,
+ "content": [
+  {
+   "id": "744000156094379",
+   "name": "Data Scientist (m/w/d)",
+   "uuid": "f4f9c9e0-81f5-4b68-8c28-9431ad6d41f0",
+   "jobAdId": "5939ba0b-7f38-4e32-b5e1-38afecb73435",
+   "defaultJobAd": true,
+   "refNumber": "JR0087910",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-16T23:42:10.409Z",
+   "location": {
+    "city": "Berlin",
+    "country": "de",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "Berlin, Germany"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000915150c1ccdc0000",
+     "valueLabel": "Sales Account Management"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000156094379",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  },
+  {
+   "id": "744000156066650",
+   "name": "Senior Data Engineer",
+   "uuid": "3fc8f87c-e6e3-4c19-8aee-8f58ecfe1d10",
+   "jobAdId": "daad7ba9-c795-4be5-a9ae-0fc90af6d7d6",
+   "defaultJobAd": true,
+   "refNumber": "JR0087858",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-16T19:17:26.321Z",
+   "location": {
+    "city": "New York",
+    "country": "us",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "New York, United States"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "sales",
+    "label": "Sales"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "mid_senior_level",
+    "label": "Mid-Senior Level"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "75439315e9751000914c03e872460000",
+     "valueLabel": "Sales & Business Development"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000156066650",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  },
+  {
+   "id": "744000156067009",
+   "name": "Account Executive DACH",
+   "uuid": "e1358e5a-056e-42ba-acd9-bffef6df342f",
+   "jobAdId": "69037acc-edc7-4570-905d-d2df8b751d48",
+   "defaultJobAd": true,
+   "refNumber": "JR0087932",
+   "company": {
+    "identifier": "DeliveryHero",
+    "name": "Delivery Hero"
+   },
+   "releasedDate": "2026-10-16T19:07:41.444Z",
+   "location": {
+    "city": "Munich",
+    "country": "de",
+    "remote": false,
+    "hybrid": true,
+    "fullLocation": "Munich, Germany"
+   },
+   "industry": {
+    "id": "internet",
+    "label": "Internet"
+   },
+   "department": {},
+   "function": {
+    "id": "general_business",
+    "label": "General Business"
+   },
+   "typeOfEmployment": {
+    "id": "permanent",
+    "label": "Full-time"
+   },
+   "experienceLevel": {
+    "id": "associate",
+    "label": "Associate"
+   },
+   "customField": [
+    {
+     "fieldId": "6564ae9ddd552072c3a97453",
+     "fieldLabel": "Time Type",
+     "valueId": "421938a4e1d40118e396324490147300",
+     "valueLabel": "Full time"
+    },
+    {
+     "fieldId": "655ce69d695b8c5663cf1f55",
+     "fieldLabel": "Brands",
+     "valueId": "PedidosYa",
+     "valueLabel": "PedidosYa"
+    },
+    {
+     "fieldId": "6564ad6b1cf48c421e22419d",
+     "fieldLabel": "Job Family",
+     "valueId": "b475b918a2990102bdb14a344e011805",
+     "valueLabel": "Logistics Operations"
+    }
+   ],
+   "visibility": "PUBLIC",
+   "ref": "https://api.smartrecruiters.com/v1/companies/DeliveryHero/postings/744000156067009",
+   "language": {
+    "code": "es-MX",
+    "label": "Spanish (LATAM)",
+    "labelNative": "español (LATAM)"
+   }
+  }
+ ]
+}

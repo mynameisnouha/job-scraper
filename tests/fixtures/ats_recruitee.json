@@ -1,0 +1,428 @@
+{
+ "offers": [
+  {
+   "options_photo": "off",
+   "options_salutation": "off",
+   "position": 65,
+   "mailbox_email": "job.9c4fw@make.recruitee.com",
+   "translations": {
+    "en": {
+     "description": "<p><strong>📍 Location:</strong> Work from Anywhere in the US/Canada</p><p><strong>🗓️ Date: </strong>The expected start window for this position is February 2027</p><p><strong>⏰ Working Hours:&nbsp;</strong>Full-time</p><p>🌎 <strong>Time Zone: </strong>You need to be in or willing to work with a client in Central Time core working hours</p><p style=\"min-height: 1.7em;\"></p><p>Are you a <strong>Delivery Lead</strong> looking to craft large-scale software that drives business growth and users love?</p><p style=\"min-height: 1.7em;\"></p><p>😀 At <strong>Make</strong>, we're proud to have created award-winning software that's been used by billions of people, with 25+ featured placements in the App Store and Google Play. Our clients have real end users and real challenges, and they view us as trus",
+     "title": "Delivery Lead",
+     "highlight": null,
+     "requirements": "<h4><strong>What You'll Do</strong></h4><ul><li><p>Join a team of AI-first engineers, designers, and leaders.</p></li><li><p>Lead the delivery of large-scale custom software projects, ensuring work stays on track across scope, timeline, and quality</p></li><li><p>Proactively identify delivery risks and clearly communicate tradeoffs and mitigation plans to clients and internal teams</p></li><li><p>Partner closely with clients, facilitating clear communication and acting as a trusted, strategic advisor throughout the project lifecycle</p></li><li><p>Plan ahead of the current sprint by shaping future work, dependencies, and priorities</p></li><li><p>Translate high-level goals into clear requirements, tasks, and delivery plans</p></li><li><p>Facilitate sprint planning, grooming, and ongoing pr",
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "📍 Location: Work from Anywhere in the US/Canada🗓️ Date: The expected start window for this position is February 2027⏰ Working Hours: Full-time🌎 Time Zone: You need to be in or willing to work with a cl",
+     "sharing_title": "Delivery Lead"
+    }
+   },
+   "locations": [
+    {
+     "id": 204080,
+     "name": "Work from Anywhere in the US",
+     "state": "Texas",
+     "country": "United States",
+     "city": "Remote",
+     "translations": {
+      "en": {
+       "name": "Work from Anywhere in the US",
+       "city": "Remote",
+       "postal_code": null,
+       "street": null,
+       "note": "Work from Anywhere in the USA"
+      }
+     },
+     "country_code": "US",
+     "state_code": "TX",
+     "postal_code": null,
+     "street": null,
+     "note": "Work from Anywhere in the USA"
+    }
+   ],
+   "min_hours_per_week": null,
+   "locations_question_type": "multiple_choice",
+   "education_code": "professional",
+   "state_name": "Texas",
+   "options_phone": "required",
+   "dynamic_fields": [],
+   "careers_apply_url": "https://make.recruitee.com/o/job-0/c/new",
+   "category_code": "information_technology",
+   "city": "Berlin",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "department": "Delivery",
+   "close_at": null,
+   "created_at": "2026-07-30 19:29:50 UTC",
+   "guid": "9c4fw",
+   "careers_url": "https://make.recruitee.com/o/job-0",
+   "sharing_image": null,
+   "options_cover_letter": "optional",
+   "max_hours": null,
+   "country_code": "US",
+   "experience_code": "experienced",
+   "options_title": "off",
+   "title": "Data Scientist (m/w/d)",
+   "tags": [],
+   "company_name": "Make",
+   "requirements": "<h4><strong>What You'll Do</strong></h4><ul><li><p>Join a team of AI-first engineers, designers, and leaders.</p></li><li><p>Lead the delivery of large-scale custom software projects, ensuring work stays on track across scope, timeline, and quality</p></li><li><p>Proactively identify delivery risks and clearly communicate tradeoffs and mitigation plans to clients and internal teams</p></li><li><p>Partner closely with clients, facilitating clear communication and acting as a trusted, strategic advisor throughout the project lifecycle</p></li><li><p>Plan ahead of the current sprint by shaping future work, dependencies, and priorities</p></li><li><p>Translate high-level goals into clear requirements, tasks, and delivery plans</p></li><li><p>Facilitate sprint planning, grooming, and ongoing pr",
+   "country": "Germany",
+   "options_cv": "required",
+   "postal_code": null,
+   "max_hours_per_week": null,
+   "sharing_title": "Delivery Lead",
+   "description": "<p><strong>📍 Location:</strong> Work from Anywhere in the US/Canada</p><p><strong>🗓️ Date: </strong>The expected start window for this position is February 2027</p><p><strong>⏰ Working Hours:&nbsp;</strong>Full-time</p><p>🌎 <strong>Time Zone: </strong>You need to be in or willing to work with a client in Central Time core working hours</p><p style=\"min-height: 1.7em;\"></p><p>Are you a <strong>Delivery Lead</strong> looking to craft large-scale software that drives business growth and users love?</p><p style=\"min-height: 1.7em;\"></p><p>😀 At <strong>Make</strong>, we're proud to have created award-winning software that's been used by billions of people, with 25+ featured placements in the App Store and Google Play. Our clients have real end users and real challenges, and they view us as trus",
+   "locations_question_required": true,
+   "published_at": "2026-07-30 19:46:15 UTC",
+   "highlight": null,
+   "remote": false,
+   "cover_image": null,
+   "employment_type_code": "fulltime_permanent",
+   "id": 1000,
+   "slug": "delivery-lead-3",
+   "location_question_visible": false,
+   "location": "Berlin, Germany",
+   "sharing_description": "📍 Location: Work from Anywhere in the US/Canada🗓️ Date: The expected start window for this position is February 2027⏰ Working Hours: Full-time🌎 Time Zone: You need to be in or willing to work with a cl",
+   "hybrid": false,
+   "locations_question": "What is your preferred work location?",
+   "on_site": false,
+   "status": "published",
+   "open_questions": [
+    {
+     "id": 4304443,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "Do you have experience working at a software agency or for an external client?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Do you have experience working at a software agency or for an external client?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4304444,
+     "position": 2,
+     "options": {
+      "length": 600
+     },
+     "required": true,
+     "body": "To help us get to know you better, share the following in a short video: (1) describe your top skills (both technical and non-technical), (2) share about the largest software project that you've worked on and what you learned, (3) describe the values and principles that your bring to the workplace",
+     "kind": "video",
+     "translations": {
+      "en": {
+       "body": "To help us get to know you better, share the following in a short video: (1) describe your top skills (both technical and non-technical), (2) share about the largest software project that you've worked on and what you learned, (3) describe the values and principles that your bring to the workplace"
+      }
+     },
+     "open_question_options": []
+    }
+   ],
+   "state_code": "TX",
+   "updated_at": "2026-10-07 18:14:59 UTC",
+   "min_hours": null
+  },
+  {
+   "options_photo": "off",
+   "options_salutation": "off",
+   "position": 47,
+   "mailbox_email": "job.howmp@make.recruitee.com",
+   "translations": {
+    "en": {
+     "description": "<p>Are you interested in working with Make, but don't see an active job opening that fits your skills and drivers?&nbsp;</p><p><br></p><p>If you have a genuine enthusiasm for software, and thrive in environments that encourage creativity, self-management, and a strong focus on culture, apply through this opening! We'll be glad to contact you directly if something that matches your strengths opens up.</p><p><br></p><p>Our team is internationally distributed and works fully remotely.<br><strong><span style=\"font-size:1.1em\"><br></span></strong></p><p><strong><span style=\"font-size:1.3em\">About Make (letsMake.com)</span></strong><br>Make is a design and engineering agency based in Texas, with team members worldwide. We’re proud to have created <a rel=\"noopener\" target=\"_blank\" href=\"https://w",
+     "title": "General Application - Remote (global)",
+     "highlight": null,
+     "requirements": null,
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "Are you interested in working with Make, but don't see an active job opening that fits your skills and drivers? If you have a genuine enthusiasm for software, and thrive in environments that encourage",
+     "sharing_title": "General Application - Remote (global)"
+    }
+   },
+   "locations": [
+    {
+     "id": 197778,
+     "name": "Work From Anywhere",
+     "state": "Texas",
+     "country": "United States",
+     "city": "Dallas",
+     "translations": {
+      "en": {
+       "name": "Work From Anywhere",
+       "city": "Dallas",
+       "postal_code": null,
+       "street": null,
+       "note": "Work From Anywhere"
+      }
+     },
+     "country_code": "US",
+     "state_code": "TX",
+     "postal_code": null,
+     "street": null,
+     "note": "Work From Anywhere"
+    }
+   ],
+   "min_hours_per_week": null,
+   "locations_question_type": "multiple_choice",
+   "education_code": "professional",
+   "state_name": "Texas",
+   "options_phone": "required",
+   "dynamic_fields": [],
+   "careers_apply_url": "https://make.recruitee.com/o/job-1/c/new",
+   "category_code": "other",
+   "city": "New York",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "department": null,
+   "close_at": null,
+   "created_at": "2024-11-01 12:13:16 UTC",
+   "guid": "howmp",
+   "careers_url": "https://make.recruitee.com/o/job-1",
+   "sharing_image": null,
+   "options_cover_letter": "off",
+   "max_hours": null,
+   "country_code": "US",
+   "experience_code": "experienced",
+   "options_title": "off",
+   "title": "Senior Data Engineer",
+   "tags": [],
+   "company_name": "Make",
+   "requirements": null,
+   "country": "United States",
+   "options_cv": "required",
+   "postal_code": null,
+   "max_hours_per_week": null,
+   "sharing_title": "General Application - Remote (global)",
+   "description": "<p>Are you interested in working with Make, but don't see an active job opening that fits your skills and drivers?&nbsp;</p><p><br></p><p>If you have a genuine enthusiasm for software, and thrive in environments that encourage creativity, self-management, and a strong focus on culture, apply through this opening! We'll be glad to contact you directly if something that matches your strengths opens up.</p><p><br></p><p>Our team is internationally distributed and works fully remotely.<br><strong><span style=\"font-size:1.1em\"><br></span></strong></p><p><strong><span style=\"font-size:1.3em\">About Make (letsMake.com)</span></strong><br>Make is a design and engineering agency based in Texas, with team members worldwide. We’re proud to have created <a rel=\"noopener\" target=\"_blank\" href=\"https://w",
+   "locations_question_required": true,
+   "published_at": "2024-11-01 15:14:07 UTC",
+   "highlight": null,
+   "remote": false,
+   "cover_image": null,
+   "employment_type_code": "contract",
+   "id": 1001,
+   "slug": "general-application",
+   "location_question_visible": false,
+   "location": "New York, United States",
+   "sharing_description": "Are you interested in working with Make, but don't see an active job opening that fits your skills and drivers? If you have a genuine enthusiasm for software, and thrive in environments that encourage",
+   "hybrid": false,
+   "locations_question": "What is your preferred work location?",
+   "on_site": false,
+   "status": "published",
+   "open_questions": [
+    {
+     "id": 2810711,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "Select your area of expertise",
+     "kind": "single_choice",
+     "translations": {
+      "en": {
+       "body": "Select your area of expertise"
+      }
+     },
+     "open_question_options": [
+      {
+       "id": 4079695,
+       "position": 0,
+       "body": "Engineering",
+       "translations": {
+        "en": {
+         "body": "Engineering"
+        }
+       }
+      },
+      {
+       "id": 4079696,
+       "position": 1,
+       "body": "QA",
+       "translations": {
+        "en": {
+         "body": "QA"
+        }
+       }
+      },
+      {
+       "id": 4079697,
+       "position": 2,
+       "body": "Design",
+       "translations": {
+        "en": {
+         "body": "Design"
+        }
+       }
+      }
+     ]
+    },
+    {
+     "id": 3007411,
+     "position": 2,
+     "options": {},
+     "required": true,
+     "body": "What roles and/or seniority level are you interested in?",
+     "kind": "text",
+     "translations": {
+      "en": {
+       "body": "What roles and/or seniority level are you interested in?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 2908302,
+     "position": 3,
+     "options": {},
+     "required": true,
+     "body": "Do you have experience working at a software agency?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Do you have experience working at a software agency?"
+      }
+     },
+     "open_question_options": []
+    }
+   ],
+   "state_code": "TX",
+   "updated_at": "2026-07-27 17:58:45 UTC",
+   "min_hours": null
+  },
+  {
+   "options_photo": "off",
+   "options_salutation": "off",
+   "position": 65,
+   "mailbox_email": "job.9c4fw@make.recruitee.com",
+   "translations": {
+    "en": {
+     "description": "<p><strong>📍 Location:</strong> Work from Anywhere in the US/Canada</p><p><strong>🗓️ Date: </strong>The expected start window for this position is February 2027</p><p><strong>⏰ Working Hours:&nbsp;</strong>Full-time</p><p>🌎 <strong>Time Zone: </strong>You need to be in or willing to work with a client in Central Time core working hours</p><p style=\"min-height: 1.7em;\"></p><p>Are you a <strong>Delivery Lead</strong> looking to craft large-scale software that drives business growth and users love?</p><p style=\"min-height: 1.7em;\"></p><p>😀 At <strong>Make</strong>, we're proud to have created award-winning software that's been used by billions of people, with 25+ featured placements in the App Store and Google Play. Our clients have real end users and real challenges, and they view us as trus",
+     "title": "Delivery Lead",
+     "highlight": null,
+     "requirements": "<h4><strong>What You'll Do</strong></h4><ul><li><p>Join a team of AI-first engineers, designers, and leaders.</p></li><li><p>Lead the delivery of large-scale custom software projects, ensuring work stays on track across scope, timeline, and quality</p></li><li><p>Proactively identify delivery risks and clearly communicate tradeoffs and mitigation plans to clients and internal teams</p></li><li><p>Partner closely with clients, facilitating clear communication and acting as a trusted, strategic advisor throughout the project lifecycle</p></li><li><p>Plan ahead of the current sprint by shaping future work, dependencies, and priorities</p></li><li><p>Translate high-level goals into clear requirements, tasks, and delivery plans</p></li><li><p>Facilitate sprint planning, grooming, and ongoing pr",
+     "sharing_image": null,
+     "locations_question": "What is your preferred work location?",
+     "sharing_description": "📍 Location: Work from Anywhere in the US/Canada🗓️ Date: The expected start window for this position is February 2027⏰ Working Hours: Full-time🌎 Time Zone: You need to be in or willing to work with a cl",
+     "sharing_title": "Delivery Lead"
+    }
+   },
+   "locations": [
+    {
+     "id": 204080,
+     "name": "Work from Anywhere in the US",
+     "state": "Texas",
+     "country": "United States",
+     "city": "Remote",
+     "translations": {
+      "en": {
+       "name": "Work from Anywhere in the US",
+       "city": "Remote",
+       "postal_code": null,
+       "street": null,
+       "note": "Work from Anywhere in the USA"
+      }
+     },
+     "country_code": "US",
+     "state_code": "TX",
+     "postal_code": null,
+     "street": null,
+     "note": "Work from Anywhere in the USA"
+    }
+   ],
+   "min_hours_per_week": null,
+   "locations_question_type": "multiple_choice",
+   "education_code": "professional",
+   "state_name": "Texas",
+   "options_phone": "required",
+   "dynamic_fields": [],
+   "careers_apply_url": "https://make.recruitee.com/o/job-2/c/new",
+   "category_code": "information_technology",
+   "city": "Munich",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "department": "Delivery",
+   "close_at": null,
+   "created_at": "2026-07-30 19:29:50 UTC",
+   "guid": "9c4fw",
+   "careers_url": "https://make.recruitee.com/o/job-2",
+   "sharing_image": null,
+   "options_cover_letter": "optional",
+   "max_hours": null,
+   "country_code": "US",
+   "experience_code": "experienced",
+   "options_title": "off",
+   "title": "Account Executive DACH",
+   "tags": [],
+   "company_name": "Make",
+   "requirements": "<h4><strong>What You'll Do</strong></h4><ul><li><p>Join a team of AI-first engineers, designers, and leaders.</p></li><li><p>Lead the delivery of large-scale custom software projects, ensuring work stays on track across scope, timeline, and quality</p></li><li><p>Proactively identify delivery risks and clearly communicate tradeoffs and mitigation plans to clients and internal teams</p></li><li><p>Partner closely with clients, facilitating clear communication and acting as a trusted, strategic advisor throughout the project lifecycle</p></li><li><p>Plan ahead of the current sprint by shaping future work, dependencies, and priorities</p></li><li><p>Translate high-level goals into clear requirements, tasks, and delivery plans</p></li><li><p>Facilitate sprint planning, grooming, and ongoing pr",
+   "country": "Germany",
+   "options_cv": "required",
+   "postal_code": null,
+   "max_hours_per_week": null,
+   "sharing_title": "Delivery Lead",
+   "description": "<p><strong>📍 Location:</strong> Work from Anywhere in the US/Canada</p><p><strong>🗓️ Date: </strong>The expected start window for this position is February 2027</p><p><strong>⏰ Working Hours:&nbsp;</strong>Full-time</p><p>🌎 <strong>Time Zone: </strong>You need to be in or willing to work with a client in Central Time core working hours</p><p style=\"min-height: 1.7em;\"></p><p>Are you a <strong>Delivery Lead</strong> looking to craft large-scale software that drives business growth and users love?</p><p style=\"min-height: 1.7em;\"></p><p>😀 At <strong>Make</strong>, we're proud to have created award-winning software that's been used by billions of people, with 25+ featured placements in the App Store and Google Play. Our clients have real end users and real challenges, and they view us as trus",
+   "locations_question_required": true,
+   "published_at": "2026-07-30 19:46:15 UTC",
+   "highlight": null,
+   "remote": false,
+   "cover_image": null,
+   "employment_type_code": "fulltime_permanent",
+   "id": 1002,
+   "slug": "delivery-lead-3",
+   "location_question_visible": false,
+   "location": "Munich, Germany",
+   "sharing_description": "📍 Location: Work from Anywhere in the US/Canada🗓️ Date: The expected start window for this position is February 2027⏰ Working Hours: Full-time🌎 Time Zone: You need to be in or willing to work with a cl",
+   "hybrid": false,
+   "locations_question": "What is your preferred work location?",
+   "on_site": false,
+   "status": "published",
+   "open_questions": [
+    {
+     "id": 4304443,
+     "position": 1,
+     "options": {},
+     "required": true,
+     "body": "Do you have experience working at a software agency or for an external client?",
+     "kind": "boolean",
+     "translations": {
+      "en": {
+       "body": "Do you have experience working at a software agency or for an external client?"
+      }
+     },
+     "open_question_options": []
+    },
+    {
+     "id": 4304444,
+     "position": 2,
+     "options": {
+      "length": 600
+     },
+     "required": true,
+     "body": "To help us get to know you better, share the following in a short video: (1) describe your top skills (both technical and non-technical), (2) share about the largest software project that you've worked on and what you learned, (3) describe the values and principles that your bring to the workplace",
+     "kind": "video",
+     "translations": {
+      "en": {
+       "body": "To help us get to know you better, share the following in a short video: (1) describe your top skills (both technical and non-technical), (2) share about the largest software project that you've worked on and what you learned, (3) describe the values and principles that your bring to the workplace"
+      }
+     },
+     "open_question_options": []
+    }
+   ],
+   "state_code": "TX",
+   "updated_at": "2026-10-07 18:14:59 UTC",
+   "min_hours": null
+  }
+ ]
+}

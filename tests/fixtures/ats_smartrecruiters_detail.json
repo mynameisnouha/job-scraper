@@ -1,0 +1,91 @@
+{
+ "id": "744000156094379",
+ "name": "Data Scientist (m/w/d)",
+ "uuid": "f4f9c9e0-81f5-4b68-8c28-9431ad6d41f0",
+ "jobId": "8b2aa5a9-48b8-45f9-b2ca-409d95ca62e4",
+ "jobAdId": "5939ba0b-7f38-4e32-b5e1-38afecb73435",
+ "defaultJobAd": true,
+ "refNumber": "JR0087910",
+ "company": {
+  "name": "Delivery Hero",
+  "identifier": "DeliveryHero"
+ },
+ "location": {
+  "city": "Berlin",
+  "country": "de",
+  "remote": false,
+  "hybrid": true,
+  "fullLocation": "Berlin, Germany"
+ },
+ "customField": [
+  {
+   "fieldId": "6564ad3fee5f2f5b84045448",
+   "fieldLabel": "Job Family Group",
+   "valueId": "75439315e97510004b9c1be43b920000",
+   "valueLabel": "Sales"
+  },
+  {
+   "fieldId": "6564ae9ddd552072c3a97453",
+   "fieldLabel": "Time Type",
+   "valueId": "421938a4e1d40118e396324490147300",
+   "valueLabel": "Full time"
+  },
+  {
+   "fieldId": "6564aa853d74d30a33089d2a",
+   "fieldLabel": "Supervisory Organization",
+   "valueId": "6c2cb05586e90169e1f84017f90028a3",
+   "valueLabel": "Commercial - Sales - ARG - Team Y - HIE01093"
+  }
+ ],
+ "releasedDate": "2026-10-16T23:42:10.409Z",
+ "creator": {
+  "name": "",
+  "avatarUrl": ""
+ },
+ "postingUrl": "https://jobs.smartrecruiters.com/DeliveryHero/744000156094379-advertising-sr-manager",
+ "applyUrl": "https://jobs.smartrecruiters.com/DeliveryHero/744000156094379-advertising-sr-manager?oga=true",
+ "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/DeliveryHero/publication/f4f9c9e0-81f5-4b68-8c28-9431ad6d41f0?dcr_ci=DeliveryHero",
+ "jobAd": {
+  "sections": {
+   "companyDescription": {
+    "title": "Descripción de la empresa",
+    "text": "<p>PedidosYa forma parte de Delivery Hero, empresa líder mundial en servicios de delivery con presencia en ~65 países. PedidosYa es la empresa de tecnología líder en delivery y quick-commerce en Latinoamérica. Es una plataforma simple, rápida y accesible que conecta a millones de personas usuarias, empresas y repartidores con una amplia variedad de productos y servicios. PedidosYa opera en 15 países en latinoamérica, y en 2020 lanzó PedidosYa Markets, el primer mercado 100% digital que entrega alimentos y artículos para el hogar en 15 minutos. Delivery Hero cotiza en la Bolsa de Frankfurt desde 2017 y forma parte del índice bursátil MDAX.</p>"
+   },
+   "jobDescription": {
+    "title": "Descripción del empleo",
+    "text": "<p>Como Sr. Manager de Ads Argentina, liderarás la estrategia comercial de la unidad de negocio de Advertising de la vertical Restaurantes en el país. Tu misión principal será ser el motor principal para impulsar el crecimiento del revenue Publicitario de la compañía, conectando la potencia de nuestro ecosistema con las necesidades de partners y agencias de medios.&#xa0;</p><p>Estarás a cargo de construir alianzas estratégicas a largo plazo con el ecosistema de Restaurantes, sus equipos de marketing y agencias de medios, transformando datos de consumo en insights accionables e impulsando la innovación en soluciones publicitarias dentro de PedidosYa.</p><p>Buscamos un líder con perfil comercial y visionario, capaz de influir sobre múltiples equipos, optimizar la monetización de la plataform"
+   },
+   "qualifications": {
+    "title": "Requisitos",
+    "text": "<ul><li><strong>Experiencia: </strong>+5 años liderando áreas comerciales, de desarrollo de negocio o ad sales, con foco reciente en Retail Media, AdTech, E-commerce de alto impacto o Apps.</li><li><strong>Visión de Negocio:</strong> Sólida capacidad analítica y orientada a resultados; forecasting comercial y manejo de métricas de e-commerce/publicidad digital.</li><li><strong>Habilidad de Influencia: </strong>Capacidad demostrada para liderar por influencia a equipos transversales, colaborar con equipos regionales y traducirlo en ejecución local.</li><li><strong>Red de Contactos:</strong> se valorará tener una red consolidada y relacionamiento con directores de Marketing y Agencias de Medios en Argentina.</li><li><strong>Idiomas y Entornos Dinámicos: </strong>Dominio de inglés (valorado p"
+   },
+   "additionalInformation": {
+    "title": "Información adicional",
+    "text": "<div sr-tagline=\"\"></div><p>En PedidosYa, el impacto no se mide solo en resultados sino en cómo los alcanzamos. Buscamos al mejor talento: personas que vibren con nuestros valores, la forma en la que pensamos, decidimos y colaboramos todos los días.</p><p>Lo que lográs es clave, pero el “cómo” lo hacés es lo que nos define. Jugando en equipo, hacemos que el negocio y nuestro ecosistema sigan creciendo, mientras le simplificamos el día a día a millones de personas.</p><p>👉 <strong>Conocé nuestros valores <a href=\"https://empleos.pedidosya.com/\" rel=\"noopener noreferrer\"><u>aquí</u></a>.</strong></p><p>La diversidad de talento potencia nuestra Cultura y nuestra organización. Jugamos en equipo en todo lo que hacemos, y lo que más nos gusta de eso es que promovemos la creación de equipos diver"
+   }
+  }
+ },
+ "active": true,
+ "visibility": "PUBLIC",
+ "industry": {
+  "id": "internet",
+  "label": "Internet"
+ },
+ "function": {
+  "id": "sales",
+  "label": "Sales"
+ },
+ "experienceLevel": {
+  "id": "mid_senior_level",
+  "label": "Mid-Senior Level"
+ },
+ "typeOfEmployment": {
+  "id": "permanent",
+  "label": "Full-time"
+ },
+ "language": {
+  "code": "es-MX",
+  "label": "Spanish (LATAM)",
+  "labelNative": "español (LATAM)"
+ }
+}

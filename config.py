@@ -189,6 +189,8 @@ ATS_LOCATION_KEEP = [
     "walldorf", "ingolstadt", "erlangen", "jena", "kiel", "braunschweig",
 ]
 # A remote posting is kept unless it names one of these regions.
+# Big employers list thousands of postings; 10 pages of 100 covers the recent ones.
+ATS_SMARTRECRUITERS_MAX_PAGES = 10
 ATS_LOCATION_DROP = ["us", "usa", "united states", "uk", "united kingdom", "india",
                      "canada", "latam", "apac", "americas"]
 ARBEITSAGENTUR_PAGE_SIZE = 100
