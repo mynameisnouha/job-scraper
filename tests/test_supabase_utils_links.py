@@ -96,3 +96,18 @@ def test_attach_apply_links_without_the_columns_leaves_jobs_as_they_were(monkeyp
 def test_attach_apply_links_with_no_jobs_makes_no_call(monkeypatch):
     monkeypatch.setattr(supabase_utils.supabase, "table", lambda name: (_ for _ in ()).throw(AssertionError))
     assert supabase_utils.attach_apply_links([]) == []
+
+
+def test_attach_apply_links_queries_in_chunks(monkeypatch):
+    """Final review: 999 ids in one GET can exceed URL limits, and the failure is
+    swallowed, so every link would silently vanish."""
+    calls = []
+
+    class Chunked(FakeTable):
+        def in_(self, col, values):
+            calls.append(len(values))
+            return self
+
+    monkeypatch.setattr(supabase_utils.supabase, "table", lambda name: Chunked())
+    supabase_utils.attach_apply_links([{"job_id": str(i)} for i in range(400)])
+    assert len(calls) > 1 and max(calls) <= 150 and sum(calls) == 400

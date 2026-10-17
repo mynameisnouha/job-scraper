@@ -17,6 +17,7 @@ supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_RO
 # Job columns added by later migrations; see save_jobs_to_supabase.
 OPTIONAL_JOB_COLUMNS = ("program_type", "apply_url", "ats_type", "linkedin_apply_mode", "company_id")
 LINK_COLUMNS = "job_id, apply_url, ats_type, linkedin_apply_mode"
+LINK_CHUNK = 150
 
 # --- Supabase Functions ---
 def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
@@ -329,12 +330,16 @@ def attach_apply_links(jobs: list) -> list:
     the posting as it always did."""
     if not jobs:
         return jobs
+    ids = [job["job_id"] for job in jobs if job.get("job_id")]
+    links = {}
     try:
-        response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .select(LINK_COLUMNS)\
-                           .in_("job_id", [job["job_id"] for job in jobs if job.get("job_id")])\
-                           .execute()
-        links = {row["job_id"]: row for row in response.data or []}
+        # Chunked: hundreds of ids in one GET can exceed URL length limits.
+        for start in range(0, len(ids), LINK_CHUNK):
+            response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                               .select(LINK_COLUMNS)\
+                               .in_("job_id", ids[start:start + LINK_CHUNK])\
+                               .execute()
+            links.update({row["job_id"]: row for row in response.data or []})
     except Exception as e:
         logging.warning(f"Apply links unavailable (run supabase_setup/add_apply_url.sql?): {e}")
         return jobs

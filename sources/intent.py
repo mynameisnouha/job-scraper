@@ -35,14 +35,17 @@ def in_target_location(location: Optional[str]) -> bool:
     the scorer reads the description and gates location itself."""
     if not location or not location.strip():
         return True
+    open_remote, foreign_place = False, False
     for part in _SPLIT_PARTS.split(location):
         words = _words(part)
         if words.strip() == "":
             continue
-        if " remote " in words:
-            if not _has_any(words, config.ATS_LOCATION_DROP):
-                return True
-            continue
         if _has_any(words, config.ATS_LOCATION_KEEP):
             return True
-    return False
+        if " remote " in words:
+            open_remote = open_remote or not _has_any(words, config.ATS_LOCATION_DROP)
+        else:
+            foreign_place = True
+    # A bare "Remote" beside a non-German office ("San Francisco; Remote") is that
+    # office's remote role, not one open to Germany.
+    return open_remote and not foreign_place

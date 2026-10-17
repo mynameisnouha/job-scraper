@@ -211,7 +211,7 @@ ATS_COMPANY_DELAY_SECONDS = 1
 # Big employers list thousands of postings; 10 pages of 100 covers the recent ones.
 ATS_SMARTRECRUITERS_MAX_PAGES = 10
 ATS_LOCATION_DROP = ["us", "usa", "united states", "uk", "united kingdom", "india",
-                     "canada", "latam", "apac", "americas"]
+                     "canada", "latam", "apac", "americas", "north america"]
 ARBEITSAGENTUR_PAGE_SIZE = 100
 # Day granularity is all the API offers. 1 suits a pipeline that runs several times
 # a day; raise it to 2-3 as insurance if scheduled runs start getting dropped —

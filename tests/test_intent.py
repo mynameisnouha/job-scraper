@@ -24,11 +24,18 @@ def test_off_topic_titles_do_not_match(title):
 @pytest.mark.parametrize("location", [
     "Berlin, Germany", "München", "Deutschland", "Hamburg, DE", "Remote - Germany",
     "Remote (EU)", "Remote, EMEA", "Remote", "", None, "Berlin, Germany; London, UK",
+    "Munich; Remote",
 ])
 def test_german_or_open_remote_locations_are_kept(location):
     assert intent.in_target_location(location) is True
 
 
-@pytest.mark.parametrize("location", ["New York, NY", "London, UK", "Remote - US", "Bangalore, India"])
+@pytest.mark.parametrize("location", [
+    "New York, NY", "London, UK", "Remote - US", "Bangalore, India",
+    # Final review: adapters append "; Remote" to a remote-flagged posting's place,
+    # and a bare Remote part used to keep US and Dutch remote roles.
+    "San Francisco; Remote", "Austin, United States; Remote", "Amsterdam, Netherlands; Remote",
+    "Remote - North America",
+])
 def test_foreign_locations_are_dropped(location):
     assert intent.in_target_location(location) is False

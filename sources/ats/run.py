@@ -99,7 +99,14 @@ def run_ats() -> scrape_guard.SourceOutcome:
             continue
         if index:
             time.sleep(delay)
-        records = _poll_company(company, adapter, outcome, existing_ids, existing_keys, missing_links)
+        try:
+            records = _poll_company(company, adapter, outcome, existing_ids, existing_keys, missing_links)
+        except Exception as e:  # one company's odd payload must not end the whole source
+            logging.error(f"{company.get('name')} ({adapter.ats_type}:{company.get('ats_slug')}) "
+                          f"failed: {e!r}")
+            outcome.record_attempt(f"{adapter.ats_type}:{company.get('ats_slug')}",
+                                   error=f"{type(e).__name__}: {e}")
+            continue
         if records:
             saved = supabase_utils.save_jobs_to_supabase(records)
             outcome.record_query(new=saved)

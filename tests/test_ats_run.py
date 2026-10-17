@@ -210,3 +210,22 @@ def test_a_repost_whose_stored_job_already_has_a_link_is_left_alone(env, missing
     run.run_ats()
     assert missing["set"] == []
     assert adapter.enriched == []
+
+
+def test_one_malformed_feed_does_not_stop_the_others(env, monkeypatch):
+    """Final review: an unexpected posting shape raised out of run_ats, leaving every
+    later company unpolled and the run's summary lost."""
+    class Broken(FakeAdapter):
+        def title_of(self, raw):
+            raise TypeError("'NoneType' object is not subscriptable")
+
+    env["companies"] = [
+        {"id": 1, "name": "Odd GmbH", "ats_type": "workable", "ats_slug": "odd"},
+        {"id": 2, "name": "Acme GmbH", "ats_type": "lever", "ats_slug": "acme"},
+    ]
+    _use(monkeypatch, Broken("workable", {"odd": [GERMAN_DATA]}),
+         FakeAdapter("lever", {"acme": [dict(GERMAN_DATA, id="7")]}))
+    outcome = run.run_ats()
+    assert outcome.new == 1
+    assert env["polled"] == [2]
+    assert any(a.query == "workable:odd" and "TypeError" in a.error for a in outcome.attempts)
