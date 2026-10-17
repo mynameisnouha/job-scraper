@@ -39,6 +39,10 @@ def slug_candidates(company: Optional[str]) -> List[str]:
     # "zalando", but a short first word ("the", "dr") would match other companies.
     if len(words) > 1 and len(words[0]) >= 4:
         candidates.append(words[0])
+    # Short or digit-only slugs ("1-1", "2501") belong to someone else as often as
+    # not: the 2026-10-17 dry run matched '1&1' to an unrelated Workable account.
+    candidates = [c for c in candidates
+                  if len(c.replace("-", "")) >= 3 and any(ch.isalpha() for ch in c)]
     return list(dict.fromkeys(candidates))[:MAX_CANDIDATES]
 
 
@@ -80,6 +84,10 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--limit", type=int, default=50, help="Companies to probe this run.")
     parser.add_argument("--dry-run", action="store_true", help="Probe, print, write nothing.")
     args = parser.parse_args(argv)
+    # Company names come from everywhere; a Windows console (cp1252) cannot print
+    # them all, and one unprintable name must not end the run.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
 
     now = datetime.now(timezone.utc)
     known = {row["name_normalized"]: row for row in supabase_utils.get_all_companies()}

@@ -95,3 +95,24 @@ def test_main_saves_hits_misses_and_explicit_targets(monkeypatch, tmp_path):
     assert ("pinned", "personio", "pinned", "manual") in recorded
     assert ("found", "greenhouse", "found", "found") in recorded
     assert ("guess", None, None, "not_found") in recorded
+
+
+@pytest.mark.parametrize("company", ["1&1", "2501.ai", "A B"])
+def test_slugs_without_letters_or_too_short_are_never_guessed(company):
+    """Dry run 2026-10-17: '1&1' matched workable:'1-1' and '2501.ai' matched
+    ashby:'2501' — short or digit-only slugs collide with other companies' feeds."""
+    for slug in detect_ats.slug_candidates(company):
+        assert len(slug.replace("-", "")) >= 3
+        assert any(ch.isalpha() for ch in slug)
+
+
+def test_main_survives_a_console_that_cannot_encode_the_name(monkeypatch, tmp_path):
+    """Windows consoles default to cp1252; a company name outside it crashed the run."""
+    import io
+    cp1252 = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr(detect_ats.sys, "stdout", cp1252)
+    monkeypatch.setattr(detect_ats.supabase_utils, "get_all_companies", lambda: [])
+    monkeypatch.setattr(detect_ats.supabase_utils, "get_distinct_job_companies", lambda: ["株式会社 Data"])
+    monkeypatch.setattr(detect_ats, "probe", lambda name, adapters=None: None)
+    monkeypatch.setattr(detect_ats, "TARGETS_PATH", str(tmp_path / "none.json"))
+    assert detect_ats.main(["--dry-run"]) == 0
