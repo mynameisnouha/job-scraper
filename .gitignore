@@ -30,3 +30,6 @@ onboarding_draft.json
 
 # Written by the weekly-tracking "Customize" popover on "Where I applied".
 weekly_settings.json
+
+# Throwaway probes and spikes (never committed).
+scratch/
