@@ -299,6 +299,21 @@ AUTO_APPLY_ORIGINS = {
               "https://*.amazonaws.com"],
 }
 
+# Sender domains the verification-code mailbox trusts per ATS, on top of the
+# apply URL's own host. Passed to the mail_codes server so a phished mail from
+# anywhere else can never feed the worker a code or a link.
+AUTO_APPLY_MAIL_DOMAINS = {
+    "greenhouse": ["greenhouse.io", "greenhouse-mail.io"],
+    "lever": ["lever.co", "hire.lever.co"],
+    "ashby": ["ashbyhq.com"],
+    "workday": ["myworkday.com", "myworkdayjobs.com"],
+    "successfactors": ["successfactors.com", "successfactors.eu", "sap.com"],
+    "personio": ["personio.de", "personio.com"],
+    "smartrecruiters": ["smartrecruiters.com"],
+    "teamtailor": ["teamtailor.com"],
+    "join": ["join.com"],
+}
+
 # --- Email alerts for strong matches ---
 # The pipeline runs unattended four times a day; without a nudge, a job scored at
 # 09:00 is not seen until the evening, and being early to a posting is most of the
