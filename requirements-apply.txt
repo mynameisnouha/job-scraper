@@ -1,0 +1,6 @@
+# Laptop-only dependencies for the auto-apply runner (apply/mail_codes.py MCP
+# server). Kept out of requirements.txt on purpose: that file is installed by the
+# scheduled GitHub Actions pipeline, which holds the Supabase service-role key and
+# the LLM API keys, and the mail server never runs there. Pinned to a release at
+# least two weeks old; bump deliberately.
+mcp==2.3.0

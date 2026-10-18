@@ -343,6 +343,11 @@ SMTP_HOST = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
 SMTP_PORT = _int_env("SMTP_PORT", 587)
 SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+# Inbox the mail_codes server reads verification codes from (laptop-only, used by
+# the auto-apply worker). Same mailbox as SMTP_USER; IMAP_PASSWORD falls back to the
+# SMTP app password because Gmail uses one app password for both.
+IMAP_HOST = os.environ.get("IMAP_HOST") or "imap.gmail.com"
+IMAP_PASSWORD = os.environ.get("IMAP_PASSWORD") or SMTP_PASSWORD
 # Default the envelope to the authenticated mailbox: for the single-user case they
 # are the same address, and most providers reject a From they do not own anyway.
 EMAIL_FROM = os.environ.get("EMAIL_FROM") or os.environ.get("SMTP_USER")
