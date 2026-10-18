@@ -229,3 +229,18 @@ def test_helpers_are_non_fatal_on_errors(monkeypatch):
     assert supabase_utils.reset_stale_auto_apply(5) == 0
     assert supabase_utils.get_auto_apply_questions() == []
     assert supabase_utils.get_queued_auto_apply() == []
+
+
+def test_get_job_for_auto_apply_selects_apply_fields(monkeypatch):
+    db = _install(monkeypatch, [_row("a", "queued", apply_url="https://x/apply", ats_type="lever")])
+    job = supabase_utils.get_job_for_auto_apply("a")
+    assert job["apply_url"] == "https://x/apply"
+    for col in ("description", "apply_url", "ats_type", "why_me_pitch", "score_breakdown",
+                "auto_apply_status"):
+        assert col in db.selects[-1]
+    assert supabase_utils.get_job_for_auto_apply("missing") is None
+
+    def boom(name):
+        raise Exception("down")
+    monkeypatch.setattr(supabase_utils.supabase, "table", boom)
+    assert supabase_utils.get_job_for_auto_apply("a") is None

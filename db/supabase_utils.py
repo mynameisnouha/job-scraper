@@ -1909,3 +1909,18 @@ def get_queued_auto_apply(limit: int = 50) -> list[dict]:
     except Exception as e:
         logging.error(f"Error fetching queued auto-apply jobs: {e}")
         return []
+
+
+def get_job_for_auto_apply(job_id: str) -> Optional[Dict[str, Any]]:
+    """The full row the auto-apply runner needs for one job.
+
+    get_job_with_description leaves out apply_url, ats_type and auto_apply_status,
+    which the bundle, the worker fence and the review step all depend on."""
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)                           .select("job_id, job_title, company, location, description, "
+                                   "job_url, apply_url, ats_type, resume_score, "
+                                   "score_breakdown, why_me_pitch, auto_apply_status")                           .eq("job_id", job_id)                           .limit(1)                           .execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        logging.error(f"Error fetching job {job_id} for auto-apply: {e}")
+        return None
