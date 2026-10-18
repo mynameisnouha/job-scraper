@@ -35,6 +35,7 @@ CASES = [
     ("applied", {"auto_apply_status": "applied"}, {}, True, False, "Already handled: applied"),
     ("dead", {"auto_apply_status": "dead"}, {}, True, False, "Already handled: dead"),
     ("email", {"auto_apply_status": "email"}, {}, True, False, "Already handled: email"),
+    ("unknown_state", {"auto_apply_status": "weird"}, {}, True, False, "Already handled: weird"),
     ("failed_requeue", {"auto_apply_status": "failed"}, {}, True, True, None),
     ("verify_requeue", {"auto_apply_status": "verify"}, {}, True, True, None),
     ("placeholder", {}, {"_unfilled": ["Salary", "Notice"]}, True, False,
@@ -55,3 +56,12 @@ def test_no_cv_route(monkeypatch):
     monkeypatch.setattr(eligibility, "choose_cv", lambda title: None)
     assert eligibility.check(base(), FILLED, lambda p: True) == (
         False, "No CV for this title: set CV_DEFAULT or CV_KEYWORD_ROUTES")
+
+
+def test_real_unfilled_answers(monkeypatch):
+    from review.application_pack import unfilled_answers
+    monkeypatch.setattr(eligibility, "unfilled_answers", unfilled_answers)
+    ok, reason = eligibility.check(base(), {"gehaltsvorstellung": "<e.g. 55.000 EUR>"},
+                                   lambda p: True)
+    assert not ok
+    assert reason.startswith("Fill in application_answers.json: ")

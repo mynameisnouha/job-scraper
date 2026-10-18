@@ -21,7 +21,7 @@ LINK_CHUNK = 150
 AUTO_APPLY_COLUMNS = "auto_apply_status, auto_apply_reason, auto_apply_updated_at, auto_apply_cost_usd"
 AUTO_APPLY_STATUSES = config.AUTO_APPLY_STATUSES
 # States the owner may queue again from; a running/applied/dead job is never re-queued.
-AUTO_APPLY_REQUEUEABLE = ("ready_to_submit", "verify", "failed")
+AUTO_APPLY_REQUEUEABLE = tuple(sorted(config.AUTO_APPLY_REQUEUE_STATES))  # sorted: stable query text
 
 # --- Supabase Functions ---
 def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:

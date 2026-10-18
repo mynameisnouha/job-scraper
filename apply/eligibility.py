@@ -31,8 +31,9 @@ def check(job: dict, answers: dict,
     state = job.get("auto_apply_status")
     if state in ("queued", "running"):
         return False, "Already queued or running"
-    # ready_to_submit / verify / failed are deliberately allowed: the click retries.
-    if state in ("applied", "dead", "email"):
+    # Only the requeue states (ready_to_submit / verify / failed) pass: the click
+    # retries them. Anything else, known or not, is treated as handled.
+    if state and state not in config.AUTO_APPLY_REQUEUE_STATES:
         return False, f"Already handled: {state}"
     unfilled = unfilled_answers(answers or {})
     if unfilled:
