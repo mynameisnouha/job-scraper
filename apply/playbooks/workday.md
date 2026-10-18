@@ -32,5 +32,5 @@ for (const btn of await page.getByRole('button', { name: /Select One/ }).all()) 
 ```
 
 Genuine dead end only after all of the above: the "How Did You Hear" list is empty, a selection reverts to
-"0 items selected" on blur, or final submit fires no network request (`browser_network_requests`). Then
+"0 items selected" on blur, or Save and Continue fires no network request (`browser_network_requests`). Then
 `VERIFY|url|workday form cannot be completed`.

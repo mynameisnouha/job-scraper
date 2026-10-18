@@ -25,3 +25,9 @@ def test_no_easy_apply_or_tracker_content():
     for ats in playbooks.ALL_ATS + ("_common",):
         text = open(playbooks._path(ats), encoding="utf-8").read().lower()
         assert "easy apply" not in text and "tracker" not in text
+
+
+def test_all_ats_is_the_expected_set():
+    assert set(playbooks.ALL_ATS) == {
+        "workday", "greenhouse", "ashby", "lever", "successfactors", "icims",
+        "teamtailor", "join", "personio", "smartrecruiters", "other"}

@@ -9,4 +9,4 @@ Read `_common.md` first. This ATS never auto-submits: fill everything, then stop
 - Upload with `browser_file_upload`; verify the filename appears.
 - Screening questions are often yes/no with knock-out logic: answer honestly from `answers.json`. A knock-out on an
   honest answer is `VERIFY|url|<question>?`.
-- An "already applied" notice: report `APPLIED|url|already applied`.
+- An "already applied" notice is not a confirmation: report `VERIFY|url|possible prior application`.
