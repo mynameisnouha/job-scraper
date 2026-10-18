@@ -92,3 +92,31 @@ class TestAutoApplyConfig:
         assert config._find_claude_bin() == "/a/new.exe"
         monkeypatch.setattr(config.glob, "glob", lambda p: [])
         assert config._find_claude_bin() == "claude"
+
+
+class _Stream:
+    def __init__(self):
+        self.calls = []
+
+    def reconfigure(self, **kw):
+        self.calls.append(kw)
+
+
+def test_console_streams_are_switched_to_utf8():
+    out, err = _Stream(), _Stream()
+    config._utf8_console((out, err))
+    assert out.calls == err.calls == [{"encoding": "utf-8", "errors": "replace"}]
+
+
+def test_streams_without_reconfigure_are_left_alone():
+    config._utf8_console((object(), None))  # pytest capture objects, closed streams
+
+
+def test_a_cp1252_pipe_no_longer_crashes_on_unicode():
+    import io
+    raw = io.BytesIO()
+    pipe = io.TextIOWrapper(raw, encoding="cp1252")
+    config._utf8_console((pipe,))
+    pipe.write("café � → done")
+    pipe.flush()
+    assert raw.getvalue().decode("utf-8") == "café � → done"

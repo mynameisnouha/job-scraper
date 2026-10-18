@@ -1144,7 +1144,7 @@ def find_employer_link(job):
     API does not run inside Streamlit's event loop) and report what it found."""
     try:
         result = subprocess.run([sys.executable, "-m", "apply.resolve_link", str(job.get("job_id"))],
-                                capture_output=True, text=True, timeout=180,
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
                                 cwd=os.path.dirname(os.path.abspath(__file__)))
     except subprocess.TimeoutExpired:
         st.error("The browser took too long. Try again, or open the posting by hand.")

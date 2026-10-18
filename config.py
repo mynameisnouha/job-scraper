@@ -8,9 +8,26 @@ explained in the Configuration section of README.md.
 import glob
 import os
 import shutil
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _utf8_console(streams) -> None:
+    """Write console output as UTF-8.
+
+    On Windows, output that is piped or captured (Streamlit, Task Scheduler, a
+    subprocess, `| tee`) is encoded as cp1252, and one character outside it in a
+    job title or description — "→", "�" — raises UnicodeEncodeError and kills
+    the run. Every entry point imports config, so switching here covers them all.
+    """
+    for stream in streams:
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+_utf8_console((sys.stdout, sys.stderr))
 
 
 def _int_env(name: str, default: int) -> int:
