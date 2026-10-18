@@ -34,3 +34,14 @@ if "google.genai" not in sys.modules:
 # Ensure supabase has create_client
 sys.modules["supabase"].create_client = MagicMock()
 sys.modules["supabase"].Client = MagicMock()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolated_apply_documents(tmp_path, monkeypatch):
+    """Keep the owner's real uploaded CV (apply_documents.json) out of every test."""
+    from apply import documents
+    monkeypatch.setattr(documents, "SETTINGS_PATH", str(tmp_path / "apply_documents.json"))
+    monkeypatch.setattr(documents, "DOCUMENTS_DIR", str(tmp_path / "cv"))

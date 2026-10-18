@@ -113,3 +113,15 @@ def test_bad_job_id_never_deletes_outside(setup, bad):
     with pytest.raises(bundle.BundleError):
         bundle.build(make_job(job_id=bad), str(work), env={})
     assert keep.exists() and (setup / "me.pdf").exists()
+
+
+def test_uploaded_cv_and_letter_are_the_fallback(setup, monkeypatch):
+    from apply import documents
+    monkeypatch.setattr(application_pack, "choose_cv", lambda title: None)
+    documents.save_upload("cv", "mine.pdf", b"%PDF uploaded")
+    documents.save_upload("cover_letter", "letter.docx", b"PK letter")
+    out = bundle.build(make_job(), str(setup / "work"))
+    data = json.load(open(os.path.join(out, "job.json"), encoding="utf-8"))
+    assert open(data["files"]["cv"], "rb").read() == b"%PDF uploaded"
+    assert data["files"]["generic_cover_letter"].endswith("generic_cover_letter.docx")
+    assert open(data["files"]["generic_cover_letter"], "rb").read() == b"PK letter"

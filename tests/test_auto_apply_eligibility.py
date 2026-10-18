@@ -3,6 +3,7 @@ import pytest
 from apply import eligibility
 
 FILLED = {"salary_expectation": "70000"}
+NO_CV = "No CV yet: upload one on the Set up page"
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +42,7 @@ CASES = [
     ("placeholder", {}, {"_unfilled": ["Salary", "Notice"]}, True, False,
      "Fill in application_answers.json: Salary"),
     ("no_cv_file", {}, {}, False, False,
-     "No CV for this title: set CV_DEFAULT or CV_KEYWORD_ROUTES"),
+     NO_CV),
 ]
 
 
@@ -55,7 +56,13 @@ def test_check(name, job_over, answers_over, cv_ok, ok, reason):
 def test_no_cv_route(monkeypatch):
     monkeypatch.setattr(eligibility, "choose_cv", lambda title: None)
     assert eligibility.check(base(), FILLED, lambda p: True) == (
-        False, "No CV for this title: set CV_DEFAULT or CV_KEYWORD_ROUTES")
+        False, NO_CV)
+
+
+def test_uploaded_cv_is_used_when_no_route_matches(monkeypatch):
+    monkeypatch.setattr(eligibility, "choose_cv", lambda title: None)
+    monkeypatch.setattr(eligibility.documents, "generic_cv", lambda: "cv/generic_cv.pdf")
+    assert eligibility.check(base(), FILLED, lambda p: p == "cv/generic_cv.pdf") == (True, None)
 
 
 def test_real_unfilled_answers(monkeypatch):

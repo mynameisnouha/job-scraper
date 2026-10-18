@@ -906,6 +906,24 @@ class TestSetupPage:
         assert "Supabase settings" in text and "Profile saved" in text
         assert setup_app.button("onb_read").disabled  # nothing uploaded yet
 
+    def test_auto_apply_documents_section_with_nothing_uploaded(self, setup_app):
+        setup_app.run()
+        assert not setup_app.exception
+        assert "Documents for Auto apply" in markdown_text(setup_app)
+        captions = [c.value for c in setup_app.caption]
+        assert "CV: none uploaded yet" in captions
+        assert "Cover letter: none uploaded yet" in captions
+
+    def test_auto_apply_documents_section_names_the_files_in_use(self, setup_app):
+        from apply import documents
+        documents.save_upload("cv", "My CV.pdf", b"%PDF")
+        documents.save_upload("cover_letter", "Anschreiben.docx", b"PK")
+        setup_app.run()
+        assert not setup_app.exception
+        captions = [c.value for c in setup_app.caption]
+        assert "CV in use: My CV.pdf" in captions
+        assert "Cover letter in use: Anschreiben.docx" in captions
+
     def test_questions_combine_the_models_and_the_fallbacks(self, setup_app):
         from tests.onboarding_samples import make_draft
         setup_app.session_state["onb_draft"] = make_draft()

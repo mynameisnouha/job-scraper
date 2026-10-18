@@ -8,6 +8,7 @@ import os
 from typing import Callable, Optional
 
 import config
+from apply import documents
 from review.application_pack import choose_cv, unfilled_answers
 
 
@@ -40,7 +41,7 @@ def check(job: dict, answers: dict,
     unfilled = unfilled_answers(answers or {})
     if unfilled:
         return False, f"Fill in application_answers.json: {unfilled[0]}"
-    cv = choose_cv(job.get("job_title"))
+    cv = choose_cv(job.get("job_title")) or documents.generic_cv()
     if not cv or not cv_exists(cv):
-        return False, "No CV for this title: set CV_DEFAULT or CV_KEYWORD_ROUTES"
+        return False, "No CV yet: upload one on the Set up page"
     return True, None

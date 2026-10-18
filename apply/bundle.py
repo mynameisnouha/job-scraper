@@ -11,7 +11,7 @@ import shutil
 from typing import Mapping, Optional
 
 import config
-from apply import playbooks
+from apply import documents, playbooks
 from review import application_pack
 from tailor import store
 
@@ -50,7 +50,7 @@ def build(job: dict, work_root: str, env: Mapping[str, str] = os.environ,
     description = (job.get("description") or "").strip()
     if not description:
         raise BundleError("job description missing")
-    cv_src = application_pack.choose_cv(job.get("job_title"))
+    cv_src = application_pack.choose_cv(job.get("job_title")) or documents.generic_cv()
     if not cv_src or not os.path.isfile(cv_src):
         raise BundleError(f"CV missing: {cv_src}")
 
@@ -71,7 +71,7 @@ def build(job: dict, work_root: str, env: Mapping[str, str] = os.environ,
             fh.write(letter)
 
     generic_path = None
-    generic_src = config.GENERIC_COVER_LETTER_PATH
+    generic_src = config.GENERIC_COVER_LETTER_PATH or documents.generic_cover_letter()
     if generic_src and os.path.isfile(generic_src):
         ext = os.path.splitext(generic_src)[1]
         generic_path = os.path.join(bundle, f"generic_cover_letter{ext}")

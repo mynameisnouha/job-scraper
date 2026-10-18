@@ -213,7 +213,8 @@ One-time setup:
    - `ATS_EMAIL`, `ATS_PASSWORD`: an email and a password used only for job portals. Make the password unique.
    - `IMAP_PASSWORD`: a Gmail app password, used to read confirmation codes. Falls back to `SMTP_PASSWORD`.
    - `CLAUDE_BIN`: path to `claude.exe`, if it is not found automatically.
-   - `GENERIC_COVER_LETTER_PATH` (optional): a cover letter file for forms that ask for one.
+   - `GENERIC_COVER_LETTER_PATH` (optional): a cover letter file for forms that ask for one. Overrides the one uploaded in step 4.
+4. On the **Set up** page, under **Documents for Auto apply**, upload your CV (PDF) and optionally a cover letter (PDF, DOCX or TXT). They are used when a job has no tailored CV or letter, and are stored in `cv/` (not committed).
 
 Usage:
 

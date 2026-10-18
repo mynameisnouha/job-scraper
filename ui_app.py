@@ -36,6 +36,7 @@ from tailor import loop as tailor_loop
 from tailor import settings as tailor_settings
 from tailor import store as tailor_store
 from tailor import documents as tailor_documents
+from apply import documents as apply_documents
 from apply import eligibility
 from db import supabase_utils
 from onboarding import build as onboarding_build
@@ -2788,6 +2789,33 @@ def render_setup_done():
             st.rerun()
 
 
+def render_setup_documents():
+    """The fallback CV and cover letter for Auto apply. A tailored one for a job
+    still wins; these go out when there is none."""
+    with st.container(border=True):
+        html(T.kicker("Documents for Auto apply", T.PURPLE[700]))
+        st.caption("Uploaded when a job has no tailored CV or letter. Kept in cv/ on "
+                   "this computer and never committed.")
+        cols = st.columns(2)
+        for col, kind, label in ((cols[0], "cv", "CV"), (cols[1], "cover_letter", "Cover letter")):
+            with col:
+                name = apply_documents.display_name(kind)
+                st.caption(f"{label} in use: {name}" if name else f"{label}: none uploaded yet")
+                upload = st.file_uploader(
+                    f"{'Replace' if name else 'Upload'} {label.lower()}",
+                    type=[ext.lstrip(".") for ext in apply_documents.ALLOWED[kind]],
+                    key=f"doc_upload_{kind}")
+                if upload is not None and st.button(f"Save {label.lower()}",
+                                                    key=f"doc_save_{kind}", width="stretch"):
+                    try:
+                        apply_documents.save_upload(kind, upload.name, upload.getvalue())
+                    except (ValueError, OSError) as e:
+                        st.error(f"Could not save the {label.lower()}: {e}")
+                    else:
+                        flash_saved(f"{label} saved: {upload.name}")
+                        st.rerun()
+
+
 def render_setup_page():
     html(T.page_header("Set up", "Upload your CV and answer a few questions. One cheap "
                                  "model call reads the CV; the rest comes from your answers."))
@@ -2797,6 +2825,7 @@ def render_setup_page():
     render_setup_strip(checks)
     draft = current_draft()
     render_setup_upload(draft, can_call=all(c.ok for c in checks[:3]))
+    render_setup_documents()
     if draft is None:
         return
     step = st.session_state.get("onb_step", "questions")
