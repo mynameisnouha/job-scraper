@@ -8,7 +8,7 @@ Read `_common.md` first. Workday never auto-submits: fill everything, then stop 
   empty and buttons do nothing.
 - Prefer "Autofill with Resume", then fix: name in ALL CAPS, phone with a duplicated country code, missing
   company or location on jobs, empty school or degree, duplicated education entries.
-- Commit buttons (Sign In, Create Account, Save and Continue, Submit): click the
+- Commit buttons (Sign In, Create Account, Save and Continue): click the
   `[data-automation-id="click_filter"]` overlay, not the visible `aria-hidden` button.
 - Stuck comboboxes: dispatch a full `pointerdown/mousedown/pointerup/mouseup/click` sequence at the element.
 - Fields look filled but "Save and Continue" does nothing: retype them with `browser_type` and `slowly: true`.

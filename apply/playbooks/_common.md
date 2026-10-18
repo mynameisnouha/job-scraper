@@ -53,7 +53,7 @@ Never write any cover letter or motivation text yourself.
 1. A tailored letter exists (`files.cover_letter`, the absolute path of `cover_letter.txt`): paste it into the text box, or upload the `.txt` where a file is accepted. An
    upload-only field that refuses `.txt`: stop `READY` with reason `cover letter needs PDF upload`.
 2. No tailored letter and the field is optional: leave it empty.
-3. No tailored letter and the field is required: upload `files.generic_cover_letter` if set. Otherwise stop `READY`
+3. No tailored letter and a required upload field: upload `files.generic_cover_letter` if set. Otherwise stop `READY`
    with reason `cover letter required`.
 4. A required cover-letter text box with no tailored letter (the generic letter is a file) also stops `READY` with
    `cover letter required`.
