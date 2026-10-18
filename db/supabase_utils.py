@@ -18,6 +18,10 @@ supabase: Client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_RO
 OPTIONAL_JOB_COLUMNS = ("program_type", "apply_url", "ats_type", "linkedin_apply_mode", "company_id")
 LINK_COLUMNS = "job_id, apply_url, ats_type, linkedin_apply_mode"
 LINK_CHUNK = 150
+AUTO_APPLY_COLUMNS = "auto_apply_status, auto_apply_reason, auto_apply_updated_at, auto_apply_cost_usd"
+AUTO_APPLY_STATUSES = ("queued", "running", "applied", "ready_to_submit", "verify", "dead", "email", "failed")
+# States the owner may queue again from; a running/applied/dead job is never re-queued.
+AUTO_APPLY_REQUEUEABLE = ("ready_to_submit", "verify", "failed")
 
 # --- Supabase Functions ---
 def get_existing_jobs_from_supabase(batch_size: int = 1000) -> tuple[set, set]:
@@ -323,27 +327,46 @@ def get_top_scored_jobs_to_apply(limit: int) -> list:
         return []
 
 def attach_apply_links(jobs: list) -> list:
-    """Add apply_url / ats_type / linkedin_apply_mode to queue rows, in place.
+    """Add apply_url / ats_type / linkedin_apply_mode and the auto_apply_* state
+    to queue rows, in place.
 
     A separate query so the queue keeps loading before add_apply_url.sql has been
     run: then this logs once and the jobs come back without links, and `o` opens
-    the posting as it always did."""
+    the posting as it always did. If only add_auto_apply.sql is missing, the links
+    still load and every job gets auto_apply_missing=True so the UI can say why
+    Auto apply is unavailable."""
     if not jobs:
         return jobs
     ids = [job["job_id"] for job in jobs if job.get("job_id")]
-    links = {}
-    try:
+
+    def fetch(columns: str) -> dict:
+        found = {}
         # Chunked: hundreds of ids in one GET can exceed URL length limits.
         for start in range(0, len(ids), LINK_CHUNK):
             response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                               .select(LINK_COLUMNS)\
+                               .select(columns)\
                                .in_("job_id", ids[start:start + LINK_CHUNK])\
                                .execute()
-            links.update({row["job_id"]: row for row in response.data or []})
+            found.update({row["job_id"]: row for row in response.data or []})
+        return found
+
+    auto_apply_missing = False
+    try:
+        links = fetch(f"{LINK_COLUMNS}, {AUTO_APPLY_COLUMNS}")
     except Exception as e:
-        logging.warning(f"Apply links unavailable (run supabase_setup/add_apply_url.sql?): {e}")
-        return jobs
+        if "auto_apply_" not in str(e):
+            logging.warning(f"Apply links unavailable (run supabase_setup/add_apply_url.sql?): {e}")
+            return jobs
+        logging.warning(f"Auto-apply columns unavailable (run supabase_setup/add_auto_apply.sql?): {e}")
+        auto_apply_missing = True
+        try:
+            links = fetch(LINK_COLUMNS)
+        except Exception as e2:
+            logging.warning(f"Apply links unavailable (run supabase_setup/add_apply_url.sql?): {e2}")
+            links = {}
     for job in jobs:
+        if auto_apply_missing:
+            job["auto_apply_missing"] = True
         row = links.get(job.get("job_id"))
         if row:
             job.update({k: v for k, v in row.items() if k != "job_id"})
@@ -1746,3 +1769,143 @@ def set_apply_url(job_id: str, apply_url: str, ats_type: Optional[str]) -> bool:
     except Exception as e:
         logging.error(f"Error setting apply URL for {job_id}: {e}")
         return False
+
+
+# --- Auto-apply queue -------------------------------------------------------
+# Only the owner's per-job click queues; the laptop runner claims and finishes.
+# All helpers are non-fatal like their neighbours: log and return False/None/[]/0.
+
+def _now_iso() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def queue_auto_apply(job_id: str) -> bool:
+    """Queue a job for auto-apply. True only if a row changed.
+
+    The status filter lives in the UPDATE, not in a prior read, so a job the runner
+    already claimed (or finished) cannot be re-queued by a double click."""
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({"auto_apply_status": "queued",
+                                    "auto_apply_reason": None,
+                                    "auto_apply_updated_at": _now_iso()})\
+                           .eq("job_id", job_id)\
+                           .or_("auto_apply_status.is.null,auto_apply_status.in.(%s)"
+                                % ",".join(AUTO_APPLY_REQUEUEABLE))\
+                           .execute()
+        return bool(response.data)
+    except Exception as e:
+        logging.error(f"Error queueing auto-apply for {job_id}: {e}")
+        return False
+
+
+def claim_next_auto_apply(worker: str) -> Optional[dict]:
+    """Take the oldest queued job for this runner, or None.
+
+    Select then conditional update (.eq status queued): if two runners pick the same
+    candidate only one update changes a row. The loser tries the next candidate, a
+    few times, rather than reporting an empty queue."""
+    columns = "job_id, job_title, company, location, job_url, apply_url, ats_type, auto_apply_updated_at"
+    try:
+        for _ in range(5):
+            candidates = supabase.table(config.SUPABASE_TABLE_NAME)\
+                                 .select(columns)\
+                                 .eq("auto_apply_status", "queued")\
+                                 .order("auto_apply_updated_at", desc=False)\
+                                 .limit(1)\
+                                 .execute().data or []
+            if not candidates:
+                return None
+            row = candidates[0]
+            won = supabase.table(config.SUPABASE_TABLE_NAME)\
+                          .update({"auto_apply_status": "running",
+                                   "auto_apply_worker": worker,
+                                   "auto_apply_updated_at": _now_iso()})\
+                          .eq("job_id", row["job_id"])\
+                          .eq("auto_apply_status", "queued")\
+                          .execute().data
+            if won:
+                return row
+        return None
+    except Exception as e:
+        logging.error(f"Error claiming next auto-apply job: {e}")
+        return None
+
+
+def set_auto_apply_result(job_id: str, status: str, reason: Optional[str],
+                          cost_usd: Optional[float]) -> bool:
+    """Write the runner's outcome. On 'applied' also mark the job applied.
+
+    The auto_apply fields go first so the outcome is recorded even if the applied
+    bookkeeping fails; then False tells the runner something is off."""
+    if status not in AUTO_APPLY_STATUSES:
+        logging.error(f"Rejected auto-apply status {status!r} for {job_id}.")
+        return False
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({"auto_apply_status": status,
+                                    "auto_apply_reason": reason,
+                                    "auto_apply_cost_usd": cost_usd,
+                                    "auto_apply_updated_at": _now_iso()})\
+                           .eq("job_id", job_id)\
+                           .execute()
+        if not response.data:
+            logging.warning(f"Auto-apply result for {job_id} changed no rows.")
+            return False
+    except Exception as e:
+        logging.error(f"Error writing auto-apply result for {job_id}: {e}")
+        return False
+    if status == "applied":
+        if not mark_job_applied(job_id):
+            return False
+        update_application_stage(job_id, "applied")
+    return True
+
+
+def reset_stale_auto_apply(older_than_minutes: int) -> int:
+    """Fail 'running' rows the runner abandoned (crash, closed laptop). Returns the count."""
+    cutoff = (datetime.datetime.now(datetime.timezone.utc)
+              - datetime.timedelta(minutes=older_than_minutes)).isoformat()
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .update({"auto_apply_status": "failed",
+                                    "auto_apply_reason": "runner stopped before finishing",
+                                    "auto_apply_updated_at": _now_iso()})\
+                           .eq("auto_apply_status", "running")\
+                           .lt("auto_apply_updated_at", cutoff)\
+                           .execute()
+        return len(response.data or [])
+    except Exception as e:
+        logging.error(f"Error resetting stale auto-apply jobs: {e}")
+        return 0
+
+
+def get_auto_apply_questions(limit: int = 50) -> list[dict]:
+    """Jobs waiting on the owner: status 'verify' with a question in the reason."""
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select("job_id, job_title, company, auto_apply_reason")\
+                           .eq("auto_apply_status", "verify")\
+                           .like("auto_apply_reason", "%?%")\
+                           .order("auto_apply_updated_at", desc=True)\
+                           .limit(limit)\
+                           .execute()
+        return response.data or []
+    except Exception as e:
+        logging.error(f"Error fetching auto-apply questions: {e}")
+        return []
+
+
+def get_queued_auto_apply(limit: int = 50) -> list[dict]:
+    """Queued jobs, oldest first; what the runner's --dry-run lists."""
+    try:
+        response = supabase.table(config.SUPABASE_TABLE_NAME)\
+                           .select("job_id, job_title, company, apply_url, ats_type, auto_apply_updated_at")\
+                           .eq("auto_apply_status", "queued")\
+                           .order("auto_apply_updated_at", desc=False)\
+                           .limit(limit)\
+                           .execute()
+        return response.data or []
+    except Exception as e:
+        logging.error(f"Error fetching queued auto-apply jobs: {e}")
+        return []
