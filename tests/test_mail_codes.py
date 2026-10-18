@@ -1,4 +1,5 @@
 import asyncio
+from email.utils import format_datetime
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -60,3 +61,92 @@ def test_server_exposes_exactly_one_tool():
     server = mail_codes.build_server(["greenhouse.io"])
     tools = asyncio.run(server.list_tools())
     assert [t.name for t in tools] == ["get_verification_code"]
+
+
+G = ["greenhouse.io"]
+
+
+def test_authenticated_dkim_aligned():
+    assert mail_codes.authenticated(
+        "mx.google.com; dkim=pass header.i=@mail.greenhouse.io header.s=x", G)
+
+
+def test_authenticated_dkim_other_domain_only():
+    assert not mail_codes.authenticated(
+        "mx.google.com; dkim=pass header.d=sendgrid.net", G)
+
+
+def test_authenticated_spf_pass_and_fail():
+    assert mail_codes.authenticated(
+        "mx; spf=pass smtp.mailfrom=bounce@greenhouse.io", G)
+    assert not mail_codes.authenticated(
+        "mx; spf=fail smtp.mailfrom=bounce@greenhouse.io", G)
+
+
+def test_authenticated_missing_header():
+    assert not mail_codes.authenticated("", G)
+
+
+def test_tracking_host_link_not_returned():
+    assert extract_code("s", "https://u123.ct.sendgrid.net/verify?x=1", G) is None
+
+
+def test_unsubscribe_link_not_returned_and_code_wins():
+    body = "https://greenhouse.io/unsubscribe?token=abc\nYour code is 654321"
+    assert extract_code("s", body, G) == "654321"
+
+
+def test_zipcode_not_a_code():
+    assert extract_code("s", "zipcode 12345") is None
+
+
+def test_display_name_spoof_rejected():
+    m = [msg('"greenhouse.io" <x@evil.com>', "s", "Your code is 123456")]
+    assert find_code(m, G, SINCE) is None
+
+
+def test_uppercase_sender_accepted():
+    m = [msg("A@GREENHOUSE.IO", "s", "Your code is 123456")]
+    assert find_code(m, G, SINCE) == "123456"
+
+
+def test_huge_since_minutes_returns_none(monkeypatch):
+    monkeypatch.setattr(mail_codes, "fetch_messages", lambda s, d: [])
+    assert mail_codes.get_code(G, 10**12) == "none"
+
+
+class FakeIMAP:
+    """Message 1 passes DKIM for greenhouse.io; message 2 fails it."""
+
+    def __init__(self, host):
+        pass
+
+    def login(self, user, password):
+        pass
+
+    def select(self, box, readonly=False):
+        assert readonly
+
+    def search(self, *args):
+        return "OK", [b"1 2"]
+
+    def fetch(self, num, spec):
+        good = num == b"1"
+        auth = "mx.google.com; dkim=pass header.d=greenhouse.io" if good \
+            else "mx.google.com; dkim=fail header.d=greenhouse.io"
+        code = "111111" if good else "999999"
+        date = format_datetime(datetime.now(timezone.utc))
+        raw = (f"From: Greenhouse <no-reply@greenhouse.io>\r\n"
+               f"Subject: Hi\r\nAuthentication-Results: {auth}\r\n"
+               f"Date: {date}\r\n\r\nYour code is {code}\r\n").encode()
+        return "OK", [(b"1 (BODY[])", raw)]
+
+    def logout(self):
+        pass
+
+
+def test_fake_imap_fetch_parse_and_auth_filter(monkeypatch):
+    monkeypatch.setattr(mail_codes.imaplib, "IMAP4_SSL", FakeIMAP)
+    monkeypatch.setattr(mail_codes.config, "SMTP_USER", "me@x.test")
+    monkeypatch.setattr(mail_codes.config, "IMAP_PASSWORD", "pw")
+    assert mail_codes.get_code(G) == "111111"

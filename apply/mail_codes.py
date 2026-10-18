@@ -22,6 +22,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
+from urllib.parse import urlsplit
 
 import config
 
@@ -30,39 +31,73 @@ logger = logging.getLogger(__name__)
 NONE = "none"
 
 _URL = re.compile(r"https://[^\s<>\"')\]]+", re.IGNORECASE)
-_LINK_WORD = re.compile(r"verify|confirm|activate|token|code", re.IGNORECASE)
+_LINK_WORD = re.compile(r"verify|confirm|activate", re.IGNORECASE)
+# Mail footers carry tokenised unsubscribe/tracking links that would otherwise
+# look like verification links; never hand those to the worker.
+_LINK_BAD = re.compile(r"unsub|optout|opt-out|preferences|tracking", re.IGNORECASE)
 # A 4-8 digit code, or 6-8 alphanumerics containing a digit, shortly after a code
-# word ("Your code is 123456", "Bestätigungscode: AB12CD").
+# word ("Your code is 123456", "Bestätigungscode: AB12CD"). The leading \b keeps
+# "zipcode 12345" from matching.
 _CODE = re.compile(
-    r"(?:code|bestätigungscode|verification|otp|pin)\b"
+    r"\b(?:code|bestätigungscode|verification|otp|pin)\b"
     r"[^0-9A-Za-z]{0,10}(?:(?:is|ist|lautet)[^0-9A-Za-z]{0,10})?"
     r"(\d{4,8}|(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{6,8})(?![A-Za-z0-9])",
     re.IGNORECASE,
 )
+_DKIM = re.compile(r"dkim=pass\b[^;]*?header\.[di]=([^\s;]+)", re.IGNORECASE)
+_SPF = re.compile(r"spf=pass\b[^;]*?smtp\.mailfrom=([^\s;]+)", re.IGNORECASE)
 
 
-def extract_code(subject: str, body: str) -> Optional[str]:
-    """Return a verification link if present, else a code next to a code word."""
+def _domain_ok(domain: str, sender_domains: list) -> bool:
+    domain = domain.strip().lower().rstrip(".")
+    for d in sender_domains:
+        d = d.strip().lower().lstrip(".")
+        if d and domain and (domain == d or domain.endswith("." + d)):
+            return True
+    return False
+
+
+def extract_code(subject: str, body: str,
+                 link_domains: Optional[list] = None) -> Optional[str]:
+    """Return a verification link if present, else a code next to a code word.
+
+    With `link_domains`, a link counts only if its host is (a subdomain of) one
+    of them: a tracking host such as sendgrid.net must not reach the worker.
+    """
     text = f"{subject}\n{body}"
     for url in _URL.findall(text):
         url = url.rstrip(".,;")
-        # Judge path/query only: the host itself may contain "code" or "token".
+        # Judge path/query only: the host itself may contain "verify" etc.
         rest = url.split("/", 3)[3] if url.count("/") >= 3 else ""
-        if _LINK_WORD.search(rest):
-            return url
+        if not _LINK_WORD.search(rest) or _LINK_BAD.search(rest):
+            continue
+        if link_domains is not None:
+            if not _domain_ok(urlsplit(url).hostname or "", link_domains):
+                continue
+        return url
     m = _CODE.search(text)
     return m.group(1) if m else None
 
 
 def _sender_allowed(from_addr: str, sender_domains: list) -> bool:
     addr = email.utils.parseaddr(from_addr)[1]
-    domain = addr.rpartition("@")[2].strip().lower()
-    if not domain:
+    return _domain_ok(addr.rpartition("@")[2], sender_domains)
+
+
+def authenticated(auth_results: str, sender_domains: list) -> bool:
+    """True if the receiving server saw a passing DKIM or SPF for an allowed domain.
+
+    The From header is unauthenticated, so it alone proves nothing. Pass only the
+    topmost Authentication-Results header: the receiver adds it last, above any
+    lookalike header a sender planted.
+    """
+    if not auth_results:
         return False
-    for d in sender_domains:
-        d = d.strip().lower().lstrip(".")
-        if d and (domain == d or domain.endswith("." + d)):
-            return True
+    for rx in (_DKIM, _SPF):
+        for m in rx.finditer(auth_results):
+            ident = m.group(1).strip("<>\"'")
+            if _domain_ok(ident.rpartition("@")[2], sender_domains):
+                return True
     return False
 
 
@@ -73,7 +108,7 @@ def find_code(messages: Iterable, sender_domains: list,
           if m[3] >= since and _sender_allowed(m[0], sender_domains)]
     ok.sort(key=lambda m: m[3], reverse=True)
     for _from, subject, body, _date in ok:
-        found = extract_code(subject, body)
+        found = extract_code(subject, body, sender_domains)
         if found:
             return found
     return None
@@ -90,9 +125,10 @@ def _body_text(msg) -> str:
     return ""
 
 
-def fetch_messages(since: datetime) -> list:
+def fetch_messages(since: datetime, sender_domains: list) -> list:
     """Read INBOX read-only; return (from, subject, body, date) tuples.
 
+    Keeps only mail whose Authentication-Results authenticate an allowed domain.
     Returns [] (and logs) when credentials are missing or IMAP fails: the tool
     must answer "none", never raise into the worker.
     """
@@ -115,6 +151,9 @@ def fetch_messages(since: datetime) -> list:
                     continue
                 msg = email.message_from_bytes(parts[0][1],
                                                policy=email.policy.default)
+                if not authenticated(str(msg["Authentication-Results"] or ""),
+                                     sender_domains):
+                    continue
                 try:
                     date = email.utils.parsedate_to_datetime(msg["Date"])
                 except (TypeError, ValueError):
@@ -135,8 +174,16 @@ def fetch_messages(since: datetime) -> list:
 
 
 def get_code(sender_domains: list, since_minutes: int = 15) -> str:
-    since = datetime.now(timezone.utc) - timedelta(minutes=max(1, since_minutes))
-    return find_code(fetch_messages(since), sender_domains, since) or NONE
+    try:
+        # The worker controls this number; bound it so it cannot overflow or
+        # widen the window to the whole mailbox.
+        minutes = min(60, max(1, int(since_minutes)))
+        since = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        messages = fetch_messages(since, sender_domains)
+        return find_code(messages, sender_domains, since) or NONE
+    except Exception as e:  # noqa: BLE001 - the tool must never raise
+        logger.warning("mail_codes: lookup failed: %s", type(e).__name__)
+        return NONE
 
 
 def build_server(sender_domains: list):
