@@ -17,3 +17,4 @@ playwright==1.64.0
 markdownify==1.2.3
 reportlab==5.0.1
 pytest==9.1.1
+anthropic==1.15.0

@@ -542,3 +542,121 @@ class TestDescriptionIsData:
         assert out.lower().count("</job_description>") == 1
         assert out.endswith("\n</job_description>")
         assert not score_jobs._CLOSING_TAG.search(out[:-len("\n</job_description>")])
+
+
+class TestTitleSeniorityPrefilter:
+    """Rule 4 of the screen is a title check, so it runs in code before the model:
+    across five scheduled runs 55 of 289 screens failed on a seniority title and no
+    passing title matched. Each one was a Haiku call deciding a regex."""
+
+    @staticmethod
+    def _run(monkeypatch, jobs):
+        written, screened = {}, []
+
+        def fake_screen(job):
+            screened.append(job["job_id"])
+            return None
+
+        def capture(job_id, score, resume_score_stage=None, score_breakdown=None):
+            written[job_id] = dict(score_breakdown or {}, score=score)
+            return True
+
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score", lambda limit: jobs)
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai", fake_screen)
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", capture)
+        score_jobs.run_screening_phase()
+        return written, screened
+
+    def test_a_senior_title_is_screened_out_without_a_model_call(self, monkeypatch):
+        written, screened = self._run(monkeypatch, [
+            {"job_id": "j1", "job_title": "Senior AI & GenAI Architect (w/m/x)", "description": "x"},
+            {"job_id": "j2", "job_title": "Sr. Data Engineer", "description": "x"},
+            {"job_id": "j3", "job_title": "Head of Data", "description": "x"},
+        ])
+        assert screened == []
+        assert set(written) == {"j1", "j2", "j3"}
+        assert written["j1"]["screen_only"] is True
+        assert written["j1"]["recommendation"] == "skip"
+        assert written["j1"]["score"] <= 49
+
+    def test_ordinary_titles_still_reach_the_model(self, monkeypatch):
+        written, screened = self._run(monkeypatch, [
+            {"job_id": "j1", "job_title": "Member of Technical Staff", "description": "x"},
+            {"job_id": "j2", "job_title": "Data Scientist (Teamlead Analytics)", "description": "x"},
+            {"job_id": "j3", "job_title": "Product Manager AI", "description": "x"},
+        ])
+        assert screened == ["j1", "j2", "j3"]
+        assert written == {}
+
+    def test_a_programme_is_never_failed_on_its_title(self, monkeypatch):
+        # The screen prompt says rule 4 cannot fail a graduate programme.
+        written, screened = self._run(monkeypatch, [
+            {"job_id": "j1", "job_title": "Lead Graduate Programme Data", "description": "x",
+             "program_type": score_jobs.GRADUATE_PROGRAM},
+        ])
+        assert screened == ["j1"]
+
+
+class TestBatchedPhases:
+    """With batching on, a phase builds every request, sends them through
+    generate_many once, and post-processes exactly as the per-job path does."""
+
+    @staticmethod
+    def _batching(monkeypatch):
+        monkeypatch.setattr(config, "LLM_BATCH_ENABLED", True)
+        monkeypatch.setattr(score_jobs.screen_client, "model", "anthropic/claude-haiku-4-5")
+        monkeypatch.setattr(score_jobs.primary_client, "model", "anthropic/claude-sonnet-4-6")
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai",
+                            lambda job: (_ for _ in ()).throw(AssertionError("per-job screen used")))
+
+    def test_screening_goes_out_as_one_batch(self, monkeypatch):
+        self._batching(monkeypatch)
+        jobs = [{"job_id": "j1", "job_title": "Data Scientist", "description": "Python, ML"},
+                {"job_id": "j2", "job_title": "Senior Data Scientist", "description": "x"},
+                {"job_id": "j3", "job_title": "Accountant", "description": "Bilanz"}]
+        sent = []
+
+        def fake_many(requests):
+            sent.append(sorted(requests))
+            return {
+                "j1": '{"passes": true, "rough_score": 80, "reason": "fit", '
+                      '"german_required": "none", "jd_language": "en"}',
+                "j3": '{"passes": false, "rough_score": 10, "reason": "finance", '
+                      '"german_required": "unstated", "jd_language": "de"}',
+            }
+
+        written = {}
+
+        def capture(job_id, score, resume_score_stage=None, score_breakdown=None):
+            written[job_id] = score
+            return True
+
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score", lambda limit: jobs)
+        monkeypatch.setattr(score_jobs.screen_client, "generate_many", fake_many)
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", capture)
+        passers = score_jobs.run_screening_phase()
+
+        assert sent == [["j1", "j3"]]  # the senior title never reaches the model
+        assert [j["job_id"] for j in passers] == ["j1"]
+        assert written == {"j2": score_jobs.SENIOR_TITLE_SCORE, "j3": 10}
+
+    def test_every_screen_failing_still_falls_back(self, monkeypatch):
+        self._batching(monkeypatch)
+        jobs = [{"job_id": f"j{i}", "job_title": "Data Scientist", "description": "x"} for i in range(4)]
+        monkeypatch.setattr(config, "JOBS_TO_SCORE_PER_RUN", 2)
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score", lambda limit: jobs[:limit])
+        monkeypatch.setattr(score_jobs.screen_client, "generate_many",
+                            lambda requests: {k: None for k in requests})
+        passers = score_jobs.run_screening_phase()
+        assert [j["job_id"] for j in passers] == ["j0", "j1"]
+
+    def test_scoring_goes_out_as_one_batch(self, monkeypatch):
+        self._batching(monkeypatch)
+        jobs = [{"job_id": "j1", "job_title": "DS", "company": "A", "description": "Python"},
+                {"job_id": "j2", "job_title": "DS", "company": "B", "description": "Python"}]
+        sent = []
+        monkeypatch.setattr(score_jobs.primary_client, "generate_many",
+                            lambda requests: sent.append(sorted(requests)) or {k: None for k in requests})
+        out = score_jobs.score_many("resume", jobs)
+        assert sent == [["j1", "j2"]]
+        assert out == {"j1": None, "j2": None}

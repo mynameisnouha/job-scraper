@@ -16,11 +16,13 @@ Usage:
 """
 
 import os
+import json
 import time
 import random
 import logging
 import threading
-from typing import Optional, Sequence, Type, Union
+from types import SimpleNamespace
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import litellm
 from pydantic import BaseModel
@@ -237,8 +239,7 @@ class LLMClient:
         messages = []
 
         if system_prompt:
-            blocks = [system_prompt] if isinstance(system_prompt, str) else list(system_prompt)
-            blocks = [b for b in blocks if b]  # empty text blocks cannot be cached
+            blocks = self._system_blocks(system_prompt)
             if cache_system:
                 # Anthropic prompt caching: the scoring rubric and resume are
                 # byte-identical on every call in a run, so paying full input
@@ -376,6 +377,139 @@ class LLMClient:
         failed_model = current_model if 'current_model' in locals() else model
         logger.error(f"All {max_attempts} attempts failed for model {failed_model}")
         raise last_exception
+
+    @staticmethod
+    def _system_blocks(system_prompt: Union[str, Sequence[str]]) -> list:
+        blocks = [system_prompt] if isinstance(system_prompt, str) else list(system_prompt)
+        return [b for b in blocks if b]  # empty text blocks cannot be cached
+
+    # --- Message Batches ---------------------------------------------------
+
+    def batch_applies(self) -> bool:
+        """Whether generate_many sends a Message Batch rather than one call per request."""
+        return bool(getattr(config, "LLM_BATCH_ENABLED", False)) and self.model.startswith("anthropic/")
+
+    def generate_many(self, requests: Dict[str, Dict[str, Any]]) -> Dict[str, Optional[str]]:
+        """
+        Run several generate_content calls, as one Message Batch when batching applies.
+
+        Each value holds generate_content's keyword arguments; the result maps the
+        same keys to the text generate_content would have returned, or None when
+        the request failed every way. Anything the batch did not deliver (errored,
+        cancelled at the deadline, or the batch could not be created at all) is run
+        through generate_content, so batching can cost the discount but never a result.
+        """
+        results: Dict[str, Optional[str]] = {}
+        if requests and self.batch_applies():
+            try:
+                results = self._run_batch(requests)
+            except Exception as e:  # noqa: BLE001 — the synchronous path below is the fallback
+                logger.error(f"Message batch failed, running {len(requests)} request(s) synchronously: {e}")
+                results = {}
+
+        for key, request in requests.items():
+            if results.get(key) is not None:
+                continue
+            try:
+                results[key] = self.generate_content(**request)
+            except Exception as e:  # noqa: BLE001 — one failed request must not end the phase
+                logger.error(f"LLM request {key} failed: {e}")
+                results[key] = None
+        return results
+
+    def _batch_client(self):
+        import anthropic
+
+        # Same rule as generate_content: pass LLM_API_KEY only when it is an
+        # Anthropic key, otherwise let the SDK read ANTHROPIC_API_KEY.
+        key = self.api_key if self.api_key and self._key_matches_provider(self.model) else None
+        return anthropic.Anthropic(api_key=key)
+
+    def _batch_params(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """generate_content's arguments as native Messages API params."""
+        model = request.get("model_override") or self.model
+        params: Dict[str, Any] = {
+            "model": model.split("/", 1)[1] if model.startswith("anthropic/") else model,
+            "max_tokens": getattr(config, "LLM_BATCH_MAX_TOKENS", 8192),
+            "temperature": request.get("temperature", 1),
+            "messages": [{"role": "user", "content": request["prompt"]}],
+        }
+        system_prompt = request.get("system_prompt")
+        if system_prompt:
+            cache = {"cache_control": {"type": "ephemeral"}} if request.get("cache_system") else {}
+            params["system"] = [{"type": "text", "text": text, **cache}
+                                for text in self._system_blocks(system_prompt)]
+        response_format = request.get("response_format")
+        if response_format is not None:
+            params["tools"] = [{
+                "name": "structured_output",
+                "description": "Return the structured response",
+                "input_schema": response_format.model_json_schema(),
+            }]
+            params["tool_choice"] = {"type": "tool", "name": "structured_output"}
+        return params
+
+    def _run_batch(self, requests: Dict[str, Dict[str, Any]]) -> Dict[str, Optional[str]]:
+        """Submit, poll to the deadline, cancel if late. Returns the succeeded texts."""
+        self._check_daily_budget()
+        batches = self._batch_client().messages.batches
+        keys = list(requests)
+        # Positional ids: custom_id allows only [a-zA-Z0-9_-]{1,64}, job ids do not promise that.
+        batch = batches.create(requests=[
+            {"custom_id": f"r{i}", "params": self._batch_params(requests[key])}
+            for i, key in enumerate(keys)
+        ])
+        started = time.monotonic()
+        deadline = started + getattr(config, "LLM_BATCH_DEADLINE_MINUTES", 60) * 60
+        poll = getattr(config, "LLM_BATCH_POLL_SECONDS", 60)
+        logger.info(f"Message batch {batch.id}: {len(keys)} request(s) to {self.model}")
+
+        while batches.retrieve(batch.id).processing_status != "ended":
+            if time.monotonic() >= deadline:
+                logger.warning(f"Message batch {batch.id} missed its deadline; cancelling, "
+                               f"the unfinished requests run synchronously.")
+                batches.cancel(batch.id)
+                # Results are readable only once the batch has ended; cancelling
+                # usually settles within seconds. If it does not, sync everything.
+                for _ in range(10):
+                    time.sleep(min(poll, 30))
+                    if batches.retrieve(batch.id).processing_status == "ended":
+                        break
+                else:
+                    return {}
+                break
+            time.sleep(poll)
+
+        out: Dict[str, Optional[str]] = {}
+        for entry in batches.results(batch.id):
+            if entry.result.type != "succeeded":
+                continue
+            index = int(entry.custom_id[1:])
+            message = entry.result.message
+            self._daily_count += 1
+            usage = message.usage
+            read = getattr(usage, "cache_read_input_tokens", 0) or 0
+            written = getattr(usage, "cache_creation_input_tokens", 0) or 0
+            # Same line shape as the synchronous calls, so the log greps keep working.
+            # Anthropic's input_tokens excludes cached tokens; litellm's prompt_tokens does not.
+            self._log_usage(SimpleNamespace(usage=SimpleNamespace(
+                prompt_tokens=usage.input_tokens + read + written,
+                completion_tokens=usage.output_tokens,
+                cache_read_input_tokens=read,
+                cache_creation_input_tokens=written,
+            )), cache_system=bool(requests[keys[index]].get("cache_system")))
+            out[keys[index]] = self._message_text(message)
+        logger.info(f"Message batch {batch.id}: {len(out)} of {len(keys)} succeeded "
+                    f"in {time.monotonic() - started:.0f}s")
+        return out
+
+    @staticmethod
+    def _message_text(message) -> str:
+        """The tool arguments as JSON when the model answered with the tool, else its text."""
+        for block in message.content:
+            if block.type == "tool_use":
+                return json.dumps(block.input)
+        return "".join(getattr(b, "text", "") for b in message.content if b.type == "text").strip()
 
 
 def _create_client(

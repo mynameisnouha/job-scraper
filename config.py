@@ -94,6 +94,17 @@ JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 100)
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
+# --- Message Batches (anthropic/* models only) ---
+# Screening and initial scoring go out as one batch each: half the price of every
+# token, same model, same prompt. Batches promise 24 h, not minutes, so each one
+# gets a deadline; whatever has not finished by then is cancelled and run the
+# ordinary way. Scrape (~30 min) + two batches at 60 min keeps every job scored
+# within 3 h of the run starting, at the cost of the discount on a slow day.
+LLM_BATCH_ENABLED = _bool_env("LLM_BATCH_ENABLED", True)
+LLM_BATCH_DEADLINE_MINUTES = _int_env("LLM_BATCH_DEADLINE_MINUTES", 60)
+LLM_BATCH_POLL_SECONDS = _int_env("LLM_BATCH_POLL_SECONDS", 60)
+LLM_BATCH_MAX_TOKENS = 8192  # longest observed score is ~2.3k tokens
+
 # --- Search Configuration ---
 
 # --- Graduate / trainee programmes ---

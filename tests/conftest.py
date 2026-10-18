@@ -40,6 +40,14 @@ import pytest  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
+def _no_message_batches(monkeypatch):
+    """Batching off unless a test turns it on: a batch polls for minutes, and the
+    per-job path is the one most tests patch."""
+    import config
+    monkeypatch.setattr(config, "LLM_BATCH_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def _isolated_apply_documents(tmp_path, monkeypatch):
     """Keep the owner's real uploaded CV (apply_documents.json) out of every test."""
     from apply import documents

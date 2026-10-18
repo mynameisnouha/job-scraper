@@ -303,11 +303,31 @@ def wrap_untrusted(text: str) -> str:
     return "<job_description>\n" + text + "\n</job_description>"
 
 
-def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
+# Rule 4 of the screen, applied in code before the model is asked. Across five
+# scheduled runs 55 of 289 screens failed on a title this matches and no passing
+# title matched it, so each was a model call deciding a regex. Kept to words that
+# only ever name a level: "Staff" is a flat title at some AI labs and "Manager"
+# names non-senior roles, so both stay with the model.
+SENIOR_TITLE_RE = re.compile(r"\b(?:senior|principal|head of|lead)\b|\bsr\.", re.IGNORECASE)
+SENIOR_TITLE_SCORE = 15  # what the screen itself gave these titles
+
+
+def senior_title_reason(job: Dict[str, Any]) -> Optional[str]:
+    """The screen-out reason when the title alone fails rule 4, else None.
+
+    A graduate programme is never failed here: the screen prompt exempts
+    programmes from rule 4.
     """
-    Cheap fast-model screen: does this job clear the hard gates at all?
-    Returns a ScreenResult, or None if the call failed (job stays unscored and is retried next run).
-    """
+    if is_program(job):
+        return None
+    match = SENIOR_TITLE_RE.search(job.get("job_title") or "")
+    if not match:
+        return None
+    return f'Title says "{match.group(0)}" — fails rule 4 (seniority), decided by rule, no LLM call.'
+
+
+def build_screen_request(job_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The screen call's arguments for screen_client, or None when there is no description."""
     description = (job_details.get('description') or '')[:3000]
     if not description.strip():
         return None
@@ -371,16 +391,59 @@ Level (LinkedIn's broad category, not a requirement): {job_details.get('level', 
 
 {wrap_untrusted(description)}
 """
+    return {"prompt": prompt, "response_format": ScreenResult, "temperature": 0.0}
+
+
+def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
+    """
+    Cheap fast-model screen: does this job clear the hard gates at all?
+    Returns a ScreenResult, or None if the call failed (job stays unscored and is retried next run).
+    """
+    request = build_screen_request(job_details)
+    if request is None:
+        return None
     try:
-        result_text = screen_client.generate_content(
-            prompt=prompt,
-            response_format=ScreenResult,
-            temperature=0.0,
-        )
+        result_text = screen_client.generate_content(**request)
+    except Exception as e:
+        logging.error(f"Screening failed for job_id {job_details.get('job_id')}: {e}")
+        return None
+    return finish_screen(result_text, job_details)
+
+
+def finish_screen(result_text: Optional[str], job_details: Dict[str, Any]) -> Optional[ScreenResult]:
+    if result_text is None:
+        return None
+    try:
         return ScreenResult.model_validate_json(result_text)
     except Exception as e:
         logging.error(f"Screening failed for job_id {job_details.get('job_id')}: {e}")
         return None
+
+
+def screen_many(jobs: List[Dict[str, Any]]) -> Dict[str, Optional[ScreenResult]]:
+    """Screen every job through one generate_many call (a Message Batch when it applies)."""
+    by_id = {job["job_id"]: job for job in jobs}
+    requests = {}
+    for job_id, job in by_id.items():
+        request = build_screen_request(job)
+        if request is not None:
+            requests[job_id] = request
+    texts = screen_client.generate_many(requests)
+    return {job_id: finish_screen(texts.get(job_id), job) for job_id, job in by_id.items()}
+
+
+def score_many(resume_text: str, jobs: List[Dict[str, Any]]) -> Dict[str, Optional[ScoreBreakdown]]:
+    """Score every job through one generate_many call (a Message Batch when it applies)."""
+    requests = {}
+    for job in jobs:
+        request = build_score_request(resume_text, job)
+        if request is not None:
+            requests[job["job_id"]] = request
+    logging.info(f"Requesting {len(requests)} structured score(s) in one go")
+    texts = primary_client.generate_many(requests)
+    return {job["job_id"]: finish_score(texts.get(job["job_id"]), requests[job["job_id"]], job)
+            if job["job_id"] in requests else None
+            for job in jobs}
 
 
 def log_german_distribution(labels: List[tuple]) -> Dict[str, int]:
@@ -426,12 +489,35 @@ def run_screening_phase() -> list:
     consecutive_errors = 0
     screen_labels = []  # (jd_language, german_required) for every job screened
 
+    # Batched, every screen is decided up front in one Message Batch. Unbatched,
+    # each is called in the loop, so the error fallback below can stop early.
+    batched = None
+    if screen_client.batch_applies():
+        batched = screen_many([job for job in jobs
+                               if job.get('job_id') and not senior_title_reason(job)])
+
     for job in jobs:
         job_id = job.get('job_id')
         if not job_id:
             continue
 
-        result = screen_job_with_ai(job)
+        title_reason = senior_title_reason(job)
+        if title_reason:
+            screened_out += 1
+            logging.info(f"  SCREEN FAIL  ({SENIOR_TITLE_SCORE:3d}) {job.get('job_title')} — {title_reason}")
+            supabase_utils.update_job_score(job_id, SENIOR_TITLE_SCORE, resume_score_stage="initial",
+                                            score_breakdown={
+                                                "overall_score": SENIOR_TITLE_SCORE,
+                                                "recommendation": "skip",
+                                                "reasoning": f"Screened out: {title_reason}",
+                                                "one_line_verdict": title_reason,
+                                                "key_gaps": [title_reason],
+                                                "screen_only": True,
+                                                "screened_by_rule": "senior_title",
+                                            })
+            continue
+
+        result = batched.get(job_id) if batched is not None else screen_job_with_ai(job)
         if result is not None:
             screen_labels.append((result.jd_language, result.german_required))
         if result is None:
@@ -497,7 +583,7 @@ def run_screening_phase() -> list:
     return passers[:config.JOBS_TO_SCORE_PER_RUN]
 
 
-def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> Optional[ScoreBreakdown]:
+def build_score_request(resume_text: str, job_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     Scores a job against the resume using structured LLM output.
     Returns the full ScoreBreakdown (use .overall_score for the number) or None if scoring fails.
@@ -731,16 +817,35 @@ competitive context, then the final calibrated score. Never describe a missing m
 fixable before the deadline.
 """
 
-    try:
-        logging.info(f"Requesting structured score for job_id: {job_id}")
-        score_text = primary_client.generate_content(
-            prompt=user_prompt,
-            system_prompt=prompt,
-            cache_system=True,
-            response_format=ScoreBreakdown,
-            temperature=0.3,
-        )
+    return {"prompt": user_prompt, "system_prompt": prompt, "cache_system": True,
+            "response_format": ScoreBreakdown, "temperature": 0.3}
 
+
+def get_resume_score_from_ai(resume_text: str, job_details: Dict[str, Any]) -> Optional[ScoreBreakdown]:
+    """Score one job with one synchronous call."""
+    request = build_score_request(resume_text, job_details)
+    if request is None:
+        return None
+    job_id = job_details.get('job_id', 'N/A')
+    logging.info(f"Requesting structured score for job_id: {job_id}")
+    try:
+        score_text = primary_client.generate_content(**request)
+    except Exception as e:
+        logging.error(f"Error scoring job_id {job_id}: {e}")
+        return None
+    return finish_score(score_text, request, job_details)
+
+
+def finish_score(score_text: Optional[str], request: Dict[str, Any],
+                 job_details: Dict[str, Any]) -> Optional[ScoreBreakdown]:
+    """Validate the model's answer (one repair call if it fails the schema), then
+    apply the hard caps. Shared by the synchronous and the batched path."""
+    job_id = job_details.get('job_id', 'N/A')
+    user_prompt = request["prompt"]
+    prompt = request["system_prompt"]
+    try:
+        if score_text is None:
+            raise RuntimeError("no answer from the model")
         try:
             breakdown = ScoreBreakdown.model_validate_json(score_text)
         except ValidationError as ve:
@@ -1203,6 +1308,11 @@ def main(argv: list | None = None) -> int:
             scored_this_run = []  # (job_id, breakdown) for the batch-relative gate below
             alertable = []  # the same jobs, in the shape notify.py wants
 
+            batched_scores = None
+            if primary_client.batch_applies():
+                batched_scores = score_many(default_resume_text,
+                                            [j for j in jobs_to_score_initially if j.get('job_id')])
+
             # 4. Loop Through Jobs and Score Them
             for i, job in enumerate(jobs_to_score_initially):
                 job_id = job.get('job_id')
@@ -1212,7 +1322,10 @@ def main(argv: list | None = None) -> int:
                     continue
 
                 logging.info(f"--- Initial Scoring Job {i+1}/{len(jobs_to_score_initially)} (ID: {job_id}) ---")
-                breakdown = get_resume_score_from_ai(default_resume_text, job)
+                if batched_scores is not None:
+                    breakdown = batched_scores.get(job_id)
+                else:
+                    breakdown = get_resume_score_from_ai(default_resume_text, job)
 
                 if breakdown is not None:
                     if supabase_utils.update_job_score(job_id, breakdown.overall_score, resume_score_stage="initial",
@@ -1235,7 +1348,7 @@ def main(argv: list | None = None) -> int:
                 else:
                     failed_initial_scores += 1
 
-                if i < len(jobs_to_score_initially) - 1:
+                if batched_scores is None and i < len(jobs_to_score_initially) - 1:
                     logging.debug(f"Waiting {config.LLM_REQUEST_DELAY_SECONDS} seconds before next API call...")
                     time.sleep(config.LLM_REQUEST_DELAY_SECONDS)
             
