@@ -201,3 +201,75 @@ def test_the_public_guest_page_means_not_logged_in_and_nothing_is_clicked():
     page = FakePage(buttons=["Apply"], guest=True)
     assert resolve_link.resolve(page, "https://www.linkedin.com/jobs/view/1/") == ("not_logged_in", None)
     assert page.clicked == []
+
+
+class LoginFlow:
+    """A page that is logged out until `logged_in_after` polls, then shows the job."""
+
+    def __init__(self, logged_in_after):
+        self.polls = 0
+        self.after = logged_in_after
+        self.page = FakePage(anchors=[SAFETY], guest=True)
+        self.slept = []
+
+    def logged_in(self):
+        self.polls += 1
+        if self.polls >= self.after:
+            self.page.guest = False
+            return True
+        return False
+
+
+def _clock():
+    t = [0.0]
+
+    def now():
+        return t[0]
+
+    def sleep(s):
+        t[0] += s
+    return now, sleep
+
+
+def test_logged_out_waits_on_the_login_page_then_finds_the_link():
+    flow = LoginFlow(logged_in_after=3)
+    now, sleep = _clock()
+    result = resolve_link.resolve_with_login(flow.page, "https://www.linkedin.com/jobs/view/1/",
+                                             flow.logged_in, wait_seconds=300, now=now, sleep=sleep)
+    assert result == ("found", LEVER)
+    assert flow.polls == 3
+
+
+def test_the_login_page_is_opened_while_waiting():
+    flow = LoginFlow(logged_in_after=2)
+    seen = []
+    real_goto = flow.page.goto
+    flow.page.goto = lambda url, **k: (seen.append(url), real_goto(url, **k))
+    now, sleep = _clock()
+    resolve_link.resolve_with_login(flow.page, "https://www.linkedin.com/jobs/view/1/",
+                                    flow.logged_in, wait_seconds=300, now=now, sleep=sleep)
+    assert resolve_link.LOGIN_URL in seen
+
+
+def test_gives_up_after_the_wait():
+    flow = LoginFlow(logged_in_after=10**6)
+    now, sleep = _clock()
+    result = resolve_link.resolve_with_login(flow.page, "https://www.linkedin.com/jobs/view/1/",
+                                             flow.logged_in, wait_seconds=10, now=now, sleep=sleep)
+    assert result == ("not_logged_in", None)
+
+
+def test_headless_does_not_wait():
+    flow = LoginFlow(logged_in_after=1)
+    now, sleep = _clock()
+    result = resolve_link.resolve_with_login(flow.page, "https://www.linkedin.com/jobs/view/1/",
+                                             flow.logged_in, wait_seconds=0, now=now, sleep=sleep)
+    assert result == ("not_logged_in", None)
+    assert flow.polls == 0
+
+
+def test_already_logged_in_never_waits():
+    page = FakePage(anchors=[SAFETY])
+    result = resolve_link.resolve_with_login(page, "https://www.linkedin.com/jobs/view/1/",
+                                             lambda: pytest.fail("polled"), wait_seconds=300)
+    assert result == ("found", LEVER)

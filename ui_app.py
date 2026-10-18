@@ -1142,10 +1142,15 @@ def job_details_dialog(job):
 def find_employer_link(job):
     """Run apply/resolve_link.py for one job in its own process (Playwright's sync
     API does not run inside Streamlit's event loop) and report what it found."""
+    from apply import resolve_link
     try:
-        result = subprocess.run([sys.executable, "-m", "apply.resolve_link", str(job.get("job_id"))],
-                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
-                                cwd=os.path.dirname(os.path.abspath(__file__)))
+        with st.spinner("Opening the job in your LinkedIn browser… If it asks you to log in, "
+                        "log in there; it carries on by itself."):
+            result = subprocess.run(
+                [sys.executable, "-m", "apply.resolve_link", str(job.get("job_id"))],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=resolve_link.LOGIN_WAIT_SECONDS + 180,
+                cwd=os.path.dirname(os.path.abspath(__file__)))
     except subprocess.TimeoutExpired:
         st.error("The browser took too long. Try again, or open the posting by hand.")
         return
@@ -1156,7 +1161,9 @@ def find_employer_link(job):
         refresh_data()
         st.rerun()
     elif result.returncode == 3:
-        st.warning(f"{message}  (one-time step, in a terminal)")
+        st.warning("Not logged into LinkedIn: no login in the browser window within "
+                   f"{resolve_link.LOGIN_WAIT_SECONDS // 60} minutes. Click again and log in "
+                   "when the window opens.")
     else:
         st.info(message)
 
