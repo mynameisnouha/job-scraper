@@ -65,3 +65,30 @@ class TestCapOverrides:
         monkeypatch.setenv("JOBS_TO_SCORE_PER_RUN", "one hundred")
         with pytest.raises(ValueError):
             config._int_env("JOBS_TO_SCORE_PER_RUN", 15)
+
+
+class TestAutoApplyConfig:
+    def test_origins_cover_verified_ats_only(self):
+        assert set(config.AUTO_APPLY_ORIGINS) == {"greenhouse", "lever", "ashby"}
+        assert config.AUTO_APPLY_ORIGINS["lever"] == [
+            "https://*.lever.co", "https://*.hcaptcha.com", "https://hcaptcha.com"]
+
+    def test_statuses_shared_with_supabase_utils(self):
+        from db import supabase_utils
+        assert supabase_utils.AUTO_APPLY_STATUSES == config.AUTO_APPLY_STATUSES
+        assert len(config.AUTO_APPLY_STATUSES) == 8
+
+    def test_claude_bin_env_wins(self, monkeypatch):
+        monkeypatch.setenv("CLAUDE_BIN", "/x/claude")
+        assert config._find_claude_bin() == "/x/claude"
+
+    def test_claude_bin_path_then_extension_then_bare(self, monkeypatch):
+        monkeypatch.delenv("CLAUDE_BIN", raising=False)
+        monkeypatch.setattr(config.shutil, "which", lambda n: "/usr/bin/claude")
+        assert config._find_claude_bin() == "/usr/bin/claude"
+        monkeypatch.setattr(config.shutil, "which", lambda n: None)
+        monkeypatch.setattr(config.glob, "glob", lambda p: ["/a/old.exe", "/a/new.exe"])
+        monkeypatch.setattr(config.os.path, "getmtime", lambda p: 2 if "new" in p else 1)
+        assert config._find_claude_bin() == "/a/new.exe"
+        monkeypatch.setattr(config.glob, "glob", lambda p: [])
+        assert config._find_claude_bin() == "claude"

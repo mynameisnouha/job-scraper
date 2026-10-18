@@ -19,7 +19,7 @@ OPTIONAL_JOB_COLUMNS = ("program_type", "apply_url", "ats_type", "linkedin_apply
 LINK_COLUMNS = "job_id, apply_url, ats_type, linkedin_apply_mode"
 LINK_CHUNK = 150
 AUTO_APPLY_COLUMNS = "auto_apply_status, auto_apply_reason, auto_apply_updated_at, auto_apply_cost_usd"
-AUTO_APPLY_STATUSES = ("queued", "running", "applied", "ready_to_submit", "verify", "dead", "email", "failed")
+AUTO_APPLY_STATUSES = config.AUTO_APPLY_STATUSES
 # States the owner may queue again from; a running/applied/dead job is never re-queued.
 AUTO_APPLY_REQUEUEABLE = ("ready_to_submit", "verify", "failed")
 

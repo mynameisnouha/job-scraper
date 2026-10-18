@@ -5,7 +5,9 @@ Every setting below, and every environment variable that overrides one, is
 explained in the Configuration section of README.md.
 """
 
+import glob
 import os
+import shutil
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -234,6 +236,68 @@ APPLICATION_ANSWERS_PATH = "application_answers.json"
 CV_LIBRARY_DIR = "cv"
 CV_KEYWORD_ROUTES = []
 CV_DEFAULT = None  # e.g. "cv_general.pdf"
+
+# --- Auto apply ---
+# Only the owner's per-job click queues anything; these settings bound what a
+# queued job may do.
+AUTO_APPLY_MIN_SCORE = 50  # a job must score above this (exactly 50 is refused)
+# ATSs where the worker may press the final submit. Everything else stops before it
+# and reports ready_to_submit for the owner to press.
+AUTO_SUBMIT_ATS = {"greenhouse", "lever", "ashby"}
+# iCIMS forces an account per employer and fights automation: applied to by hand.
+AUTO_APPLY_MANUAL_ATS = {"icims"}
+# Outcomes the owner may retry with another click.
+AUTO_APPLY_REQUEUE_STATES = {"ready_to_submit", "verify", "failed"}
+# Single source of truth; db.supabase_utils validates writes against it.
+AUTO_APPLY_STATUSES = ("queued", "running", "applied", "ready_to_submit", "verify",
+                       "dead", "email", "failed")
+# A standing cover letter reused as-is; the worker never writes motivation text.
+GENERIC_COVER_LETTER_PATH = os.environ.get("GENERIC_COVER_LETTER_PATH") or None
+AUTO_APPLY_WORK_DIR = os.environ.get("AUTO_APPLY_WORK_DIR") or os.path.join(
+    os.path.expanduser("~"), ".job-scraper", "apply-work")
+AUTO_APPLY_TIMEOUT_MINUTES = 15
+AUTO_APPLY_MAX_TURNS = 80
+AUTO_APPLY_MAX_COST_USD = 3.0
+PLAYWRIGHT_MCP_PACKAGE = "@playwright/mcp@0.0.83"
+
+
+def _find_claude_bin() -> str:
+    """Locate the claude executable: env, PATH, the VS Code extension, then the bare name.
+
+    The extension ships its own native binary, which is often the only copy on a
+    machine where claude is not on PATH. Several versions can sit side by side, so
+    the newest by modification time wins: folder-name versions would need a parse
+    that breaks on pre-release suffixes, and mtime tracks the latest install.
+    """
+    env = os.environ.get("CLAUDE_BIN")
+    if env:
+        return env
+    found = shutil.which("claude")
+    if found:
+        return found
+    pattern = os.path.join(os.path.expanduser("~"), ".vscode", "extensions",
+                           "anthropic.claude-code-*", "resources", "native-binary",
+                           "claude.exe")
+    matches = glob.glob(pattern)
+    if matches:
+        return max(matches, key=os.path.getmtime)
+    return "claude"
+
+
+CLAUDE_BIN = _find_claude_bin()
+
+# Extra origins the browser may reach per ATS, beyond the employer's own page
+# (captcha, asset and upload hosts). Only these three were verified with
+# --allowed-origins on 2026-10-18; other ATSs run without the browser fence
+# (the worker decides that from this dict's keys).
+AUTO_APPLY_ORIGINS = {
+    "greenhouse": ["https://*.greenhouse.io", "https://*.recaptcha.net",
+                   "https://*.gstatic.com", "https://*.amazonaws.com"],
+    "lever": ["https://*.lever.co", "https://*.hcaptcha.com", "https://hcaptcha.com"],
+    "ashby": ["https://*.ashbyhq.com", "https://*.ashbyprd.com",
+              "https://*.recaptcha.net", "https://*.gstatic.com",
+              "https://*.amazonaws.com"],
+}
 
 # --- Email alerts for strong matches ---
 # The pipeline runs unattended four times a day; without a nudge, a job scored at
