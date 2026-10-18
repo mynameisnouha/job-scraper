@@ -1082,3 +1082,96 @@ class TestFindEmployerLink:
         assert calls and calls[0][-3:] == ["-m", "apply.resolve_link", "4430986464"]
         assert any("jobs.lever.co" in s.value for s in app.success) or \
             "jobs.lever.co" in markdown_text(app) or any("jobs.lever.co" in t.value for t in app.toast)
+
+
+class TestAutoApply:
+    """The Auto apply button, its status chip and the unanswered-questions panel.
+    The button's help text is the eligibility reason, so the owner sees what to fix."""
+
+    @staticmethod
+    def _setup(monkeypatch, tmp_path, **extra):
+        from apply import eligibility
+        from review import application_pack
+        job = dict(FAKE_TODAY_JOBS[0], status="new", apply_url="https://jobs.lever.co/acme/1",
+                   ats_type="lever", **extra)
+        monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: [job])
+        monkeypatch.setattr(supabase_utils, "get_auto_apply_questions", lambda limit=50: [])
+        monkeypatch.setattr(application_pack, "load_answers", lambda *a, **k: {})
+        # eligibility imported these by name, so patch them where they are used.
+        monkeypatch.setattr(eligibility, "unfilled_answers", lambda a: [])
+        cv = tmp_path / "cv.pdf"
+        cv.write_bytes(b"%PDF")
+        monkeypatch.setattr(eligibility, "choose_cv", lambda title: str(cv))
+
+    @staticmethod
+    def _button(app):
+        return next(b for b in app.button if b.label == "Auto apply")
+
+    def test_auto_apply_enabled_for_eligible_job(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        app.run()
+        assert not app.exception
+        button = self._button(app)
+        assert not button.disabled
+        assert "python -m apply.runner" in button.help
+
+    def test_auto_apply_disabled_names_the_reason(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, resume_score=41)
+        app.run()
+        button = self._button(app)
+        assert button.disabled and button.help == "Score must be above 50"
+
+    def test_auto_apply_disabled_before_migration(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, auto_apply_missing=True)
+        app.run()
+        button = self._button(app)
+        assert button.disabled and button.help == "Run supabase_setup/add_auto_apply.sql first"
+
+    def test_click_queues_the_job(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        queued = []
+        monkeypatch.setattr(supabase_utils, "queue_auto_apply",
+                            lambda job_id: queued.append(job_id) or True)
+        app.run()
+        self._button(app).click().run()
+        assert queued == ["j1"]
+        assert not app.exception
+
+    def test_failed_queue_shows_the_banner(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        monkeypatch.setattr(supabase_utils, "queue_auto_apply", lambda job_id: False)
+        app.run()
+        self._button(app).click().run()
+        assert any("Auto apply" in e.value for e in app.error)
+
+    def test_ready_to_submit_chip_shows_review_command(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, auto_apply_status="ready_to_submit", auto_apply_cost_usd=0.42)
+        app.run()
+        app.radio(key="queue_view").set_value("list").run()
+        text = markdown_text(app)
+        assert "python -m apply.review j1" in text and "$0.42" in text
+
+    def test_questions_panel_lists_verify_reasons(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        monkeypatch.setattr(supabase_utils, "get_auto_apply_questions", lambda limit=50: [
+            {"job_id": "j1", "job_title": "ML Engineer", "company": "ACME",
+             "auto_apply_reason": "What is your notice period?"}])
+        app.run()
+        labels = [e.label for e in app.expander]
+        assert "Questions the agent could not answer" in labels
+        assert "What is your notice period?" in markdown_text(app)
+        assert any("application_answers.json" in c.value for c in app.caption)
+
+    def test_questions_panel_hidden_when_empty(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+        app.run()
+        assert "Questions the agent could not answer" not in [e.label for e in app.expander]
+
+    def test_questions_panel_survives_a_failing_query(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path)
+
+        def boom(limit=50):
+            raise RuntimeError("column auto_apply_status does not exist")
+        monkeypatch.setattr(supabase_utils, "get_auto_apply_questions", boom)
+        app.run()
+        assert not app.exception

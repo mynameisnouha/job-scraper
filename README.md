@@ -201,6 +201,28 @@ landed still deserves to be looked at.
 
 ---
 
+## Auto apply
+
+An agent can fill in and submit application forms for jobs you pick. Nothing is queued except by your click on **Auto apply** in the app (the `⋯` menu of a job).
+
+One-time setup:
+
+1. Run `supabase_setup/add_auto_apply.sql` in the Supabase SQL editor.
+2. `pip install -r requirements-apply.txt`
+3. Set in `.env` (names only here, see `.env.example`):
+   - `ATS_EMAIL`, `ATS_PASSWORD`: an email and a password used only for job portals. Make the password unique.
+   - `IMAP_PASSWORD`: a Gmail app password, used to read confirmation codes. Falls back to `SMTP_PASSWORD`.
+   - `CLAUDE_BIN`: path to `claude.exe`, if it is not found automatically.
+   - `GENERIC_COVER_LETTER_PATH` (optional): a cover letter file for forms that ask for one.
+
+Usage:
+
+1. Click **Auto apply** on a job. The button is greyed out with the reason when the job cannot be queued.
+2. Run `python -m apply.runner`. Options: `--parallel`, `--max`, `--headless`, `--model`, `--dry-run`.
+3. Finish the ones that stopped before submit with `python -m apply.review <job_id>`.
+
+Greenhouse, Lever and Ashby are submitted automatically after your click. Every other ATS stops before the final submit, for you to finish. iCIMS is never automated. Questions the agent could not answer are listed on the queue page under *Questions the agent could not answer*; add the answer to `application_answers.json` under `extra`.
+
 ## Commands
 
 | Command | What it does |

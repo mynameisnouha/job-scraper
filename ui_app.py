@@ -36,6 +36,7 @@ from tailor import loop as tailor_loop
 from tailor import settings as tailor_settings
 from tailor import store as tailor_store
 from tailor import documents as tailor_documents
+from apply import eligibility
 from db import supabase_utils
 from onboarding import build as onboarding_build
 from onboarding import draft as onboarding_draft
@@ -148,6 +149,11 @@ def _cached_queue():
 
 
 @st.cache_data(ttl=DATA_TTL_SECONDS, show_spinner=False)
+def _cached_auto_apply_questions():
+    return supabase_utils.get_auto_apply_questions()
+
+
+@st.cache_data(ttl=DATA_TTL_SECONDS, show_spinner=False)
 def _cached_applied():
     return _keep_if_present(supabase_utils.get_applied_jobs_with_outcomes(999))
 
@@ -188,6 +194,13 @@ def load_queue():
     if "queue" not in _RUN:
         _RUN["queue"] = _read(_cached_queue)
     return _RUN["queue"]
+
+
+def load_answers_once():
+    """The standing answers, read once per run: every card's Auto apply check needs them."""
+    if "answers" not in _RUN:
+        _RUN["answers"] = application_pack.load_answers()
+    return _RUN["answers"]
 
 
 def load_applied():
@@ -412,6 +425,23 @@ def hidden_by_filters(jobs):
     return [(k, label, n) for k, label, n in out if n]
 
 
+def render_auto_apply_questions():
+    """Questions the agent stopped on. Hidden when there are none, and when the
+    query fails (migration not run): this panel must never take the page down."""
+    try:
+        rows = _cached_auto_apply_questions()
+    except Exception as e:
+        logging.warning(f"Auto apply questions unavailable: {e}")
+        return
+    if not rows:
+        return
+    with st.expander("Questions the agent could not answer"):
+        st.caption("Add the answer to application_answers.json → extra")
+        for row in rows:
+            st.markdown(f"**{row.get('company') or 'N/A'}** · {row.get('job_title') or 'N/A'}"
+                        f" — {row.get('auto_apply_reason') or ''}")
+
+
 def render_queue_page():
     jobs = load_queue()
     if not jobs:
@@ -428,6 +458,8 @@ def render_queue_page():
     unscored = pulse.get("unscored") or 0
     backlog = (f" {unscored} more not scored yet — they join the queue as the scorer reaches them."
                if unscored else "")
+
+    render_auto_apply_questions()
 
     head = st.columns([3, 1.6], vertical_alignment="bottom")
     with head[0]:
@@ -573,6 +605,20 @@ def mark_applied(job):
         flash_failed(f"Could not mark \"{title}\" as applied — it is still in the queue. "
                      "Supabase rejected or dropped the write; the terminal running "
                      "Streamlit has the error. Try again.")
+    refresh_data()
+    st.rerun()
+
+
+def queue_for_auto_apply(job):
+    """Queue one job for the runner. The click is the owner's review; the runner
+    only ever picks up what was queued here."""
+    job_id = job.get("job_id")
+    title = job.get("job_title") or job_id
+    if supabase_utils.queue_auto_apply(job_id):
+        flash_saved("Queued. Run python -m apply.runner")
+    else:
+        flash_failed(f"Auto apply could not queue \"{title}\" — it may already be queued, "
+                     "or the migration has not been run. Try again.")
     refresh_data()
     st.rerun()
 
@@ -731,6 +777,11 @@ def render_overflow(job, prefix, with_keys=False):
                      width="stretch",
                      help="Write a CV and Anschreiben for this posting, from your fact base."):
             tailor_this_job(job)
+        ok, reason = eligibility.check(job, load_answers_once(), cv_exists=os.path.exists)
+        if st.button("Auto apply", key=f"{prefix}_auto_{job_id}", width="stretch",
+                     disabled=not ok,
+                     help="Queue this job; then run python -m apply.runner" if ok else reason):
+            queue_for_auto_apply(job)
         html('<div class="jh-divider"></div>')
         if st.button("No longer accepting", key=f"{prefix}_closed_{job_id}", width="stretch",
                      help="The posting is closed and you never applied — take it out of "
@@ -761,7 +812,32 @@ def card_facts(job, breakdown):
         facts.append(("CV", "tailored"))
     elif apply_queue.worth_tailoring(job, config.RESUME_CUSTOMIZATION_MIN_SCORE):
         facts.append(("CV", "worth tailoring"))
+    label = auto_apply_label(job)
+    if label:
+        facts.append(("Auto apply", label))
     return facts
+
+
+def auto_apply_label(job):
+    """The chip text for a job the owner has sent to the runner, or None."""
+    status = job.get("auto_apply_status")
+    if not status:
+        return None
+    if status == "queued":
+        label = "Queued, run python -m apply.runner"
+    elif status == "running":
+        label = "Running"
+    elif status == "ready_to_submit":
+        label = f"Ready to submit: python -m apply.review {job.get('job_id')}"
+    elif status == "applied":
+        label = "Applied"
+    else:
+        reason = (job.get("auto_apply_reason") or "")[:80]
+        label = f"{status} {reason}".strip()
+    cost = job.get("auto_apply_cost_usd")
+    if cost is not None:
+        label += f" · ${float(cost):.2f}"
+    return label
 
 
 def render_job_card(job, all_scores):
