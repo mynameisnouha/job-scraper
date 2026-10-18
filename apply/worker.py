@@ -141,27 +141,40 @@ def prompt_text() -> str:
         return f.read()
 
 
-def build_command(bundle_dir: str, mcp_config: str, model: str) -> list:
-    """The claude argv, without the prompt (`-p` is bare; the prompt goes on stdin).
+def check_claude_bin() -> str:
+    """config.CLAUDE_BIN, refused when it is a .cmd/.bat shim.
 
-    Never skips permissions; Read only inside the bundle. A .cmd/.bat claude would
-    run through cmd.exe, where the Read(...) rule's parentheses and asterisks are
-    unsafe, so it is refused.
+    A shim would run through cmd.exe, where the Read(...) rule's parentheses and
+    asterisks are unsafe.
     """
     if config.CLAUDE_BIN.lower().endswith((".cmd", ".bat")):
         raise ValueError(f"CLAUDE_BIN must be a real executable, not a shim: {config.CLAUDE_BIN}")
+    return config.CLAUDE_BIN
+
+
+def fence_args(bundle_dir: str, mcp_config: str) -> list:
+    """The tool fence shared by the batch worker and the interactive review.
+
+    Never skips permissions; Read only inside the bundle; only the MCP servers in
+    mcp_config. One definition so the two entry points cannot drift apart.
+    """
     read_rule = "Read(" + os.path.abspath(bundle_dir).replace("\\", "/") + "/**)"
     allowed = ",".join(["mcp__playwright__*", "mcp__mail_codes__get_verification_code",
                         read_rule])
-    return [config.CLAUDE_BIN, "-p",
+    return ["--strict-mcp-config", "--mcp-config", mcp_config,
+            "--tools", "Read",
+            "--allowedTools", allowed,
+            "--disallowedTools", _DISALLOWED]
+
+
+def build_command(bundle_dir: str, mcp_config: str, model: str) -> list:
+    """The claude argv, without the prompt (`-p` is bare; the prompt goes on stdin)."""
+    return [check_claude_bin(), "-p",
             "--output-format", "json",
             "--model", model,
             "--max-turns", str(config.AUTO_APPLY_MAX_TURNS),
             "--max-budget-usd", str(config.AUTO_APPLY_MAX_COST_USD),
-            "--strict-mcp-config", "--mcp-config", mcp_config,
-            "--tools", "Read",
-            "--allowedTools", allowed,
-            "--disallowedTools", _DISALLOWED]
+            *fence_args(bundle_dir, mcp_config)]
 
 
 def parse_output(stdout: str, ats_type: Optional[str], apply_url: str) -> WorkerResult:
