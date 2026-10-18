@@ -221,6 +221,8 @@ Usage:
 2. Run `python -m apply.runner`. Options: `--parallel`, `--max`, `--headless`, `--model`, `--dry-run`.
 3. Finish the ones that stopped before submit with `python -m apply.review <job_id>`.
 
+Review-session cost is not tracked: the cost shown is from the batch run.
+
 Greenhouse, Lever and Ashby are submitted automatically after your click. Every other ATS stops before the final submit, for you to finish. iCIMS is never automated. Questions the agent could not answer are listed on the queue page under *Questions the agent could not answer*; add the answer to `application_answers.json` under `extra`.
 
 ## Commands

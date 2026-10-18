@@ -1842,11 +1842,14 @@ def set_auto_apply_result(job_id: str, status: str, reason: Optional[str],
         logging.error(f"Rejected auto-apply status {status!r} for {job_id}.")
         return False
     try:
+        payload = {"auto_apply_status": status,
+                   "auto_apply_reason": reason,
+                   "auto_apply_updated_at": _now_iso()}
+        # None means "cost unknown" (e.g. an owner review): keep the batch run's cost.
+        if cost_usd is not None:
+            payload["auto_apply_cost_usd"] = cost_usd
         response = supabase.table(config.SUPABASE_TABLE_NAME)\
-                           .update({"auto_apply_status": status,
-                                    "auto_apply_reason": reason,
-                                    "auto_apply_cost_usd": cost_usd,
-                                    "auto_apply_updated_at": _now_iso()})\
+                           .update(payload)\
                            .eq("job_id", job_id)\
                            .execute()
         if not response.data:

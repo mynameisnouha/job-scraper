@@ -78,3 +78,45 @@ def test_exception_restores_previous_status(env, exc):
     assert review.main(["j1"], ask=lambda p: "y") == 1
     assert env.writes[-1] == ("j1", "ready_to_submit",
                               f"review interrupted: {type(exc).__name__}", None)
+
+
+def _results(env, monkeypatch, outcomes):
+    """set_auto_apply_result returns the next of outcomes per call."""
+    it = iter(outcomes)
+    monkeypatch.setattr(review.supabase_utils, "set_auto_apply_result",
+                        lambda jid, st, reason, cost: env.writes.append((jid, st, reason, cost)) or next(it))
+
+
+def test_unsaved_applied_write_says_not_saved(env, monkeypatch, capsys):
+    _results(env, monkeypatch, [True, False])
+    assert review.main(["j1"], ask=lambda p: "y") == 1
+    out = capsys.readouterr().out
+    assert ("NOT SAVED: the application was submitted but the database write failed. "
+            "Mark it applied by hand in the app.") in out
+    assert "Marked applied." not in out
+
+
+def test_failed_running_write_exits_without_session(env, monkeypatch, capsys):
+    _results(env, monkeypatch, [False])
+    assert review.main(["j1"], ask=lambda p: "y") == 1
+    assert not [r for r in env.runs if r[0] != "cfg"]
+    assert len(env.writes) == 1
+    assert "running" in capsys.readouterr().out
+
+
+def test_failed_restore_warns_and_exits_1(env, monkeypatch, capsys):
+    _results(env, monkeypatch, [True, False])
+
+    def boom(cmd, **kw):
+        raise OSError("y")
+    env.run_impl = boom
+    assert review.main(["j1"], ask=lambda p: "y") == 1
+    assert "could not be restored" in capsys.readouterr().out
+
+
+def test_review_session_gets_scrubbed_env(env, monkeypatch):
+    monkeypatch.setenv("SUPABASE_KEY", "secret")
+    monkeypatch.setenv("PATH", "/bin")
+    review.main(["j1"], ask=lambda p: "n")
+    kw = [r for r in env.runs if r[0] != "cfg"][0][1]
+    assert "SUPABASE_KEY" not in kw["env"] and "PATH" in kw["env"]

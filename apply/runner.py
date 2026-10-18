@@ -48,7 +48,8 @@ def _run_worker(cmd: list, prompt: str, cwd: str, timeout: float):
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if sys.platform == "win32" else 0
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8",
-                            cwd=cwd, creationflags=flags)
+                            cwd=cwd, creationflags=flags,
+                            env=worker.scrubbed_env())
     try:
         out, err = proc.communicate(input=prompt, timeout=timeout)
     except subprocess.TimeoutExpired:

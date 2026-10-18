@@ -263,3 +263,11 @@ def test_ctrl_c_stops_further_claims(env, monkeypatch, capsys):
     assert runner.main(["--parallel", "1"]) == 1
     assert len(env.claims) == 1
     assert "Stopping after the jobs in progress" in capsys.readouterr().out
+
+
+def test_worker_env_has_no_secrets(env, monkeypatch):
+    monkeypatch.setenv("SUPABASE_KEY", "secret")
+    monkeypatch.setenv("PATH", "/bin")
+    assert runner.main([]) == 0
+    _, kw = env.runs[0]
+    assert "SUPABASE_KEY" not in kw["env"] and "PATH" in kw["env"]

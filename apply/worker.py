@@ -14,7 +14,7 @@ import re
 import shutil
 import sys
 from dataclasses import dataclass
-from typing import Optional
+from typing import Mapping, Optional
 from urllib.parse import urlparse
 
 import config
@@ -29,6 +29,23 @@ _STATUS_MAP = {"READY": "ready_to_submit", "VERIFY": "verify", "DEAD": "dead",
 # --tools "Read" already limits built-ins, but --allowedTools alone does not block
 # shells (spiked on claude 2.1.301), so shells and writers are denied explicitly too.
 _DISALLOWED = "Bash,PowerShell,Write,Edit,NotebookEdit,WebFetch,WebSearch,Task"
+
+
+_SECRET_ENV = re.compile(
+    r"^(SUPABASE_.*|.*_API_KEY|.*_KEY|SMTP_.*|IMAP_.*|ATS_.*|GEMINI_.*|LLM_.*|ANTHROPIC_.*|"
+    r"OPENAI_.*|EMAIL_.*|GITHUB_TOKEN|.*_TOKEN|.*_SECRET|.*_PASSWORD)$", re.IGNORECASE)
+
+
+def scrubbed_env(base: Mapping[str, str] = os.environ) -> dict:
+    """base without credentials, for claude, the MCP servers and Chromium.
+
+    The worker reads untrusted pages, so it must not inherit the Supabase service
+    key, LLM keys or mail passwords from .env. System variables (PATH, USERPROFILE,
+    APPDATA...) stay: claude.exe and npx need them. Dropping ANTHROPIC_API_KEY also
+    keeps claude on the owner's subscription. The mail_codes server re-reads its
+    IMAP credentials from the repo .env (config's load_dotenv).
+    """
+    return {k: v for k, v in base.items() if not _SECRET_ENV.match(k)}
 
 
 @dataclass

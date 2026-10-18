@@ -244,3 +244,16 @@ def test_get_job_for_auto_apply_selects_apply_fields(monkeypatch):
         raise Exception("down")
     monkeypatch.setattr(supabase_utils.supabase, "table", boom)
     assert supabase_utils.get_job_for_auto_apply("a") is None
+
+
+def test_none_cost_is_not_written(monkeypatch):
+    db = _install(monkeypatch, [_row("j1", "ready_to_submit", auto_apply_cost_usd=0.31)])
+    assert supabase_utils.set_auto_apply_result("j1", "running", "in review", None) is True
+    assert "auto_apply_cost_usd" not in db.updates[-1]
+    assert db.rows[0]["auto_apply_cost_usd"] == 0.31
+
+
+def test_zero_cost_is_written(monkeypatch):
+    db = _install(monkeypatch, [_row("j1", "running", auto_apply_cost_usd=0.31)])
+    assert supabase_utils.set_auto_apply_result("j1", "failed", "x", 0.0) is True
+    assert db.updates[-1]["auto_apply_cost_usd"] == 0.0

@@ -829,6 +829,14 @@ def auto_apply_label(job):
         label = "Running"
     elif status == "ready_to_submit":
         label = f"Ready to submit: python -m apply.review {job.get('job_id')}"
+        reason = (job.get("auto_apply_reason") or "")[:80]
+        if reason:
+            label += f" · {reason}"
+    elif status == "verify":
+        label = f"verify: python -m apply.review {job.get('job_id')}"
+        reason = (job.get("auto_apply_reason") or "")[:80]
+        if reason:
+            label += f" · {reason}"
     elif status == "applied":
         label = "Applied"
     else:

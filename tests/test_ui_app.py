@@ -1151,6 +1151,19 @@ class TestAutoApply:
         text = markdown_text(app)
         assert "python -m apply.review j1" in text and "$0.42" in text
 
+    def test_ready_chip_appends_reason(self):
+        import ui_app
+        label = ui_app.auto_apply_label({"job_id": "j1", "auto_apply_status": "ready_to_submit",
+                                         "auto_apply_reason": "cover letter required" + "x" * 100})
+        assert label.startswith("Ready to submit: python -m apply.review j1 · cover letter required")
+        assert len(label) == len("Ready to submit: python -m apply.review j1 · ") + 80
+
+    def test_verify_chip_shows_review_command(self):
+        import ui_app
+        label = ui_app.auto_apply_label({"job_id": "j1", "auto_apply_status": "verify",
+                                         "auto_apply_reason": "captcha"})
+        assert "python -m apply.review j1" in label and "captcha" in label
+
     def test_questions_panel_lists_verify_reasons(self, app, monkeypatch, tmp_path):
         self._setup(monkeypatch, tmp_path)
         monkeypatch.setattr(supabase_utils, "get_auto_apply_questions", lambda limit=50: [

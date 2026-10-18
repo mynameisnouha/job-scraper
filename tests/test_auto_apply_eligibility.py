@@ -65,3 +65,15 @@ def test_real_unfilled_answers(monkeypatch):
                                    lambda p: True)
     assert not ok
     assert reason.startswith("Fill in application_answers.json: ")
+
+
+def test_missing_status_key_is_eligible():
+    """Queue rows never select `status` (the query filters status='new')."""
+    job = {"job_id": "j1", "job_title": "Data Engineer", "company": "Acme", "resume_score": 60,
+           "job_url": "https://x/j", "provider": "p", "posted_at": None, "scraped_at": None,
+           "score_breakdown": {}, "why_me_pitch": "w", "dismissed_at": None,
+           "program_type": None, "apply_url": "https://jobs.lever.co/acme/1",
+           "ats_type": "lever", "linkedin_apply_mode": None, "auto_apply_status": None,
+           "auto_apply_reason": None, "auto_apply_cost_usd": None}
+    assert "status" not in job
+    assert eligibility.check(job, FILLED, lambda p: True) == (True, None)

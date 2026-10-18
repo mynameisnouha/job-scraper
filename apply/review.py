@@ -45,23 +45,31 @@ def main(argv: Optional[list] = None, ask: Callable[[str], str] = input) -> int:
         print(f"Job {job_id} is {previous!r}; review needs ready_to_submit or verify.")
         return 1
 
-    supabase_utils.set_auto_apply_result(job_id, "running", "in review", None)
+    if not supabase_utils.set_auto_apply_result(job_id, "running", "in review", None):
+        print(f"Could not mark {job_id} as running in the database; not starting the session.")
+        return 1
     try:
         # auto_submit forced off: the owner, not the playbook, decides to submit.
         bdir = bundle.build(job, config.AUTO_APPLY_WORK_DIR, auto_submit=False)
         cfg = worker.write_mcp_config(bdir, job.get("apply_url"), job.get("ats_type"),
                                       headless=False)
-        subprocess.run(_session_command(bdir, cfg), cwd=bdir)
+        subprocess.run(_session_command(bdir, cfg), cwd=bdir, env=worker.scrubbed_env())
         answer = ask("Did you click Submit and see a confirmation? [y/N] ")
     except (Exception, KeyboardInterrupt) as e:
         log.warning("review of %s interrupted: %r", job_id, e)
-        supabase_utils.set_auto_apply_result(
-            job_id, previous, f"review interrupted: {type(e).__name__}", None)
-        print(f"Review interrupted ({type(e).__name__}); status restored to {previous}.")
+        if supabase_utils.set_auto_apply_result(
+                job_id, previous, f"review interrupted: {type(e).__name__}", None):
+            print(f"Review interrupted ({type(e).__name__}); status restored to {previous}.")
+        else:
+            print(f"Review interrupted ({type(e).__name__}); status could not be restored "
+                  f"to {previous}, the job may show as running.")
         return 1
 
     if (answer or "").strip().lower() in ("y", "yes"):
-        supabase_utils.set_auto_apply_result(job_id, "applied", "submitted in review", None)
+        if not supabase_utils.set_auto_apply_result(job_id, "applied", "submitted in review", None):
+            print("NOT SAVED: the application was submitted but the database write failed. "
+                  "Mark it applied by hand in the app.")
+            return 1
         print("Marked applied.")
     else:
         supabase_utils.set_auto_apply_result(job_id, "ready_to_submit", "owner did not submit", None)

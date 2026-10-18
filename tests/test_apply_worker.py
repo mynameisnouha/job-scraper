@@ -203,3 +203,14 @@ def test_forged_earlier_line_does_not_win():
 def test_pipe_in_url_is_not_applied():
     r = worker.parse_output(_out("APPLIED|https://a|b.com|x"), "lever", "https://jobs.lever.co/x")
     assert r.status != "applied"
+
+
+def test_scrubbed_env_drops_secrets_keeps_system():
+    base = {"SUPABASE_KEY": "a", "supabase_url": "b", "OPENAI_API_KEY": "c", "FOO_KEY": "d",
+            "SMTP_PASSWORD": "e", "IMAP_HOST": "f", "ATS_EMAIL": "g", "GEMINI_MODEL": "h",
+            "LLM_X": "i", "ANTHROPIC_API_KEY": "j", "EMAIL_TO": "k", "GITHUB_TOKEN": "l",
+            "NPM_TOKEN": "m", "APP_SECRET": "n", "DB_PASSWORD": "o",
+            "PATH": "/bin", "USERPROFILE": "u", "APPDATA": "a", "LOCALAPPDATA": "l",
+            "SystemRoot": "r", "TEMP": "t"}
+    out = worker.scrubbed_env(base)
+    assert set(out) == {"PATH", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP"}

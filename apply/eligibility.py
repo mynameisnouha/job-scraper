@@ -26,7 +26,9 @@ def check(job: dict, answers: dict,
         return False, "No employer application form known"
     if ats in config.AUTO_APPLY_MANUAL_ATS:
         return False, "iCIMS is applied to by hand"
-    if job.get("status") != "new" or job.get("dismissed_at"):
+    # Queue rows do not select `status` (the queue query already filters
+    # status='new'), so a missing key means queued; only a present, non-new value refuses.
+    if ("status" in job and job["status"] != "new") or job.get("dismissed_at"):
         return False, "Already applied or skipped"
     state = job.get("auto_apply_status")
     if state in ("queued", "running"):
