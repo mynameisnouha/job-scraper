@@ -96,6 +96,23 @@ def test_unsubscribe_link_not_returned_and_code_wins():
     assert extract_code("s", body, G) == "654321"
 
 
+def test_backslash_and_userinfo_host_not_returned():
+    assert extract_code("s", "https://evil.com\\.greenhouse.io/verify", G) is None
+    assert extract_code("s", "https://greenhouse.io@evil.com/verify", G) is None
+
+
+def test_bad_word_after_verify_not_returned():
+    assert extract_code("s", "https://greenhouse.io/verify/unsubscribe?token=x", G) is None
+
+
+def test_authenticated_ignores_comments_and_lookalikes():
+    assert not mail_codes.authenticated("mx; ( dkim=pass header.d=greenhouse.io )", G)
+    assert not mail_codes.authenticated(
+        "mx; dkim=pass header.d=greenhouse.io.evil.com", G)
+    assert not mail_codes.authenticated(
+        "mx; dkim=fail header.d=greenhouse.io; dkim=pass header.d=other.com", G)
+
+
 def test_zipcode_not_a_code():
     assert extract_code("s", "zipcode 12345") is None
 
@@ -135,7 +152,9 @@ class FakeIMAP:
         auth = "mx.google.com; dkim=pass header.d=greenhouse.io" if good \
             else "mx.google.com; dkim=fail header.d=greenhouse.io"
         code = "111111" if good else "999999"
-        date = format_datetime(datetime.now(timezone.utc))
+        # The unauthenticated mail is NEWER, so without the filter it would win.
+        age = timedelta(minutes=5 if good else 1)
+        date = format_datetime(datetime.now(timezone.utc) - age)
         raw = (f"From: Greenhouse <no-reply@greenhouse.io>\r\n"
                f"Subject: Hi\r\nAuthentication-Results: {auth}\r\n"
                f"Date: {date}\r\n\r\nYour code is {code}\r\n").encode()

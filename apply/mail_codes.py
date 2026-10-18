@@ -44,8 +44,8 @@ _CODE = re.compile(
     r"(\d{4,8}|(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{6,8})(?![A-Za-z0-9])",
     re.IGNORECASE,
 )
-_DKIM = re.compile(r"dkim=pass\b[^;]*?header\.[di]=([^\s;]+)", re.IGNORECASE)
-_SPF = re.compile(r"spf=pass\b[^;]*?smtp\.mailfrom=([^\s;]+)", re.IGNORECASE)
+_DKIM = re.compile(r"dkim=pass\b[^;]*?header\.[di]=([A-Za-z0-9.@-]+)", re.IGNORECASE)
+_SPF = re.compile(r"spf=pass\b[^;]*?smtp\.mailfrom=([A-Za-z0-9.@-]+)", re.IGNORECASE)
 
 
 def _domain_ok(domain: str, sender_domains: list) -> bool:
@@ -72,7 +72,14 @@ def extract_code(subject: str, body: str,
         if not _LINK_WORD.search(rest) or _LINK_BAD.search(rest):
             continue
         if link_domains is not None:
-            if not _domain_ok(urlsplit(url).hostname or "", link_domains):
+            # Browsers treat "\" as "/" and "@" starts userinfo, so a host like
+            # evil.com\.greenhouse.io would pass a suffix check yet land on evil.com.
+            authority = url.split("/", 3)[2]
+            if "\\" in authority or "@" in authority:
+                continue
+            host = urlsplit(url).hostname or ""
+            if not re.fullmatch(r"[a-z0-9.-]+", host) \
+                    or not _domain_ok(host, link_domains):
                 continue
         return url
     m = _CODE.search(text)
@@ -91,7 +98,9 @@ def authenticated(auth_results: str, sender_domains: list) -> bool:
     topmost Authentication-Results header: the receiver adds it last, above any
     lookalike header a sender planted.
     """
-    if not auth_results:
+    # Drop "(...)" comments first: a sender can write a fake result inside one.
+    auth_results = re.sub(r"\([^)]*\)", " ", auth_results or "")
+    if not auth_results.strip():
         return False
     for rx in (_DKIM, _SPF):
         for m in rx.finditer(auth_results):
