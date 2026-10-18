@@ -10,6 +10,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import threading
 from typing import Optional
 
@@ -25,6 +26,39 @@ _DETAIL_MAX = 500  # auto_apply_reason is shown in the UI; keep it to a log tail
 
 def _failed(detail: str, cost: Optional[float] = None) -> WorkerResult:
     return WorkerResult("failed", None, (detail or "")[-_DETAIL_MAX:], cost)
+
+
+def _kill_tree(proc) -> None:
+    """Kill claude and everything it spawned (npx, node, Chromium).
+
+    proc.kill() on Windows only ends the top process and orphans the browser tree,
+    so taskkill /T takes the whole tree."""
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+    else:
+        proc.kill()
+
+
+def _run_worker(cmd: list, prompt: str, cwd: str, timeout: float):
+    """Run claude with the prompt on stdin; returns (returncode, stdout, stderr).
+
+    Popen rather than run(): run()'s post-kill communicate can block forever while
+    grandchildren hold the pipes open. On timeout the tree is killed and output is
+    drained with a short bound, then TimeoutExpired is re-raised."""
+    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if sys.platform == "win32" else 0
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            cwd=cwd, creationflags=flags)
+    try:
+        out, err = proc.communicate(input=prompt, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        try:
+            proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass  # give up on the output; the row is failed anyway
+        raise
+    return proc.returncode, out, err
 
 
 def run_one(job: dict, args) -> WorkerResult:
@@ -47,13 +81,12 @@ def run_one(job: dict, args) -> WorkerResult:
             return _failed(str(e))
         # Prompt on stdin, not argv. cwd must be the bundle: Claude auto-allows Read
         # there and Playwright file uploads only work from it.
-        proc = subprocess.run(cmd, input=worker.prompt_text(), cwd=bundle_dir,
-                              capture_output=True, text=True, encoding="utf-8",
-                              timeout=config.AUTO_APPLY_TIMEOUT_MINUTES * 60)
+        returncode, stdout, stderr = _run_worker(
+            cmd, worker.prompt_text(), bundle_dir, config.AUTO_APPLY_TIMEOUT_MINUTES * 60)
         # claude exits non-zero on max-turns yet still prints JSON, so always parse.
-        result = worker.parse_output(proc.stdout, full.get("ats_type"), full.get("apply_url"))
+        result = worker.parse_output(stdout, full.get("ats_type"), full.get("apply_url"))
         if result.status == "failed" and not (result.detail or "").strip():
-            result = _failed(f"claude exited {proc.returncode}: {(proc.stderr or '')[-400:]}",
+            result = _failed(f"claude exited {returncode}: {(stderr or '')[-400:]}",
                              result.cost_usd)
         return result
     except subprocess.TimeoutExpired:
@@ -65,6 +98,11 @@ def run_one(job: dict, args) -> WorkerResult:
     except Exception as e:  # noqa: BLE001 - the row must not stay `running`
         log.exception("auto-apply crashed for %s", job.get("job_id"))
         return _failed(f"{type(e).__name__}: {e}")
+
+
+def _join_all(threads: list) -> None:
+    for t in threads:
+        t.join()
 
 
 def _claude_available() -> bool:
@@ -91,7 +129,7 @@ def _dry_run(args) -> int:
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(prog="apply.runner",
                                  description="Run queued auto-apply jobs.")
-    ap.add_argument("--parallel", type=int, default=1)
+    ap.add_argument("--parallel", type=int, default=2)
     ap.add_argument("--max", type=int, default=None, help="max jobs to process in total")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--model", default="sonnet")
@@ -126,25 +164,37 @@ def main(argv: Optional[list] = None) -> int:
                     taken[0] -= 1
                 return
             result = run_one(job, args)
-            if not supabase_utils.set_auto_apply_result(
-                    job["job_id"], result.status, result.detail, result.cost_usd):
+            # Every write is capped, not just failures: the reason is shown in the UI.
+            saved = supabase_utils.set_auto_apply_result(
+                job["job_id"], result.status, (result.detail or "")[:_DETAIL_MAX],
+                result.cost_usd)
+            if not saved:
                 log.error("could not write auto-apply result for %s", job["job_id"])
             with lock:
-                done.append((job, result))
+                done.append((job, result, saved))
 
+    interrupted = False
     threads = [threading.Thread(target=loop, args=(i,)) for i in range(max(1, args.parallel))]
     for t in threads:
         t.start()
-    for t in threads:
-        t.join()
+    try:
+        _join_all(threads)
+    except KeyboardInterrupt:
+        # Threads are non-daemon; without this they would keep claiming jobs.
+        args.stop_event.set()
+        print("Stopping after the jobs in progress; run again to continue.")
+        _join_all(threads)
+        interrupted = True
 
     total = 0.0
-    for job, r in done:
+    for job, r, saved in done:
         cost = r.cost_usd or 0.0
         total += cost
-        print(f"{job['job_id']} {job.get('company')} {r.status} ${cost:.2f}")
+        print(f"{job['job_id']} {job.get('company')} {r.status} ${cost:.2f}"
+              + ("" if saved else " (not saved)"))
     print(f"Total cost: ${total:.2f} over {len(done)} jobs")
-    return 1 if any(r.status == "failed" for _, r in done) else 0
+    return 1 if interrupted or any(r.status == "failed" or not saved
+                                   for _, r, saved in done) else 0
 
 
 if __name__ == "__main__":
