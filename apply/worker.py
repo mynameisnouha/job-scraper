@@ -47,8 +47,14 @@ def _origin(url: str) -> Optional[str]:
         port = p.port
     except ValueError:
         return None
+    # Backslash and userinfo make browsers and urlparse disagree about the host
+    # (`https://evil.com\@jobs.lever.co/`), so such URLs never match.
+    if "\\" in p.netloc or "@" in p.netloc:
+        return None
     if not p.scheme or not host:
         return None
+    if port == {"https": 443, "http": 80}.get(p.scheme.lower()):
+        port = None
     return f"{p.scheme.lower()}://{host.lower()}" + (f":{port}" if port else "")
 
 
@@ -56,6 +62,12 @@ def allowed_origins(apply_url: str, ats_type: Optional[str]) -> list:
     """The apply URL's own origin plus the ATS's extra verified origins."""
     own = _origin(apply_url)
     return ([own] if own else []) + list(config.AUTO_APPLY_ORIGINS.get(ats_type, []))
+
+
+def submit_origins(apply_url: str, ats_type: Optional[str]) -> list:
+    """Origins where a confirmation page may be: apply URL's own plus the ATS's hosts."""
+    own = _origin(apply_url)
+    return ([own] if own else []) + list(config.AUTO_APPLY_SUBMIT_ORIGINS.get(ats_type, []))
 
 
 def origin_allowed(url: str, patterns: list) -> bool:
@@ -75,18 +87,33 @@ def origin_allowed(url: str, patterns: list) -> bool:
         if not sep:
             continue
         if phost.startswith("*."):
-            if pscheme == scheme and host.split(":")[0].endswith(phost[1:]):
+            # A wildcard never covers an explicit non-default port.
+            if pscheme == scheme and ":" not in host and host.endswith(phost[1:]):
                 return True
-        elif pat == origin:
+        elif _origin(pat) == origin:
             return True
     return False
+
+
+def _npx() -> str:
+    """npx as CreateProcess can run it: on Windows `which("npx")` finds the
+    extensionless POSIX script, which cannot be executed, so prefer npx.cmd."""
+    if sys.platform == "win32":
+        found = shutil.which("npx.cmd")
+        if found:
+            return found
+    return shutil.which("npx") or "npx"
 
 
 def write_mcp_config(bundle_dir: str, apply_url: str, ats_type: Optional[str],
                      headless: bool) -> str:
     """Write <bundle>/mcp.json with exactly the playwright and mail_codes servers."""
-    pw_args = ["-y", config.PLAYWRIGHT_MCP_PACKAGE, "--user-data-dir",
-               os.path.join(bundle_dir, ".mcp_profile")]
+    # The browser profile holds cookies and session tokens, so it lives beside the
+    # bundle (not in it): the worker's Read scope must never reach it.
+    profile = os.path.join(os.path.dirname(os.path.abspath(bundle_dir)), ".profiles",
+                           os.path.basename(os.path.abspath(bundle_dir)))
+    os.makedirs(profile, exist_ok=True)
+    pw_args = ["-y", config.PLAYWRIGHT_MCP_PACKAGE, "--user-data-dir", profile]
     # The browser fence is only applied for ATSs where forms were verified to work
     # behind it; elsewhere it would break captcha/upload hosts and fail every run.
     if ats_type in config.AUTO_APPLY_ORIGINS:
@@ -96,7 +123,7 @@ def write_mcp_config(bundle_dir: str, apply_url: str, ats_type: Optional[str],
     host = (urlparse(apply_url or "").hostname or "").lower()
     domains = ([host] if host else []) + config.AUTO_APPLY_MAIL_DOMAINS.get(ats_type, [])
     cfg = {"mcpServers": {
-        "playwright": {"command": shutil.which("npx") or "npx", "args": pw_args},
+        "playwright": {"command": _npx(), "args": pw_args},
         "mail_codes": {"command": sys.executable,
                        "args": ["-m", "apply.mail_codes", "--sender-domains",
                                 ",".join(domains)],
@@ -108,14 +135,25 @@ def write_mcp_config(bundle_dir: str, apply_url: str, ats_type: Optional[str],
     return path
 
 
-def build_command(bundle_dir: str, mcp_config: str, model: str) -> list:
-    """The claude argv. Never skips permissions; Read only inside the bundle."""
+def prompt_text() -> str:
+    """The worker prompt. Sent on stdin by the runner, never in argv."""
     with open(_PROMPT_PATH, encoding="utf-8") as f:
-        prompt = f.read()
+        return f.read()
+
+
+def build_command(bundle_dir: str, mcp_config: str, model: str) -> list:
+    """The claude argv, without the prompt (`-p` is bare; the prompt goes on stdin).
+
+    Never skips permissions; Read only inside the bundle. A .cmd/.bat claude would
+    run through cmd.exe, where the Read(...) rule's parentheses and asterisks are
+    unsafe, so it is refused.
+    """
+    if config.CLAUDE_BIN.lower().endswith((".cmd", ".bat")):
+        raise ValueError(f"CLAUDE_BIN must be a real executable, not a shim: {config.CLAUDE_BIN}")
     read_rule = "Read(" + os.path.abspath(bundle_dir).replace("\\", "/") + "/**)"
     allowed = ",".join(["mcp__playwright__*", "mcp__mail_codes__get_verification_code",
                         read_rule])
-    return [config.CLAUDE_BIN, "-p", prompt,
+    return [config.CLAUDE_BIN, "-p",
             "--output-format", "json",
             "--model", model,
             "--max-turns", str(config.AUTO_APPLY_MAX_TURNS),
@@ -131,6 +169,9 @@ def parse_output(stdout: str, ats_type: Optional[str], apply_url: str) -> Worker
 
     APPLIED is only believed for auto-submit ATSs and when the final page is on an
     allowed origin; anything else is downgraded to `verify` for the owner to check.
+    final_url is worker-reported, not verified: the origin check only catches an
+    honest worker that ended off-origin. Only the ATS's own hosts count (not the
+    wider browser fence, which includes captcha and S3 hosts anyone can use).
     """
     try:
         data = json.loads(stdout)
@@ -154,7 +195,7 @@ def parse_output(stdout: str, ats_type: Optional[str], apply_url: str) -> Worker
     if word != "APPLIED":
         return WorkerResult(_STATUS_MAP[word], final_url, detail, cost)
     if (ats_type in config.AUTO_SUBMIT_ATS and final_url
-            and origin_allowed(final_url, allowed_origins(apply_url, ats_type))):
+            and origin_allowed(final_url, submit_origins(apply_url, ats_type))):
         return WorkerResult("applied", final_url, detail, cost)
     log.warning("worker claimed APPLIED on %s at %s; downgraded to verify", ats_type, final_url)
     return WorkerResult("verify", final_url,

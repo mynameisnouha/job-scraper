@@ -57,7 +57,6 @@ def build(job: dict, work_root: str, env: Mapping[str, str] = os.environ,
     if os.path.isdir(bundle):
         shutil.rmtree(bundle)
     os.makedirs(bundle)
-    os.makedirs(os.path.join(bundle, ".mcp_profile"))
 
     cv_name = "cv.pdf" if cv_src.lower().endswith(".pdf") else os.path.basename(cv_src)
     cv_dst = os.path.join(bundle, cv_name)

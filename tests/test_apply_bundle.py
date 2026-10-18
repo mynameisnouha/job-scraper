@@ -36,7 +36,7 @@ def read_job(d):
 
 def test_bundle_has_exactly_the_expected_files(setup):
     d = bundle.build(make_job(), str(setup / "work"), env={})
-    assert set(os.listdir(d)) == {"job.json", "answers.json", "cv.pdf", "playbook.md", ".mcp_profile"}
+    assert set(os.listdir(d)) == {"job.json", "answers.json", "cv.pdf", "playbook.md"}
     data = read_job(d)
     assert data["lead_with"] == ["a", "b"] and data["pitch"] == "pitch"
     assert os.path.isabs(data["files"]["cv"]) and os.path.isfile(data["files"]["cv"])

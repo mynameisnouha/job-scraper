@@ -299,6 +299,14 @@ AUTO_APPLY_ORIGINS = {
               "https://*.amazonaws.com"],
 }
 
+# Where a confirmation page may live for `applied` to be believed: the ATS's own
+# hosts only. AUTO_APPLY_ORIGINS also lists captcha/asset/S3 hosts anyone can use.
+AUTO_APPLY_SUBMIT_ORIGINS = {
+    "greenhouse": ["https://*.greenhouse.io"],
+    "lever": ["https://*.lever.co"],
+    "ashby": ["https://*.ashbyhq.com"],
+}
+
 # Sender domains the verification-code mailbox trusts per ATS, on top of the
 # apply URL's own host. Passed to the mail_codes server so a phished mail from
 # anywhere else can never feed the worker a code or a link.

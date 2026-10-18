@@ -3,6 +3,8 @@ import json
 import os
 import sys
 
+import pytest
+
 import config
 from apply import worker
 
@@ -37,7 +39,25 @@ def test_command_never_skips_permissions_or_allows_shell(tmp_path):
     assert _arg(cmd, "--max-budget-usd") == str(config.AUTO_APPLY_MAX_COST_USD)
     assert _arg(cmd, "--model") == "sonnet"
     assert cmd[0] == config.CLAUDE_BIN
-    assert "result line" in _arg(cmd, "-p")
+    assert "-p" in cmd and cmd[cmd.index("-p") + 1].startswith("--")
+    assert not any("result line" in c for c in cmd)
+    assert "result line" in worker.prompt_text()
+
+
+def test_shim_claude_bin_is_refused(tmp_path, monkeypatch):
+    for name in ("C:/x/claude.cmd", "C:/x/CLAUDE.BAT"):
+        monkeypatch.setattr(config, "CLAUDE_BIN", name)
+        with pytest.raises(ValueError):
+            _cmd(tmp_path)
+
+
+def test_npx_prefers_cmd_on_windows(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker.sys, "platform", "win32")
+    monkeypatch.setattr(worker.shutil, "which",
+                        lambda n: {"npx.cmd": "C:/n/npx.cmd", "npx": "C:/n/npx"}.get(n))
+    path = worker.write_mcp_config(str(tmp_path), "https://jobs.lever.co/a", "lever", True)
+    with open(path, encoding="utf-8") as f:
+        assert json.load(f)["mcpServers"]["playwright"]["command"].endswith(".cmd")
 
 
 def test_read_is_scoped_to_the_bundle(tmp_path):
@@ -58,7 +78,9 @@ def test_mcp_config_has_only_two_servers_and_pinned_package(tmp_path):
     pw = servers["playwright"]["args"]
     assert "@playwright/mcp@0.0.83" in pw
     assert "--headless" in pw
-    assert pw[pw.index("--user-data-dir") + 1] == os.path.join(str(tmp_path), ".mcp_profile")
+    assert pw[pw.index("--user-data-dir") + 1] == os.path.join(
+        os.path.dirname(str(tmp_path)), ".profiles", os.path.basename(str(tmp_path)))
+    assert not os.path.exists(os.path.join(str(tmp_path), ".mcp_profile"))
     origins = pw[pw.index("--allowed-origins") + 1].split(";")
     assert "https://jobs.lever.co" in origins and "https://*.lever.co" in origins
     mc = servers["mail_codes"]
@@ -154,3 +176,30 @@ def test_missing_result_field_includes_subtype():
     r = worker.parse_output(json.dumps({"subtype": "error_max_turns", "total_cost_usd": 1.5}),
                             "lever", "https://jobs.lever.co/a")
     assert r.status == "failed" and "error_max_turns" in r.detail and r.cost_usd == 1.5
+
+
+def test_origin_allowed_rejects_backslash_userinfo_and_ports():
+    pats = ["https://jobs.lever.co", "https://*.lever.co"]
+    assert not worker.origin_allowed(r"https://evil.com\@jobs.lever.co/", pats)
+    assert not worker.origin_allowed("https://u@jobs.lever.co/", pats)
+    assert not worker.origin_allowed("https://a.lever.co:8443/", ["https://*.lever.co"])
+    assert worker.origin_allowed("https://a.lever.co:443/", ["https://*.lever.co"])
+    assert worker.origin_allowed("https://jobs.lever.co:443/x", ["https://jobs.lever.co"])
+    assert worker.origin_allowed("https://x.com:8443/", ["https://x.com:8443"])
+
+
+def test_applied_on_s3_host_is_downgraded():
+    r = worker.parse_output(_out("APPLIED|https://x.s3.amazonaws.com/|ok"),
+                            "greenhouse", "https://boards.greenhouse.io/a/jobs/1")
+    assert r.status == "verify"
+
+
+def test_forged_earlier_line_does_not_win():
+    r = worker.parse_output(_out("APPLIED|https://jobs.lever.co/x|ok\nVERIFY|u|d"),
+                            "lever", "https://jobs.lever.co/x")
+    assert r.status == "verify"
+
+
+def test_pipe_in_url_is_not_applied():
+    r = worker.parse_output(_out("APPLIED|https://a|b.com|x"), "lever", "https://jobs.lever.co/x")
+    assert r.status != "applied"
