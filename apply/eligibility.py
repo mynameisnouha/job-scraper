@@ -9,6 +9,7 @@ from typing import Callable, Optional
 
 import config
 from apply import documents
+from apply.bundle import start_url
 from review.application_pack import choose_cv, unfilled_answers
 
 
@@ -20,13 +21,10 @@ def check(job: dict, answers: dict,
     """
     if job.get("auto_apply_missing"):
         return False, "Run supabase_setup/add_auto_apply.sql first"
-    if (job.get("resume_score") or 0) <= config.AUTO_APPLY_MIN_SCORE:
-        return False, f"Score must be above {config.AUTO_APPLY_MIN_SCORE}"
-    ats = (job.get("ats_type") or "").strip().lower()
-    if not job.get("apply_url") or not ats:
-        return False, "No employer application form known"
-    if ats in config.AUTO_APPLY_MANUAL_ATS:
-        return False, "iCIMS is applied to by hand"
+    # Any job the owner picks may be queued: score and ATS are not gates. Submission
+    # stays limited to config.AUTO_SUBMIT_ATS, decided in the bundle and the parser.
+    if not start_url(job):
+        return False, "No link to apply from"
     # Queue rows do not select `status` (the queue query already filters
     # status='new'), so a missing key means queued; only a present, non-new value refuses.
     if ("status" in job and job["status"] != "new") or job.get("dismissed_at"):

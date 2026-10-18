@@ -224,7 +224,7 @@ Usage:
 
 Review-session cost is not tracked: the cost shown is from the batch run.
 
-Greenhouse, Lever and Ashby are submitted automatically after your click. Every other ATS stops before the final submit, for you to finish. iCIMS is never automated. Questions the agent could not answer are listed on the queue page under *Questions the agent could not answer*; add the answer to `application_answers.json` under `extra`.
+Any job can be queued, whatever its score or ATS. Greenhouse, Lever and Ashby are submitted automatically after your click. Every other ATS, and every job where only the job board's posting is known (the agent then looks for the employer's form from there), stops before the final submit for you to finish. Questions the agent could not answer are listed on the queue page under *Questions the agent could not answer*; add the answer to `application_answers.json` under `extra`.
 
 ## Commands
 

@@ -125,3 +125,25 @@ def test_uploaded_cv_and_letter_are_the_fallback(setup, monkeypatch):
     assert open(data["files"]["cv"], "rb").read() == b"%PDF uploaded"
     assert data["files"]["generic_cover_letter"].endswith("generic_cover_letter.docx")
     assert open(data["files"]["generic_cover_letter"], "rb").read() == b"PK letter"
+
+
+def test_start_url_falls_back_to_the_posting():
+    assert bundle.start_url({"apply_url": "https://a/apply", "job_url": "https://b"}) == "https://a/apply"
+    assert bundle.start_url({"apply_url": None, "job_url": "https://b"}) == "https://b"
+    assert bundle.start_url({}) is None
+
+
+def test_job_board_start_never_auto_submits(setup):
+    job = make_job(apply_url=None, ats_type="greenhouse",
+                   job_url="https://www.linkedin.com/jobs/view/123/")
+    out = bundle.build(job, str(setup / "work"))
+    data = json.load(open(os.path.join(out, "job.json"), encoding="utf-8"))
+    assert data["apply_url"] == "https://www.linkedin.com/jobs/view/123/"
+    assert data["via_job_board"] is True
+    assert data["auto_submit"] is False
+
+
+def test_employer_form_start_is_not_a_job_board(setup):
+    out = bundle.build(make_job(), str(setup / "work"))
+    data = json.load(open(os.path.join(out, "job.json"), encoding="utf-8"))
+    assert data["via_job_board"] is False

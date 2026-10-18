@@ -214,3 +214,14 @@ def test_scrubbed_env_drops_secrets_keeps_system():
             "SystemRoot": "r", "TEMP": "t"}
     out = worker.scrubbed_env(base)
     assert set(out) == {"PATH", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemRoot", "TEMP"}
+
+
+def test_applied_on_a_job_board_page_is_not_applied():
+    out = json.dumps({"result": "APPLIED|https://www.linkedin.com/jobs/view/1/|done",
+                      "total_cost_usd": 0.1})
+    r = worker.parse_output(out, "greenhouse", "https://www.linkedin.com/jobs/view/1/")
+    assert r.status == "verify"
+
+
+def test_job_board_start_origin_is_never_a_submit_origin():
+    assert worker.submit_origins("https://www.stepstone.de/x", "lever") == ["https://*.lever.co"]

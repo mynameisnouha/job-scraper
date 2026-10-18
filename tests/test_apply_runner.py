@@ -271,3 +271,17 @@ def test_worker_env_has_no_secrets(env, monkeypatch):
     assert runner.main([]) == 0
     _, kw = env.runs[0]
     assert "SUPABASE_KEY" not in kw["env"] and "PATH" in kw["env"]
+
+
+def test_posting_only_job_starts_from_the_posting(env, monkeypatch):
+    posting = "https://www.stepstone.de/stellenangebote--x-123-inline.html"
+    job = {**_job("j0"), "apply_url": None, "ats_type": None, "job_url": posting}
+    monkeypatch.setattr(runner.supabase_utils, "get_job_for_auto_apply", lambda jid: job)
+    seen = {}
+    monkeypatch.setattr(runner.worker, "write_mcp_config",
+                        lambda b, url, ats, headless: seen.setdefault("mcp", url) and "/w/mcp.json")
+    real_parse = runner.worker.parse_output
+    monkeypatch.setattr(runner.worker, "parse_output",
+                        lambda out, ats, url: seen.setdefault("parse", url) and real_parse(out, ats, url))
+    runner.run_one(job, SimpleNamespace(headless=False, model="sonnet", stop_event=threading.Event()))
+    assert seen == {"mcp": posting, "parse": posting}

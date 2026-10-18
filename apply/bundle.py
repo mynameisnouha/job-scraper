@@ -13,7 +13,17 @@ from typing import Mapping, Optional
 import config
 from apply import documents, playbooks
 from review import application_pack
+from sources import ats_detect
 from tailor import store
+
+
+def start_url(job: dict) -> Optional[str]:
+    """Where the worker starts: the employer's form when known, else the posting.
+
+    The owner may auto-apply any job they pick, including ones where only the job
+    board's page is known; the worker then looks for the employer's link from there.
+    """
+    return job.get("apply_url") or job.get("job_url") or None
 
 
 class BundleError(Exception):
@@ -78,15 +88,19 @@ def build(job: dict, work_root: str, env: Mapping[str, str] = os.environ,
         shutil.copyfile(generic_src, generic_path)
 
     ats = (job.get("ats_type") or "").strip().lower()
+    start = start_url(job)
+    via_job_board = ats_detect.is_job_board(start)
     if auto_submit is None:
-        auto_submit = ats in config.AUTO_SUBMIT_ATS
+        # Starting on a job board, the form the worker reaches is unverified: fill only.
+        auto_submit = ats in config.AUTO_SUBMIT_ATS and not via_job_board
     breakdown = job.get("score_breakdown") or {}
 
     data = {
         "job_id": job_id,
         "job_title": job.get("job_title"),
         "company": job.get("company"),
-        "apply_url": job.get("apply_url"),
+        "apply_url": start,
+        "via_job_board": via_job_board,
         "ats_type": ats,
         "auto_submit": bool(auto_submit),
         "pitch": job.get("why_me_pitch"),

@@ -70,7 +70,7 @@ def run_one(job: dict, args) -> WorkerResult:
         if not full:
             return _failed("job row not found")
         bundle_dir = bundle.build(full, config.AUTO_APPLY_WORK_DIR)
-        mcp = worker.write_mcp_config(bundle_dir, full.get("apply_url"),
+        mcp = worker.write_mcp_config(bundle_dir, bundle.start_url(full),
                                       full.get("ats_type"), args.headless)
         try:
             cmd = worker.build_command(bundle_dir, mcp, args.model)
@@ -85,7 +85,7 @@ def run_one(job: dict, args) -> WorkerResult:
         returncode, stdout, stderr = _run_worker(
             cmd, worker.prompt_text(), bundle_dir, config.AUTO_APPLY_TIMEOUT_MINUTES * 60)
         # claude exits non-zero on max-turns yet still prints JSON, so always parse.
-        result = worker.parse_output(stdout, full.get("ats_type"), full.get("apply_url"))
+        result = worker.parse_output(stdout, full.get("ats_type"), bundle.start_url(full))
         if result.status == "failed" and not (result.detail or "").strip():
             result = _failed(f"claude exited {returncode}: {(stderr or '')[-400:]}",
                              result.cost_usd)

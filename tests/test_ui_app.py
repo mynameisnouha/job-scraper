@@ -1110,8 +1110,8 @@ class TestAutoApply:
     def _setup(monkeypatch, tmp_path, **extra):
         from apply import eligibility
         from review import application_pack
-        job = dict(FAKE_TODAY_JOBS[0], status="new", apply_url="https://jobs.lever.co/acme/1",
-                   ats_type="lever", **extra)
+        job = {**FAKE_TODAY_JOBS[0], "status": "new", "apply_url": "https://jobs.lever.co/acme/1",
+               "ats_type": "lever", **extra}
         monkeypatch.setattr(supabase_utils, "get_top_scored_jobs_to_apply", lambda limit: [job])
         monkeypatch.setattr(supabase_utils, "get_auto_apply_questions", lambda limit=50: [])
         monkeypatch.setattr(application_pack, "load_answers", lambda *a, **k: {})
@@ -1125,6 +1125,11 @@ class TestAutoApply:
     def _button(app):
         return next(b for b in app.button if b.label == "Auto apply")
 
+    def test_auto_apply_enabled_for_a_low_score(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, resume_score=41)
+        app.run()
+        assert not self._button(app).disabled
+
     def test_auto_apply_enabled_for_eligible_job(self, app, monkeypatch, tmp_path):
         self._setup(monkeypatch, tmp_path)
         app.run()
@@ -1134,10 +1139,10 @@ class TestAutoApply:
         assert "python -m apply.runner" in button.help
 
     def test_auto_apply_disabled_names_the_reason(self, app, monkeypatch, tmp_path):
-        self._setup(monkeypatch, tmp_path, resume_score=41)
+        self._setup(monkeypatch, tmp_path, apply_url=None, job_url=None)
         app.run()
         button = self._button(app)
-        assert button.disabled and button.help == "Score must be above 50"
+        assert button.disabled and button.help == "No link to apply from"
 
     def test_auto_apply_disabled_before_migration(self, app, monkeypatch, tmp_path):
         self._setup(monkeypatch, tmp_path, auto_apply_missing=True)

@@ -257,12 +257,10 @@ CV_DEFAULT = None  # e.g. "cv_general.pdf"
 # --- Auto apply ---
 # Only the owner's per-job click queues anything; these settings bound what a
 # queued job may do.
-AUTO_APPLY_MIN_SCORE = 50  # a job must score above this (exactly 50 is refused)
 # ATSs where the worker may press the final submit. Everything else stops before it
 # and reports ready_to_submit for the owner to press.
 AUTO_SUBMIT_ATS = {"greenhouse", "lever", "ashby"}
 # iCIMS forces an account per employer and fights automation: applied to by hand.
-AUTO_APPLY_MANUAL_ATS = {"icims"}
 # Outcomes the owner may retry with another click.
 AUTO_APPLY_REQUEUE_STATES = {"ready_to_submit", "verify", "failed"}
 # Single source of truth; db.supabase_utils validates writes against it.

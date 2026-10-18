@@ -51,7 +51,7 @@ def main(argv: Optional[list] = None, ask: Callable[[str], str] = input) -> int:
     try:
         # auto_submit forced off: the owner, not the playbook, decides to submit.
         bdir = bundle.build(job, config.AUTO_APPLY_WORK_DIR, auto_submit=False)
-        cfg = worker.write_mcp_config(bdir, job.get("apply_url"), job.get("ats_type"),
+        cfg = worker.write_mcp_config(bdir, bundle.start_url(job), job.get("ats_type"),
                                       headless=False)
         subprocess.run(_session_command(bdir, cfg), cwd=bdir, env=worker.scrubbed_env())
         answer = ask("Did you click Submit and see a confirmation? [y/N] ")

@@ -18,6 +18,7 @@ from typing import Mapping, Optional
 from urllib.parse import urlparse
 
 import config
+from sources import ats_detect
 
 log = logging.getLogger(__name__)
 
@@ -82,8 +83,11 @@ def allowed_origins(apply_url: str, ats_type: Optional[str]) -> list:
 
 
 def submit_origins(apply_url: str, ats_type: Optional[str]) -> list:
-    """Origins where a confirmation page may be: apply URL's own plus the ATS's hosts."""
-    own = _origin(apply_url)
+    """Origins where a confirmation page may be: apply URL's own plus the ATS's hosts.
+
+    A job board's page is never one: a worker that started on the posting must end
+    on the employer's side for an APPLIED to count."""
+    own = None if ats_detect.is_job_board(apply_url) else _origin(apply_url)
     return ([own] if own else []) + list(config.AUTO_APPLY_SUBMIT_ORIGINS.get(ats_type, []))
 
 
