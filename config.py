@@ -90,7 +90,10 @@ LLM_SCREEN_MODEL = os.environ.get("LLM_SCREEN_MODEL") or "anthropic/claude-haiku
 # rows in October 2026, some old enough for the 14-day cleanup to take them
 # unseen. At 100 a run the backlog clears within a day. Spend still tracks intake,
 # because a run only screens what is unscored.
-JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 100)
+# Raised to 200 when StepStone, XING and the ATS feeds came online (Oct 2026):
+# their first scrape added ~270 jobs at once and daily intake roughly doubled, so
+# 100 a run left 372 rows waiting behind fresh, newest-first intake.
+JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 200)
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
@@ -402,7 +405,9 @@ SCRAPING_SOURCES = ["linkedin", "arbeitsagentur", "ats", "xing", "stepstone"]
 # runners for at least twelve weeks, yielding zero jobs while the run stayed green.
 # About a quarter of screened jobs pass, so a full screen of 100 yields ~25. A
 # passer past this cap is not scored that run and is screened again the next.
-JOBS_TO_SCORE_PER_RUN = _int_env("JOBS_TO_SCORE_PER_RUN", 30)
+# 50 keeps pace with the 200-job screen cap (~4-11% pass in practice) with room
+# for a burst; at ~EUR0.05 a score it is a ceiling of ~EUR2.50 a run.
+JOBS_TO_SCORE_PER_RUN = _int_env("JOBS_TO_SCORE_PER_RUN", 50)
 # Screened and scored only after every other source's unscored jobs. Nearly all
 # German-language, and German-language ads have produced no interview so far.
 SCORE_LAST_PROVIDERS = ["arbeitsagentur"]
