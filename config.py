@@ -189,8 +189,6 @@ ARBEITSAGENTUR_SEARCH_QUERIES = [
     "KI Ingenieur",
     "Künstliche Intelligenz",
     "Data Engineer",
-    "Softwareentwickler Python",
-    "Python Entwickler",
     "AI Engineer",
     "NLP",
     "Computer Vision",
@@ -269,6 +267,10 @@ CV_KEYWORD_ROUTES = []
 CV_DEFAULT = None  # e.g. "cv_general.pdf"
 
 # --- Auto apply ---
+# Paused: the agent was not reliable enough to trust with real applications. The
+# code under apply/ stays; this only hides its buttons, chips and panels in the UI.
+# Set AUTO_APPLY_ENABLED=true to bring them back.
+AUTO_APPLY_ENABLED = _bool_env("AUTO_APPLY_ENABLED", False)
 # Only the owner's per-job click queues anything; these settings bound what a
 # queued job may do.
 # ATSs where the worker may press the final submit. Everything else stops before it
@@ -350,6 +352,12 @@ AUTO_APPLY_MAIL_DOMAINS = {
     "teamtailor": ["teamtailor.com"],
     "join": ["join.com"],
 }
+
+# --- Role focus ---
+# AI and data roles first. The scorer tags each job's role_family; a general
+# software role (no AI/ML/data work at its core) is capped here, so it ranks under
+# the AI and data roles and stays below EMAIL_ALERT_MIN_SCORE.
+ROLE_FOCUS_SOFTWARE_CAP = _int_env("ROLE_FOCUS_SOFTWARE_CAP", 60)
 
 # --- Email alerts for strong matches ---
 # The pipeline runs unattended four times a day; without a nudge, a job scored at

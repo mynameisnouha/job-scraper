@@ -29,6 +29,7 @@ def test_click_to_applied_chip(monkeypatch, tmp_path):
     monkeypatch.setattr(application_pack, "load_answers", lambda path=None: {"name": "N"})
     monkeypatch.setattr(store, "load", lambda job_id: None)
     monkeypatch.setattr(config, "GENERIC_COVER_LETTER_PATH", None)
+    monkeypatch.setattr(config, "AUTO_APPLY_ENABLED", True)
     monkeypatch.setattr(config, "AUTO_APPLY_WORK_DIR", str(tmp_path / "work"))
 
     db_row = {"job_id": "j1", "job_title": "Data Engineer", "company": "Acme",

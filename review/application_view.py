@@ -65,19 +65,43 @@ def age_label(job: Dict[str, Any], now: Optional[datetime] = None) -> Dict[str, 
     How long the application has been sitting, phrased for what to do about it.
     `tone` is "warn" when it has gone quiet long enough to chase.
     """
+    stage = stage_of(job)
+    if stage in ("rejected", "ghosted"):
+        # Measured to the day the stage was set, not to today: a rejection that
+        # came back the next day is not "rejected after 31 days" a month later.
+        took = _days_between(job.get("application_date"), job.get("stage_updated_at"))
+        if took is None:
+            return {"text": "", "tone": "neutral"}
+        return {"text": f"{STAGE_LABELS[stage].lower()} after {_days(took)}", "tone": "neutral"}
+    if calibration.is_excluded(job):
+        # Removed or spam: nothing to chase, so no age to warn about.
+        return {"text": "", "tone": "neutral"}
     age = calibration.days_since_applied(job, now)
     if age is None:
         return {"text": "", "tone": "neutral"}
-    stage = stage_of(job)
-    if stage in ("rejected", "ghosted"):
-        return {"text": f"{STAGE_LABELS[stage].lower()} after {age} days", "tone": "neutral"}
     if stage in calibration.INTERVIEW_STAGES:
-        return {"text": f"{age} days in", "tone": "neutral"}
+        return {"text": f"{_days(age)} in", "tone": "neutral"}
     if age >= calibration.GHOSTED_AFTER_DAYS:
-        return {"text": f"{age} days · probably ghosted", "tone": "warn"}
+        return {"text": f"{_days(age)} · probably ghosted", "tone": "warn"}
     if age >= CHASE_AFTER_DAYS:
-        return {"text": f"{age} days · chase it", "tone": "warn"}
-    return {"text": f"{age} days · normal", "tone": "neutral"}
+        return {"text": f"{_days(age)} · chase it", "tone": "warn"}
+    return {"text": f"{_days(age)} · normal", "tone": "neutral"}
+
+
+def _days(n: int) -> str:
+    return f"{n} day" if n == 1 else f"{n} days"
+
+
+def _days_between(start, end) -> Optional[int]:
+    """Whole days from `start` to `end`, or None if either is unusable."""
+    a, b = calibration._parse_ts(start), calibration._parse_ts(end)
+    if a is None or b is None:
+        return None
+    if a.tzinfo is None:
+        a = a.replace(tzinfo=timezone.utc)
+    if b.tzinfo is None:
+        b = b.replace(tzinfo=timezone.utc)
+    return max((b - a).days, 0)
 
 
 def _short_date(value) -> str:

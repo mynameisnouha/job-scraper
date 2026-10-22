@@ -161,6 +161,13 @@ class ScoreBreakdown(BaseModel):
         "'unclear' (the wording is genuinely ambiguous). 'unstated' is NOT 'none': it means "
         "unknown-and-worth-asking, and it must never be inferred from the ad's language."))
     years_experience_required: int = Field(0, ge=0, description="Minimum years of professional experience the JD explicitly requires. 0 if not stated or entry-level.")
+    # 'unclear' rather than a family when the scorer omits it: the software cap in
+    # score_jobs.py only fires on an explicit 'software', never on a missing field.
+    role_family: str = Field("unclear", description=(
+        "What the job's day-to-day work IS, not its stack: 'ai_ml' (models, LLMs, ML/AI "
+        "engineering or research), 'data' (data science, analytics, data engineering, BI), "
+        "'software' (general software engineering with no AI/ML/data work at its core), "
+        "'other', or 'unclear'."))
     # 'unknown' rather than 'en' when the scorer omits it: an English default made
     # every such ad read as English, and English ads get the lower alert bar.
     jd_language: str = Field("unknown", description="Language the job description is written in: 'en', 'de', or 'mixed'")

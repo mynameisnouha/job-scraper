@@ -317,6 +317,27 @@ class TestGermanRequirement:
         assert ScoreBreakdown.model_fields["german_required"].default == "unstated"
 
 
+class TestRoleFocus:
+    """AI and data roles first: a general software role ranks under them and stays
+    below the email alert bar, without being turned into a skip."""
+
+    _score = TestGermanRequirement._score
+
+    def test_a_software_role_is_capped(self, monkeypatch):
+        breakdown = self._score(monkeypatch, role_family="software", overall_score=82)
+        assert breakdown.overall_score == config.ROLE_FOCUS_SOFTWARE_CAP
+        assert breakdown.calibration_check["role_focus_cap"] == config.ROLE_FOCUS_SOFTWARE_CAP
+        assert breakdown.recommendation == BASE["recommendation"]
+        assert breakdown.calibration_check["cap_applied"] is None
+
+    def test_ai_and_data_roles_are_not_capped(self, monkeypatch):
+        for family in ("ai_ml", "data", "unclear"):
+            assert self._score(monkeypatch, role_family=family, overall_score=82).overall_score == 82
+
+    def test_a_missing_family_is_not_read_as_software(self, monkeypatch):
+        assert self._score(monkeypatch, overall_score=82).overall_score == 82
+
+
 class TestScreenSeniorityRule:
     """LinkedIn labels most ordinary roles "Mid-Senior level". Read as "explicitly
     Senior", it failed 16 of 86 English screen-outs whose titles said nothing of

@@ -760,6 +760,10 @@ answer. If the JD is thin, estimate from what's there and say so in calibration_
   {{gate: 'working_language', result: 'unknown', negotiable: true}} so the uncertainty is
   visible instead of silently resolved in either direction.
 - years_experience_required: minimum years explicitly required (0 if not stated / entry-level).
+- role_family: what the daily work IS. 'ai_ml' (building or researching models, LLMs, ML/AI
+  systems), 'data' (data science, analytics, data engineering, BI), 'software' (general backend /
+  frontend / platform / full-stack work where AI, ML or data is not the core of the job — using
+  Python, or "AI" in the company pitch, does not make it ai_ml), 'other', or 'unclear'.
 - jd_language: 'en', 'de', or 'mixed'.
 - visa_sponsorship_mentioned / sponsorship_signal: explicit / implied / absent / explicitly_excluded.
 - company_stage, working_language_of_product (distinct from jd_language — what language are the
@@ -918,6 +922,16 @@ def finish_score(score_text: Optional[str], request: Dict[str, Any],
             if breakdown.recommendation not in ("apply_if_gate_negotiable",):
                 breakdown.recommendation = "skip"
             breakdown.reasoning = f"HARD GATE: {'; '.join(gate_reasons)}. {breakdown.reasoning}"
+
+        # Role focus: the search is for AI and data roles. A general software role
+        # stays in the queue but under them, and below the email alert bar. Not a
+        # hard gate: the recommendation and reasoning are left as the scorer wrote them.
+        if (breakdown.role_family == "software"
+                and breakdown.overall_score > config.ROLE_FOCUS_SOFTWARE_CAP):
+            breakdown.overall_score = config.ROLE_FOCUS_SOFTWARE_CAP
+            breakdown.calibration_check["role_focus_cap"] = config.ROLE_FOCUS_SOFTWARE_CAP
+            logging.info(f"  ROLE FOCUS for {job_id}: general software role — capping at "
+                         f"{config.ROLE_FOCUS_SOFTWARE_CAP}.")
 
         # The P(interview) downgrade is NOT applied here: it is relative to the rest
         # of the run, so it happens once the whole batch is scored

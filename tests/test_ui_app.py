@@ -906,7 +906,13 @@ class TestSetupPage:
         assert "Supabase settings" in text and "Profile saved" in text
         assert setup_app.button("onb_read").disabled  # nothing uploaded yet
 
-    def test_auto_apply_documents_section_with_nothing_uploaded(self, setup_app):
+    def test_auto_apply_documents_section_hidden_while_paused(self, setup_app):
+        setup_app.run()
+        assert not setup_app.exception
+        assert "Documents for Auto apply" not in markdown_text(setup_app)
+
+    def test_auto_apply_documents_section_with_nothing_uploaded(self, setup_app, monkeypatch):
+        monkeypatch.setattr(config, "AUTO_APPLY_ENABLED", True)
         setup_app.run()
         assert not setup_app.exception
         assert "Documents for Auto apply" in markdown_text(setup_app)
@@ -914,7 +920,8 @@ class TestSetupPage:
         assert "CV: none uploaded yet" in captions
         assert "Cover letter: none uploaded yet" in captions
 
-    def test_auto_apply_documents_section_names_the_files_in_use(self, setup_app):
+    def test_auto_apply_documents_section_names_the_files_in_use(self, setup_app, monkeypatch):
+        monkeypatch.setattr(config, "AUTO_APPLY_ENABLED", True)
         from apply import documents
         documents.save_upload("cv", "My CV.pdf", b"%PDF")
         documents.save_upload("cover_letter", "Anschreiben.docx", b"PK")
@@ -1106,6 +1113,10 @@ class TestAutoApply:
     """The Auto apply button, its status chip and the unanswered-questions panel.
     The button's help text is the eligibility reason, so the owner sees what to fix."""
 
+    @pytest.fixture(autouse=True)
+    def _enabled(self, monkeypatch):
+        monkeypatch.setattr(config, "AUTO_APPLY_ENABLED", True)
+
     @staticmethod
     def _setup(monkeypatch, tmp_path, **extra):
         from apply import eligibility
@@ -1124,6 +1135,14 @@ class TestAutoApply:
     @staticmethod
     def _button(app):
         return next(b for b in app.button if b.label == "Auto apply")
+
+    def test_no_auto_apply_button_while_paused(self, app, monkeypatch, tmp_path):
+        self._setup(monkeypatch, tmp_path, auto_apply_status="queued")
+        monkeypatch.setattr(config, "AUTO_APPLY_ENABLED", False)
+        app.run()
+        assert not app.exception
+        assert not any(b.label == "Auto apply" for b in app.button)
+        assert "Queued, run python -m apply.runner" not in markdown_text(app)
 
     def test_auto_apply_enabled_for_a_low_score(self, app, monkeypatch, tmp_path):
         self._setup(monkeypatch, tmp_path, resume_score=41)

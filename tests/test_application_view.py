@@ -62,6 +62,17 @@ class TestAge:
         assert not av.needs_chasing(_job("interview_1", applied_days=60), NOW)
         assert av.needs_chasing(_job("applied", applied_days=60), NOW)
 
+    def test_rejection_age_runs_to_the_rejection_not_to_today(self):
+        assert av.age_label(_job("rejected", applied_days=31, updated_days=30), NOW)["text"] == \
+            "rejected after 1 day"
+
+    def test_rejection_without_a_stage_date_shows_no_age(self):
+        assert av.age_label(_job("rejected", applied_days=31), NOW)["text"] == ""
+
+    def test_removed_postings_are_not_flagged_as_ghosted(self):
+        assert av.age_label(_job("spam_or_removed", applied_days=60), NOW) == \
+            {"text": "", "tone": "neutral"}
+
 
 class TestTabs:
     def test_counts_and_filters_agree(self):

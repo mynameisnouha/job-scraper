@@ -460,7 +460,8 @@ def render_queue_page():
     backlog = (f" {unscored} more not scored yet — they join the queue as the scorer reaches them."
                if unscored else "")
 
-    render_auto_apply_questions()
+    if config.AUTO_APPLY_ENABLED:
+        render_auto_apply_questions()
 
     head = st.columns([3, 1.6], vertical_alignment="bottom")
     with head[0]:
@@ -778,11 +779,12 @@ def render_overflow(job, prefix, with_keys=False):
                      width="stretch",
                      help="Write a CV and Anschreiben for this posting, from your fact base."):
             tailor_this_job(job)
-        ok, reason = eligibility.check(job, load_answers_once(), cv_exists=os.path.exists)
-        if st.button("Auto apply", key=f"{prefix}_auto_{job_id}", width="stretch",
-                     disabled=not ok,
-                     help="Queue this job; then run python -m apply.runner" if ok else reason):
-            queue_for_auto_apply(job)
+        if config.AUTO_APPLY_ENABLED:
+            ok, reason = eligibility.check(job, load_answers_once(), cv_exists=os.path.exists)
+            if st.button("Auto apply", key=f"{prefix}_auto_{job_id}", width="stretch",
+                         disabled=not ok,
+                         help="Queue this job; then run python -m apply.runner" if ok else reason):
+                queue_for_auto_apply(job)
         html('<div class="jh-divider"></div>')
         if st.button("No longer accepting", key=f"{prefix}_closed_{job_id}", width="stretch",
                      help="The posting is closed and you never applied — take it out of "
@@ -813,7 +815,7 @@ def card_facts(job, breakdown):
         facts.append(("CV", "tailored"))
     elif apply_queue.worth_tailoring(job, config.RESUME_CUSTOMIZATION_MIN_SCORE):
         facts.append(("CV", "worth tailoring"))
-    label = auto_apply_label(job)
+    label = auto_apply_label(job) if config.AUTO_APPLY_ENABLED else None
     if label:
         facts.append(("Auto apply", label))
     return facts
@@ -2832,7 +2834,8 @@ def render_setup_page():
     render_setup_strip(checks)
     draft = current_draft()
     render_setup_upload(draft, can_call=all(c.ok for c in checks[:3]))
-    render_setup_documents()
+    if config.AUTO_APPLY_ENABLED:
+        render_setup_documents()
     if draft is None:
         return
     step = st.session_state.get("onb_step", "questions")
