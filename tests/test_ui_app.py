@@ -209,6 +209,7 @@ class TestJobsToApplyPage:
         calls = []
         monkeypatch.setattr(supabase_utils, "delete_job",
                             lambda job, reason, note=None: calls.append((job["job_id"], reason, note)) or True)
+        app.session_state["queue_view"] = "focus"
         app.run()
         app.button("focus_delete_j1").click().run()
         app.text_input(key="delnote_j1").input("same as the LinkedIn one").run()
@@ -406,7 +407,11 @@ class TestJobsToApplyPage:
 
 
 class TestFocusQueue:
-    """One job at a time, keyboard-driven — the default view."""
+    """One job at a time, keyboard-driven. The page opens on the list view."""
+
+    @pytest.fixture(autouse=True)
+    def _focus_view(self, app):
+        app.session_state["queue_view"] = "focus"
 
     def test_focus_mode_shows_one_job_with_its_full_breakdown(self, app):
         app.run()

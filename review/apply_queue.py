@@ -101,9 +101,10 @@ SHORTCUTS = [
     ("k", "Previous"),
 ]
 
-SORT_MODES = ["score", "effort", "new"]
+SORT_MODES = ["score", "english", "effort", "new"]
 SORT_MODE_LABELS = {
-    "score": "Best match, English ads first",
+    "score": "Best match",
+    "english": "Best match, English ads first",
     "effort": "Least effort",
     "new": "Newest",
 }
@@ -355,8 +356,8 @@ def sort_jobs(jobs: List[Dict[str, Any]], mode: str = "score") -> List[Dict[str,
     """
     Fixed rank order for the queue.
 
-    "score" is the default: English-language ads first, then highest score
-    within each group (see is_german_ad for why). "effort" sorts by the estimated hours
+    "score" is the default: highest score first. "english" puts English-language
+    ads first, then highest score within each group (see is_german_ad for why). "effort" sorts by the estimated hours
     ascending so a short evening can be spent on the applications that actually
     fit in it — but score still breaks ties, and jobs with no estimate sort last
     rather than pretending to be free.
@@ -375,7 +376,9 @@ def sort_jobs(jobs: List[Dict[str, Any]], mode: str = "score") -> List[Dict[str,
             return (hours is None, hours if hours is not None else 0.0,
                     -(job.get("resume_score") or 0))
         return sorted(jobs, key=key)
-    return sorted(jobs, key=lambda j: (is_german_ad(j), -(j.get("resume_score") or 0)))
+    if mode == "english":
+        return sorted(jobs, key=lambda j: (is_german_ad(j), -(j.get("resume_score") or 0)))
+    return sorted(jobs, key=lambda j: -(j.get("resume_score") or 0))
 
 
 def clamp_cursor(index: int, length: int) -> int:

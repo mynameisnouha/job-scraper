@@ -387,7 +387,7 @@ def init_filters():
     """
     for key, spec in FILTER_KEYS.items():
         st.session_state.setdefault(key, spec["default"])
-    st.session_state.setdefault("queue_view", "focus")
+    st.session_state.setdefault("queue_view", "list")
     st.session_state.setdefault("sort_mode", "score")
     for key in (*FILTER_KEYS, *_PERSISTENT_KEYS):
         if key in st.session_state:

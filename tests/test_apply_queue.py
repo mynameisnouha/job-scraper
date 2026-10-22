@@ -16,13 +16,18 @@ class TestSortJobs:
         jobs = [job("a", 40), job("b", 91), job("c", 70)]
         assert [j["job_id"] for j in apply_queue.sort_jobs(jobs, "score")] == ["b", "c", "a"]
 
-    def test_score_mode_puts_english_ads_ahead_of_german_ones(self):
+    def test_score_mode_ignores_the_ad_language(self):
+        jobs = [job("de_high", 80, score_breakdown={"jd_language": "de"}),
+                job("en_low", 50, score_breakdown={"jd_language": "en"})]
+        assert [j["job_id"] for j in apply_queue.sort_jobs(jobs, "score")] == ["de_high", "en_low"]
+
+    def test_english_mode_puts_english_ads_ahead_of_german_ones(self):
         """0 of ~34 German-language applications led to an interview, 2 of 14 English."""
         jobs = [job("de_high", 80, score_breakdown={"jd_language": "de"}),
                 job("en_low", 50, score_breakdown={"jd_language": "en"}),
                 job("mixed", 70, score_breakdown={"jd_language": "mixed"}),
                 job("unknown", 60)]
-        assert [j["job_id"] for j in apply_queue.sort_jobs(jobs, "score")] ==                ["unknown", "en_low", "de_high", "mixed"]
+        assert [j["job_id"] for j in apply_queue.sort_jobs(jobs, "english")] ==                ["unknown", "en_low", "de_high", "mixed"]
 
     def test_unscored_jobs_sink_rather_than_crash(self):
         jobs = [job("a", None), job("b", 50)]
