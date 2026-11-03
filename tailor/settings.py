@@ -19,7 +19,7 @@ import config
 # they share training lineage, so some blind spots survive - but it is a real
 # improvement over self-review and needs no second API key. Point
 # TAILOR_JUDGE_MODEL at another provider if you ever have one.
-WRITER_MODEL = os.getenv("TAILOR_WRITER_MODEL", config.LLM_MODEL)
+WRITER_MODEL = os.getenv("TAILOR_WRITER_MODEL", "anthropic/claude-sonnet-4-6")
 JUDGE_MODEL = os.getenv("TAILOR_JUDGE_MODEL", "anthropic/claude-opus-5")
 
 # Models that reject anything but temperature=1. Sampling temperature is not

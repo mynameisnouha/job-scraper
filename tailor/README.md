@@ -370,7 +370,7 @@ full-time experience.
 
 | variable | default | notes |
 |---|---|---|
-| `TAILOR_WRITER_MODEL` | `config.LLM_MODEL` (Sonnet) | |
+| `TAILOR_WRITER_MODEL` | `anthropic/claude-sonnet-4-6` | |
 | `TAILOR_JUDGE_MODEL` | `anthropic/claude-opus-5` | deliberately not the writer's model |
 | `TAILOR_MAX_ROUNDS` | 2 | |
 | `TAILOR_MAX_QUESTIONS` | 5 | opening interview, reading the posting cold |

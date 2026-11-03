@@ -78,7 +78,10 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GEMINI_API_KEY") 
 # --- LLM Settings ---
 # Use any model supported by LiteLLM (gemini, openai/gpt-4o-mini, groq/llama-3.3-70b-versatile)
 # Full list of supported models & naming: https://docs.litellm.ai/docs/providers
-LLM_MODEL = os.environ.get("LLM_MODEL") or "anthropic/claude-sonnet-4-6"
+# Haiku since 2026-11-03: scoring is the largest LLM cost and Haiku is a third of
+# Sonnet's price. CV tailoring keeps Sonnet through TAILOR_WRITER_MODEL. If scores
+# drift, set LLM_MODEL=anthropic/claude-sonnet-4-6 in .env to go back.
+LLM_MODEL = os.environ.get("LLM_MODEL") or "anthropic/claude-haiku-4-5"
 
 # Cheap fast model for the pre-scoring screen pass (hard gates + rough band).
 # Only jobs that pass the screen get the full (expensive) scoring call.
