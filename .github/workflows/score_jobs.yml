@@ -8,14 +8,14 @@ on:
   workflow_dispatch: # Allows manual triggering from the Actions tab
     inputs:
       # Defaults match a scheduled run. Raise them to clear a backlog in one go:
-      # screening is cheap (Haiku); full scores are what cost, ~EUR0.05 each, so
-      # score_limit is the spend ceiling.
+      # screening is cheap (Haiku); full scores are what cost, ~EUR0.02 each on
+      # Haiku, so score_limit is the spend ceiling.
       screen_limit:
         description: "Jobs to screen with the cheap model (Haiku)"
         required: false
         default: "40"
       score_limit:
-        description: "Max jobs to fully score with Sonnet (~EUR0.05 each)"
+        description: "Max jobs to fully score with LLM_MODEL (Haiku, ~EUR0.02 each)"
         required: false
         default: "15"
 
