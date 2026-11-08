@@ -1539,13 +1539,22 @@ def main(argv: list | None = None) -> int:
     return exit_code
 
 
+def startup_problem(argv: List[str]) -> Optional[str]:
+    """Why this run cannot start, or None. A --local run screens and scores through
+    Claude Code on the owner's subscription, so it needs no LLM API key."""
+    if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_ROLE_KEY:
+        return "Supabase URL or Key environment variable not set."
+    if "--local" not in argv and not config.LLM_API_KEY:
+        return ("LLM_API_KEY environment variable not set. "
+                "(Also accepts GEMINI_API_KEY / GEMINI_FIRST_API_KEY)")
+    return None
+
+
 if __name__ == "__main__":
     import sys
 
-    if not config.LLM_API_KEY:
-        logging.error("LLM_API_KEY environment variable not set. (Also accepts GEMINI_API_KEY / GEMINI_FIRST_API_KEY)")
-        sys.exit(1)
-    elif not config.SUPABASE_URL or not config.SUPABASE_SERVICE_ROLE_KEY:
-        logging.error("Supabase URL or Key environment variable not set.")
+    problem = startup_problem(sys.argv[1:])
+    if problem:
+        logging.error(problem)
         sys.exit(1)
     sys.exit(main())

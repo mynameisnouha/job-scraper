@@ -912,3 +912,19 @@ class TestLocalScreeningStops:
         monkeypatch.setattr(score_jobs.screen_client, "generate_content", boom)
         with pytest.raises(ClaudeCodeLimitReached):
             score_jobs.screen_job_with_ai({"job_id": "j1", "job_title": "DS", "description": "Python"})
+
+
+class TestStartupCheck:
+    """A local run uses Claude Code, so it must not demand an API key."""
+
+    def test_local_run_needs_no_api_key(self, monkeypatch):
+        monkeypatch.setattr(config, "LLM_API_KEY", None)
+        assert score_jobs.startup_problem(["--local"]) is None
+
+    def test_api_run_still_needs_a_key(self, monkeypatch):
+        monkeypatch.setattr(config, "LLM_API_KEY", None)
+        assert "LLM_API_KEY" in score_jobs.startup_problem([])
+
+    def test_supabase_is_always_needed(self, monkeypatch):
+        monkeypatch.setattr(config, "SUPABASE_URL", "")
+        assert "Supabase" in score_jobs.startup_problem(["--local"])
