@@ -79,6 +79,37 @@ the `CANDIDATE_PROFILE_JSON` secret: see
 
 ---
 
+## Scoring on your laptop with Claude Code
+
+Screening and scoring can run on your Claude subscription instead of the API. Once
+a day, at logon, your laptop screens and scores the waiting jobs through `claude -p`;
+GitHub Actions keeps scraping and only scores jobs the laptop has not reached within
+24 hours, on the API as before.
+
+```powershell
+python -m scoring.score_jobs --local          # one run, by hand
+```
+
+- **What it needs:** Claude Code installed and logged in, and your `.env` with the
+  Supabase values. For email alerts from local runs, the SMTP values too.
+- **Limits:** at most `LOCAL_DAILY_CALL_BUDGET` (150) calls a day, counted across
+  runs in `output/claude_code_usage.json`. A normal day needs about 76 (2% of a
+  5-hour session per 40 calls, measured). If Claude Code reports a usage limit, the
+  run stops and leaves the rest for later.
+- **Every logon:** register the script once (replace `<repo>` with this folder):
+
+  ```powershell
+  schtasks /Create /TN "job-scraper local scoring" /SC ONLOGON /DELAY 0010:00 /TR "powershell -NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\run_local_scoring.ps1"
+  ```
+
+  Logs go to `output/local_scoring/<date>.log`.
+- **Hand fresh jobs to the laptop:** after a few days of good local runs, set the
+  repository variable `LOCAL_SCORING_ENABLED=true`. Until then CI scores everything.
+- **CV tailoring on the subscription too:** in `.env`, set
+  `TAILOR_WRITER_MODEL=claude-code/sonnet` and `TAILOR_JUDGE_MODEL=claude-code/opus`.
+
+---
+
 ## Configuration
 
 Secrets go in `.env` (copied from `.env.example`, which lists every variable).
