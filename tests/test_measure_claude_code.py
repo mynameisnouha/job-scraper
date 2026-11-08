@@ -42,3 +42,21 @@ def test_argv_is_fenced():
     assert argv[argv.index("--system-prompt-file") + 1] == "C:/tmp/system.txt"
     assert argv[argv.index("--model") + 1] == "haiku"
     assert "--dangerously-skip-permissions" not in argv
+    # Only local settings, read from an empty directory: no user hooks, plugins or
+    # memory inflate the measured tokens.
+    assert argv[argv.index("--setting-sources") + 1] == "local"
+
+
+def test_run_one_runs_outside_the_repo(monkeypatch):
+    import os
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen.update(kwargs)
+        return type("P", (), {"stdout": SUCCESS, "stderr": ""})()
+
+    monkeypatch.setattr(m, "check_claude_bin", lambda: "claude.exe")
+    monkeypatch.setattr(m.subprocess, "run", fake_run)
+    m.run_one("screen", {"job_id": "j1"}, {"prompt": "p", "system_prompt": "s"}, "haiku")
+    assert seen.get("cwd")
+    assert os.path.abspath(seen["cwd"]) != os.path.abspath(os.getcwd())

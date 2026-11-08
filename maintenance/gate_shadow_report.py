@@ -29,6 +29,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 FLOOR_MAX_SKIP_30_PLUS = 0.02
 C1_MAX_FALSE_POSITIVE_RATE = 0.05
+MIN_ROWS = 30  # fewer rows than this cannot show a 2% or 5% rate either way
 
 
 def summarize(rows: List[Dict[str, Any]], floor: int) -> Dict[str, Any]:
@@ -49,17 +50,21 @@ def summarize(rows: List[Dict[str, Any]], floor: int) -> Dict[str, Any]:
     false_positives = sum(1 for b in hits if b.get("german_required") != "C1-fluent")
     fp_rate = round(false_positives / len(hits), 4) if hits else None
 
+    # A failure counts on any sample; a pass needs MIN_ROWS behind it before the
+    # owner flips enforcement on.
     if not skipped:
         verdict_floor = "no data"
-    elif skip_30_plus / len(skipped) < FLOOR_MAX_SKIP_30_PLUS and skip_applied == 0:
-        verdict_floor = "ok"
-    else:
+    elif skip_30_plus / len(skipped) >= FLOOR_MAX_SKIP_30_PLUS or skip_applied:
         verdict_floor = "too strict"
+    else:
+        verdict_floor = "ok" if len(skipped) >= MIN_ROWS else "too little data"
 
     if not hits:
         verdict_c1 = "no data"
+    elif fp_rate >= C1_MAX_FALSE_POSITIVE_RATE:
+        verdict_c1 = "too strict"
     else:
-        verdict_c1 = "ok" if fp_rate < C1_MAX_FALSE_POSITIVE_RATE else "too strict"
+        verdict_c1 = "ok" if len(hits) >= MIN_ROWS else "too little data"
 
     return {
         "floor": floor,

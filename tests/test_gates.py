@@ -40,6 +40,17 @@ def test_c1_demands_match(text):
     "Sehr gute Englischkenntnisse",
     "English C1, German B1",
     "Englisch verhandlungssicher",
+    # Germany/Deutschland is a location, not the language (review finding 1).
+    "Remote anywhere in Germany. C1 English required",
+    "Location: Berlin, Germany - C1 English",
+    "Standort Deutschland, C1 Englisch",
+    # A bulleted language list: the English level must not run into the German line.
+    "Englisch: fließend\nDeutsch: von Vorteil",
+    "Englisch verhandlungssicher\nDeutsch von Vorteil",
+    "Basic German, fluent English",
+    # A demanding adjective softened into a plus is not a demand.
+    "Sehr gute Deutschkenntnisse von Vorteil",
+    "Fließende Deutschkenntnisse sind wünschenswert",
     "",
 ])
 def test_no_c1_demand_no_match(text):

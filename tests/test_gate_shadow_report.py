@@ -64,3 +64,14 @@ def test_empty_input_reports_no_data():
     assert out["c1_hits_full_scored"] == 0
     assert out["verdict_floor"] == "no data"
     assert out["verdict_c1"] == "no data"
+
+
+def test_one_clean_row_is_too_little_data_to_enforce():
+    out = summarize([_row(10, rough=10), _row(40, c1="sehr gute Deutsch", german="C1-fluent")], floor=30)
+    assert out["verdict_floor"] == "too little data"
+    assert out["verdict_c1"] == "too little data"
+
+
+def test_a_failure_is_reported_even_on_a_small_sample():
+    out = summarize([_row(12, rough=15, applied=True)], floor=30)
+    assert out["verdict_floor"] == "too strict"

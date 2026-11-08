@@ -55,6 +55,9 @@ def claude_argv(model: str, system_prompt_file: str) -> List[str]:
             "--tools", "",
             "--max-turns", "1",
             "--strict-mcp-config",
+            # Only local settings, and the call runs in an empty directory (run_one),
+            # so the owner's user hooks, plugins and memory do not inflate the tokens.
+            "--setting-sources", "local",
             "--no-session-persistence"]
 
 
@@ -106,11 +109,13 @@ def run_one(kind: str, job: Dict[str, Any], request: Dict[str, Any], model: str)
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as f:
         f.write(_system_text(request.get("system_prompt")))
         system_file = f.name
+    empty_dir = tempfile.mkdtemp(prefix="claude-measure-")
     try:
         proc = subprocess.run(claude_argv(model, system_file),
                               input=_with_schema(request["prompt"], model_cls),
                               capture_output=True, text=True, encoding="utf-8",
-                              env=scrubbed_env(), timeout=_TIMEOUT_SECONDS)
+                              env=scrubbed_env(), timeout=_TIMEOUT_SECONDS,
+                              cwd=empty_dir)
         usage = parse_usage(proc.stdout)
         row.update({k: v for k, v in usage.items() if k != "result"})
         if usage["ok"]:
@@ -125,6 +130,7 @@ def run_one(kind: str, job: Dict[str, Any], request: Dict[str, Any], model: str)
         row["error"] = str(exc)[:200]
     finally:
         os.unlink(system_file)
+        os.rmdir(empty_dir)
     return row
 
 
