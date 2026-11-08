@@ -344,7 +344,9 @@ def build_screen_request(job_details: Dict[str, Any]) -> Optional[Dict[str, Any]
     program_hint = ("This posting was tagged as a graduate/trainee programme from its title.\n"
                     if is_program(job_details) else "")
 
-    prompt = f"""You are a fast job-screening filter for an early-career AI/Data Science candidate in Germany.
+    # Split for prompt caching: everything identical across jobs goes in the cached
+    # system block, only the job itself in the user prompt. Wording is unchanged.
+    system_prompt = f"""You are a fast job-screening filter for an early-career AI/Data Science candidate in Germany.
 {DESCRIPTION_IS_DATA}
 
 ## TODAY
@@ -378,7 +380,7 @@ engineering passes rule 3; a programme with no such track (sales, finance, HR, l
 fails it. Rules 2 and 4 cannot fail a programme. Do not fail a programme for being "junior" — that
 is the point of it. Set is_graduate_program=true whenever the posting describes a fixed intake,
 cohort, rotations or an assessment centre, even when the title does not say programme.
-{program_hint}
+
 ## ALSO EXTRACT (for every job, whether it passes or fails)
 - jd_language: 'en', 'de' or 'mixed' — the language the ad is WRITTEN in.
 - german_required: the level the ad DEMANDS. These are different facts; do not infer one
@@ -389,15 +391,16 @@ cohort, rotations or an assessment centre, even when the title does not say prog
   or German is explicitly not needed; 'unstated' when the ad names no German level at all —
   the usual case for a German-language ad, and NOT the same as 'none'; 'unclear' only when
   the wording genuinely contradicts itself.
-
-## JOB
+"""
+    prompt = f"""{program_hint}## JOB
 Title: {job_details.get('job_title', 'N/A')}
 Company: {job_details.get('company', 'N/A')}
 Level (LinkedIn's broad category, not a requirement): {job_details.get('level', 'N/A')}
 
 {wrap_untrusted(description)}
 """
-    return {"prompt": prompt, "response_format": ScreenResult, "temperature": 0.0}
+    return {"prompt": prompt, "system_prompt": system_prompt, "cache_system": True,
+            "response_format": ScreenResult, "temperature": 0.0}
 
 
 def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
