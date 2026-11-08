@@ -104,6 +104,16 @@ JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 200)
 # Enforce by setting the SCREEN_GATES_ENFORCE repository variable.
 SCREEN_GATES_ENFORCE = _bool_env("SCREEN_GATES_ENFORCE", False)
 FULL_SCORE_MIN_ROUGH = _int_env("FULL_SCORE_MIN_ROUGH", 30)
+
+# --- Claude Code (scoring/claude_code.py) ---
+# Models named "claude-code/<model>" run through `claude -p` on the owner's Claude
+# subscription instead of the API. Measured 2026-11-08: 40 calls (20 screens, 20 full
+# scores) used 2% of a 5-hour session; a normal day needs ~76 calls. The budget caps
+# calls per calendar day across runs, so the owner's own Claude Code use is never
+# starved. Effort "low" goes with MAX_THINKING_TOKENS=0: full scores ran to ~8.5k
+# output tokens with thinking on.
+LOCAL_DAILY_CALL_BUDGET = _int_env("LOCAL_DAILY_CALL_BUDGET", 150)
+CLAUDE_CODE_EFFORT = os.environ.get("CLAUDE_CODE_EFFORT") or "low"
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 

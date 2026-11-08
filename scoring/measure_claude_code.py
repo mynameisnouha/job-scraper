@@ -34,6 +34,9 @@ from typing import Any, Dict, List, Optional
 
 import config
 from apply.worker import check_claude_bin, scrubbed_env
+from scoring.claude_code import (_USAGE_KEYS, claude_argv, parse_usage,
+                                 strip_fence as _strip_fence, system_text as _system_text,
+                                 with_schema as _with_schema)
 from db import supabase_utils
 from models import ScoreBreakdown, ScreenResult
 
@@ -42,64 +45,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 _OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "output", "claude_code_measure")
 _TIMEOUT_SECONDS = 300
-_USAGE_KEYS = ("input_tokens", "output_tokens", "cache_read_input_tokens",
-               "cache_creation_input_tokens")
-
-
-def claude_argv(model: str, system_prompt_file: str) -> List[str]:
-    """The fenced claude command line; the user prompt goes on stdin."""
-    return [check_claude_bin(), "-p",
-            "--output-format", "json",
-            "--model", model,
-            "--system-prompt-file", system_prompt_file,
-            "--tools", "",
-            "--max-turns", "1",
-            "--strict-mcp-config",
-            # Only local settings, and the call runs in an empty directory (run_one),
-            # so the owner's user hooks, plugins and memory do not inflate the tokens.
-            "--setting-sources", "local",
-            "--no-session-persistence"]
-
-
-def parse_usage(stdout: str) -> Dict[str, Any]:
-    """Tokens, cost and the answer text from claude's JSON output."""
-    out: Dict[str, Any] = {"ok": False, "cost_usd": None, "duration_ms": None, "result": None,
-                           **{k: None for k in _USAGE_KEYS}}
-    try:
-        data = json.loads(stdout)
-    except (ValueError, TypeError):
-        return out
-    if not isinstance(data, dict):
-        return out
-    usage = data.get("usage") or {}
-    for key in _USAGE_KEYS:
-        out[key] = usage.get(key)
-    cost = data.get("total_cost_usd")
-    out["cost_usd"] = float(cost) if isinstance(cost, (int, float)) else None
-    out["duration_ms"] = data.get("duration_ms")
-    out["result"] = data.get("result") if isinstance(data.get("result"), str) else None
-    out["ok"] = not data.get("is_error") and out["result"] is not None
-    return out
-
-
-def _strip_fence(text: str) -> str:
-    text = (text or "").strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else ""
-        text = text.rsplit("```", 1)[0]
-    return text.strip()
-
-
-def _with_schema(prompt: str, model_cls) -> str:
-    schema = json.dumps(model_cls.model_json_schema())
-    return (f"{prompt}\n\nAnswer with only one JSON object that matches this JSON schema, "
-            f"no prose and no code fence:\n{schema}")
-
-
-def _system_text(system_prompt) -> str:
-    if isinstance(system_prompt, (list, tuple)):
-        return "\n\n".join(system_prompt)
-    return system_prompt or ""
 
 
 def run_one(kind: str, job: Dict[str, Any], request: Dict[str, Any], model: str) -> Dict[str, Any]:
@@ -114,7 +59,9 @@ def run_one(kind: str, job: Dict[str, Any], request: Dict[str, Any], model: str)
         proc = subprocess.run(claude_argv(model, system_file),
                               input=_with_schema(request["prompt"], model_cls),
                               capture_output=True, text=True, encoding="utf-8",
-                              env=scrubbed_env(), timeout=_TIMEOUT_SECONDS,
+                              # Same thinking switch as the pipeline (scoring/claude_code.py).
+                              env={**scrubbed_env(), "MAX_THINKING_TOKENS": "0"},
+                              timeout=_TIMEOUT_SECONDS,
                               cwd=empty_dir)
         usage = parse_usage(proc.stdout)
         row.update({k: v for k, v in usage.items() if k != "result"})
