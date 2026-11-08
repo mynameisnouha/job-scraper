@@ -193,3 +193,36 @@ class TestBuildDashboard:
         assert "Old One" not in page, "found-today is still enforced"
         # The unscored count is the stat that read 0 for every run.
         assert '<div class="num">1</div><div class="label">Unscored</div>' in page
+
+
+class TestGracePeriodFilter:
+    """With local scoring on, CI only takes jobs scraped before the grace period."""
+
+    @staticmethod
+    def _install(monkeypatch, recorded):
+        class FakeQuery:
+            def __getattr__(self, name):
+                if name == "lt":
+                    return lambda field, value: recorded.append((field, value)) or self
+                if name == "execute":
+                    return lambda: type("R", (), {"data": []})()
+                return lambda *a, **k: self
+
+        monkeypatch.setattr(supabase_utils, "supabase",
+                            type("C", (), {"table": lambda self, name: FakeQuery()})())
+
+    def test_get_jobs_to_score_filters_on_age(self, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+        recorded = []
+        self._install(monkeypatch, recorded)
+        supabase_utils.get_jobs_to_score(10, older_than_hours=24)
+        assert recorded and all(field == "scraped_at" for field, _ in recorded)
+        cutoff = datetime.fromisoformat(recorded[0][1])
+        expected = datetime.now(timezone.utc) - timedelta(hours=24)
+        assert abs((cutoff - expected).total_seconds()) < 300
+
+    def test_no_age_no_filter(self, monkeypatch):
+        recorded = []
+        self._install(monkeypatch, recorded)
+        supabase_utils.get_jobs_to_score(10)
+        assert recorded == []

@@ -114,6 +114,15 @@ FULL_SCORE_MIN_ROUGH = _int_env("FULL_SCORE_MIN_ROUGH", 30)
 # output tokens with thinking on.
 LOCAL_DAILY_CALL_BUDGET = _int_env("LOCAL_DAILY_CALL_BUDGET", 150)
 CLAUDE_CODE_EFFORT = os.environ.get("CLAUDE_CODE_EFFORT") or "low"
+
+# Two workflows. The laptop runs `python -m scoring.score_jobs --local` once a day,
+# screening and scoring with these claude-code models. With LOCAL_SCORING_ENABLED on
+# (a repository variable, for CI), the CI run only takes unscored jobs scraped more
+# than LOCAL_GRACE_HOURS ago, so nothing waits forever when the laptop stays off.
+LOCAL_SCORING_ENABLED = _bool_env("LOCAL_SCORING_ENABLED", False)
+LOCAL_GRACE_HOURS = _int_env("LOCAL_GRACE_HOURS", 24)
+LOCAL_SCREEN_MODEL = os.environ.get("LOCAL_SCREEN_MODEL") or "claude-code/haiku"
+LOCAL_SCORE_MODEL = os.environ.get("LOCAL_SCORE_MODEL") or "claude-code/haiku"
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 

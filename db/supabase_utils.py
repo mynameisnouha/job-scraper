@@ -159,7 +159,7 @@ def save_jobs_to_supabase(jobs_data: list) -> int:
         return 0
 
 
-def get_jobs_to_score(limit: int) -> list:
+def get_jobs_to_score(limit: int, older_than_hours: Optional[int] = None) -> list:
     """
     Fetches jobs from the Supabase 'jobs' table that need scoring.
     Filters by is_active = true and resume_score = null.
@@ -175,6 +175,9 @@ def get_jobs_to_score(limit: int) -> list:
     oldest-first let the backlog grow, so a job scraped today waited days for a
     score. When intake beats the cap, the jobs left unscreened are the stalest
     ones, and the 14-day cleanup removes them without a model ever seeing them.
+
+    older_than_hours: only jobs scraped before that many hours ago. CI passes it when
+    local Claude Code scoring is on, leaving fresh jobs to the laptop's daily run.
     """
     if limit <= 0:
         logging.warning("Limit for jobs to score must be positive.")
@@ -187,6 +190,10 @@ def get_jobs_to_score(limit: int) -> list:
 
         def _query(columns: str, n: int, deprioritised: bool):
             query = supabase.table(config.SUPABASE_TABLE_NAME)                            .select(columns)                            .eq("is_active", True)                            .is_("resume_score", None)
+            if older_than_hours is not None:
+                cutoff = (datetime.datetime.now(datetime.timezone.utc)
+                          - datetime.timedelta(hours=older_than_hours))
+                query = query.lt("scraped_at", cutoff.isoformat())
             if last:
                 listed = ",".join(last)
                 query = (query.in_("provider", last) if deprioritised

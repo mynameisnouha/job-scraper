@@ -480,7 +480,25 @@ def log_german_distribution(labels: List[tuple]) -> Dict[str, int]:
     return dict(by_level)
 
 
-def run_screening_phase() -> list:
+def selection_age(local: bool) -> Optional[int]:
+    """How old an unscored job must be before this run takes it.
+
+    None means any age. The laptop's local run takes everything; CI, once local
+    scoring is on, only takes jobs older than LOCAL_GRACE_HOURS.
+    """
+    if local or not getattr(config, "LOCAL_SCORING_ENABLED", False):
+        return None
+    return config.LOCAL_GRACE_HOURS
+
+
+def _jobs_to_score(limit: int, older_than_hours: Optional[int]) -> list:
+    """get_jobs_to_score, passing the age filter only when there is one."""
+    if older_than_hours is None:
+        return supabase_utils.get_jobs_to_score(limit)
+    return supabase_utils.get_jobs_to_score(limit, older_than_hours=older_than_hours)
+
+
+def run_screening_phase(older_than_hours: Optional[int] = None) -> list:
     """
     Screens up to JOBS_TO_SCREEN_PER_RUN unscored jobs with the cheap model.
     Screen failures are written to the DB immediately with a capped score and a 'skip'
@@ -488,7 +506,7 @@ def run_screening_phase() -> list:
     (at most JOBS_TO_SCORE_PER_RUN) for full scoring.
     """
     screen_limit = getattr(config, 'JOBS_TO_SCREEN_PER_RUN', config.JOBS_TO_SCORE_PER_RUN)
-    jobs = supabase_utils.get_jobs_to_score(screen_limit)
+    jobs = _jobs_to_score(screen_limit, older_than_hours)
     if not jobs:
         return []
 
@@ -569,7 +587,7 @@ def run_screening_phase() -> list:
                 # it the whole unscored corpus would turn a bad API key into a bill: at the
                 # 478-job backfill and ~EUR0.05 a full score, roughly EUR24. It may never
                 # return more than one run's worth of scoring.
-                fallback = supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+                fallback = _jobs_to_score(config.JOBS_TO_SCORE_PER_RUN, older_than_hours)
                 logging.error("3 consecutive screening failures — likely an LLM auth/config problem "
                               f"with the screen model. Falling back to full scoring for "
                               f"{len(fallback)} job(s), the per-run scoring cap. The rest stay "
@@ -1328,7 +1346,20 @@ def main(argv: list | None = None) -> int:
              "JOBS_TO_SCORE_PER_RUN, so a backfill that raises that cap would "
              "silently raise their cost too.",
     )
+    parser.add_argument(
+        "--local", action="store_true",
+        help="Screen and score on this machine through Claude Code (LOCAL_SCREEN_MODEL, "
+             "LOCAL_SCORE_MODEL) instead of the API. Implies --only-initial.",
+    )
     args = parser.parse_args(argv)
+    if args.local:
+        screen_client.model = config.LOCAL_SCREEN_MODEL
+        primary_client.model = config.LOCAL_SCORE_MODEL
+        args.only_initial = True
+        logging.info(f"Local run: screening with {screen_client.model}, scoring with {primary_client.model}.")
+    older_than_hours = selection_age(args.local)
+    if older_than_hours is not None:
+        logging.info(f"Local scoring is on: this run only takes jobs scraped over {older_than_hours} h ago.")
     logging.info("--- Starting Job Scoring Script ---")
     overall_start_time = time.time()
     exit_code = 0
@@ -1368,9 +1399,9 @@ def main(argv: list | None = None) -> int:
         # 3. Fetch Jobs to Score — via the cheap screening pass when enabled,
         #    so the expensive scorer only sees jobs that clear the hard gates.
         if getattr(config, 'SCREENING_ENABLED', False):
-            jobs_to_score_initially = run_screening_phase()
+            jobs_to_score_initially = run_screening_phase(older_than_hours)
         else:
-            jobs_to_score_initially = supabase_utils.get_jobs_to_score(config.JOBS_TO_SCORE_PER_RUN)
+            jobs_to_score_initially = _jobs_to_score(config.JOBS_TO_SCORE_PER_RUN, older_than_hours)
         if not jobs_to_score_initially:
             logging.info("No jobs require initial scoring at this time.")
         else:
@@ -1468,6 +1499,10 @@ def main(argv: list | None = None) -> int:
         logging.info("--- Skipping the custom-resume rescore and manual jobs (--only-initial) ---")
         overall_end_time = time.time()
         logging.info("--- Job Scoring Script Finished (initial scoring only) ---")
+        if args.local:
+            from scoring import claude_code
+            logging.info(f"Claude Code calls today: {claude_code.calls_today()} of "
+                         f"{config.LOCAL_DAILY_CALL_BUDGET}.")
         logging.info(f"Total script execution time: {overall_end_time - overall_start_time:.2f} seconds")
         return exit_code
 

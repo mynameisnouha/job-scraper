@@ -818,3 +818,41 @@ class TestScreenPromptCaching:
         assert "Python and SQL for forecasting" not in a["system_prompt"]
         b = score_jobs.build_screen_request(self.JOB_B)
         assert "tagged as a graduate/trainee programme" in b["prompt"]
+
+
+class TestLocalScoring:
+    """The laptop screens and scores everything through Claude Code; CI, once local
+    scoring is on, only takes jobs the laptop has not reached within the grace period."""
+
+    def test_ci_takes_only_stale_jobs_when_local_is_on(self, monkeypatch):
+        monkeypatch.setattr(config, "LOCAL_SCORING_ENABLED", True)
+        monkeypatch.setattr(config, "LOCAL_GRACE_HOURS", 24)
+        assert score_jobs.selection_age(local=False) == 24
+        seen = []
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score",
+                            lambda limit, older_than_hours=None: seen.append(older_than_hours) or [])
+        score_jobs.run_screening_phase(older_than_hours=24)
+        assert seen == [24]
+
+    def test_local_run_takes_everything(self, monkeypatch):
+        monkeypatch.setattr(config, "LOCAL_SCORING_ENABLED", True)
+        assert score_jobs.selection_age(local=True) is None
+
+    def test_default_is_unchanged(self, monkeypatch):
+        monkeypatch.setattr(config, "LOCAL_SCORING_ENABLED", False)
+        assert score_jobs.selection_age(local=False) is None
+
+    def test_local_flag_switches_models_and_skips_later_phases(self, monkeypatch):
+        screen_before = score_jobs.screen_client.model
+        primary_before = score_jobs.primary_client.model
+        try:
+            monkeypatch.setattr(score_jobs.supabase_utils, "get_base_resume", lambda: None)
+            monkeypatch.setattr(config, "BASE_RESUME_PATH", "does-not-exist.json", raising=False)
+            monkeypatch.setattr(score_jobs, "rescore_jobs_with_custom_resume",
+                                lambda: pytest.fail("custom-resume rescore ran in a local run"))
+            score_jobs.main(["--local"])
+            assert score_jobs.screen_client.model == config.LOCAL_SCREEN_MODEL == "claude-code/haiku"
+            assert score_jobs.primary_client.model == config.LOCAL_SCORE_MODEL == "claude-code/haiku"
+        finally:
+            score_jobs.screen_client.model = screen_before
+            score_jobs.primary_client.model = primary_before

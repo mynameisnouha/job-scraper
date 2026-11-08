@@ -120,6 +120,11 @@ jobs:
           # variable SCREEN_GATES_ENFORCE=true once gate_shadow_report says it is safe.
           SCREEN_GATES_ENFORCE: ${{ vars.SCREEN_GATES_ENFORCE }}
           FULL_SCORE_MIN_ROUGH: ${{ vars.FULL_SCORE_MIN_ROUGH }}
+          # Local Claude Code scoring (config.py). Unset = CI scores everything as
+          # before. LOCAL_SCORING_ENABLED=true once the laptop's daily run works:
+          # CI then only takes jobs scraped more than LOCAL_GRACE_HOURS (24) ago.
+          LOCAL_SCORING_ENABLED: ${{ vars.LOCAL_SCORING_ENABLED }}
+          LOCAL_GRACE_HOURS: ${{ vars.LOCAL_GRACE_HOURS }}
           # Email alert for strong matches. Unset secrets simply mean no mail —
           # score_jobs.py logs the reason and carries on.
           EMAIL_ALERTS_ENABLED: ${{ vars.EMAIL_ALERTS_ENABLED }}
