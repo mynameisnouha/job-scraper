@@ -137,8 +137,9 @@ def calls_today() -> int:
 
 
 def complete(prompt: str, system_prompt, model: str, response_format=None) -> str:
-    """One claude -p call. Returns the answer (validated JSON text when a
-    response_format is given). Raises ClaudeCodeLimitReached or RuntimeError."""
+    """One claude -p call. Returns the answer text, code fence stripped; with a
+    response_format the prompt asks for JSON of that schema. Raises
+    ClaudeCodeLimitReached or RuntimeError."""
     global _limit_reached
     if _limit_reached:
         raise ClaudeCodeLimitReached("Claude Code usage limit reached earlier in this run.")
@@ -171,10 +172,6 @@ def complete(prompt: str, system_prompt, model: str, response_format=None) -> st
             raise ClaudeCodeLimitReached(f"Claude Code usage limit: {detail}")
         raise RuntimeError(f"claude -p returned no answer: {detail}")
 
-    text = strip_fence(usage["result"])
-    if response_format is not None:
-        try:
-            response_format.model_validate_json(text)
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(f"claude -p answer failed validation: {str(exc)[:200]}") from exc
-    return text
+    # Not validated here: the caller validates, as on the API path, so finish_score's
+    # one repair call still runs and an invalid answer is never stored.
+    return strip_fence(usage["result"])

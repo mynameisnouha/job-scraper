@@ -15,7 +15,8 @@ from pydantic import ValidationError
 import config
 from scoring import notify
 from db import supabase_utils
-from scoring.llm_client import primary_client, screen_client
+from scoring.llm_client import CLAUDE_CODE_PREFIX, primary_client, screen_client
+from scoring.claude_code import ClaudeCodeLimitReached
 from models import ScoreBreakdown, ScreenResult
 from scoring.gates import german_c1_match
 from sources.role_type import GRADUATE_PROGRAM, is_program
@@ -413,6 +414,8 @@ def screen_job_with_ai(job_details: Dict[str, Any]) -> Optional[ScreenResult]:
         return None
     try:
         result_text = screen_client.generate_content(**request)
+    except ClaudeCodeLimitReached:
+        raise  # run_screening_phase stops on it and keeps the passers
     except Exception as e:
         logging.error(f"Screening failed for job_id {job_details.get('job_id')}: {e}")
         return None
@@ -519,6 +522,7 @@ def run_screening_phase(older_than_hours: Optional[int] = None) -> list:
     # Batched, every screen is decided up front in one Message Batch. Unbatched,
     # each is called in the loop, so the error fallback below can stop early.
     enforce = bool(getattr(config, "SCREEN_GATES_ENFORCE", False))
+    local_screen = screen_client.model.startswith(CLAUDE_CODE_PREFIX)
     floor = getattr(config, "FULL_SCORE_MIN_ROUGH", 30)
     c1_by_id = {job.get('job_id'): german_c1_match(job.get('description')) for job in jobs}
 
@@ -575,11 +579,23 @@ def run_screening_phase(older_than_hours: Optional[int] = None) -> list:
                                             })
             continue
 
-        result = batched.get(job_id) if batched is not None else screen_job_with_ai(job)
+        try:
+            result = batched.get(job_id) if batched is not None else screen_job_with_ai(job)
+        except ClaudeCodeLimitReached as e:
+            logging.warning(f"Screening stopped: {e} The {len(passers)} passer(s) so far go on to "
+                            "scoring; the rest wait for the next run.")
+            break
         if result is not None:
             screen_labels.append((result.jd_language, result.german_required))
         if result is None:
             consecutive_errors += 1
+            if consecutive_errors >= 3 and local_screen:
+                # The fallback below is for an API screen model that is broken while the
+                # scoring model works. Locally both are Claude Code on one budget, so it
+                # would only spend more of it on unscreened jobs.
+                logging.error("3 consecutive screening failures in a local Claude Code run - "
+                              f"stopping screening; {len(passers)} passer(s) go on to scoring.")
+                break
             if consecutive_errors >= 3:
                 # Bounded deliberately. This fallback exists for a screen model that is
                 # misconfigured while the scoring model still works — and in that case it

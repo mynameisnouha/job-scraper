@@ -44,10 +44,14 @@ def test_complete_returns_validated_json(fake):
     assert json.loads(out) == json.loads(SCREEN_JSON)
 
 
-def test_prose_around_json_raises(fake):
+def test_invalid_answer_is_returned_for_the_caller_to_validate(fake):
+    """The caller validates, so finish_score's one repair call still runs; prose
+    around the JSON then fails that validation and nothing is stored."""
     fake.state["stdout"] = _stdout(f"Here you go: {SCREEN_JSON}")
-    with pytest.raises(RuntimeError):
-        cc.complete("p", "s", "haiku", ScreenResult)
+    out = cc.complete("p", "s", "haiku", ScreenResult)
+    assert out.startswith("Here you go")
+    with pytest.raises(Exception):
+        ScreenResult.model_validate_json(out)
 
 
 def test_budget_counts_across_calls_and_dates(fake, monkeypatch):

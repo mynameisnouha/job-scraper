@@ -856,3 +856,59 @@ class TestLocalScoring:
         finally:
             score_jobs.screen_client.model = screen_before
             score_jobs.primary_client.model = primary_before
+
+
+class TestLocalScreeningStops:
+    """In a local run the screen and the scorer share one Claude Code budget, so a
+    limit or a run of failures ends screening and keeps the passers; the API-era
+    fallback to full scoring would only spend more of the same budget."""
+
+    JOBS = [{"job_id": f"j{i}", "job_title": "Data Scientist", "description": "Python"} for i in range(6)]
+
+    def _setup(self, monkeypatch, screen):
+        fetched = []
+        monkeypatch.setattr(score_jobs.screen_client, "model", "claude-code/haiku")
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score",
+                            lambda limit: fetched.append(limit) or [dict(j) for j in self.JOBS])
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", lambda *a, **k: True)
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai", screen)
+        return fetched
+
+    @staticmethod
+    def _pass():
+        from models import ScreenResult
+        return ScreenResult(passes=True, rough_score=70, reason="fit",
+                            german_required="none", jd_language="en")
+
+    def test_a_limit_keeps_the_passers_and_stops(self, monkeypatch):
+        from scoring.claude_code import ClaudeCodeLimitReached
+        seen = []
+
+        def screen(job):
+            seen.append(job["job_id"])
+            if len(seen) == 3:
+                raise ClaudeCodeLimitReached("limit")
+            return self._pass()
+
+        fetched = self._setup(monkeypatch, screen)
+        passers = score_jobs.run_screening_phase()
+        assert [j["job_id"] for j in passers] == ["j0", "j1"]
+        assert seen == ["j0", "j1", "j2"]
+        assert len(fetched) == 1  # no fallback query
+
+    def test_three_failures_in_a_local_run_do_not_fall_back(self, monkeypatch):
+        answers = iter([self._pass(), None, None, None, self._pass(), self._pass()])
+        fetched = self._setup(monkeypatch, lambda job: next(answers))
+        passers = score_jobs.run_screening_phase()
+        assert [j["job_id"] for j in passers] == ["j0"]
+        assert len(fetched) == 1
+
+    def test_screen_job_with_ai_lets_a_limit_through(self, monkeypatch):
+        from scoring.claude_code import ClaudeCodeLimitReached
+
+        def boom(**kwargs):
+            raise ClaudeCodeLimitReached("limit")
+
+        monkeypatch.setattr(score_jobs.screen_client, "generate_content", boom)
+        with pytest.raises(ClaudeCodeLimitReached):
+            score_jobs.screen_job_with_ai({"job_id": "j1", "job_title": "DS", "description": "Python"})

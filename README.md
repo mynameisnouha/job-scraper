@@ -96,12 +96,19 @@ python -m scoring.score_jobs --local          # one run, by hand
   runs in `output/claude_code_usage.json`. A normal day needs about 76 (2% of a
   5-hour session per 40 calls, measured). If Claude Code reports a usage limit, the
   run stops and leaves the rest for later.
-- **Every logon:** register the script once (replace `<repo>` with this folder):
+- **Every logon:** register the script once, in PowerShell (replace `<repo>` with
+  this folder). It runs 10 minutes after logon, hidden, and also on battery — a
+  plain `schtasks` task skips laptops on battery by default:
 
   ```powershell
-  schtasks /Create /TN "job-scraper local scoring" /SC ONLOGON /DELAY 0010:00 /TR "powershell -NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\run_local_scoring.ps1"
+  $action   = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<repo>\scripts\run_local_scoring.ps1"'
+  $trigger  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+  $trigger.Delay = "PT10M"
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+  Register-ScheduledTask -TaskName "job-scraper local scoring" -Action $action -Trigger $trigger -Settings $settings
   ```
 
+  If it answers "Access is denied", run that PowerShell window as administrator.
   Logs go to `output/local_scoring/<date>.log`.
 - **Hand fresh jobs to the laptop:** after a few days of good local runs, set the
   repository variable `LOCAL_SCORING_ENABLED=true`. Until then CI scores everything.
