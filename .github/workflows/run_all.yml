@@ -115,6 +115,11 @@ jobs:
           # collected by the tailoring package. Optional: unset, jobs are scored
           # against the CV alone, which only means tier-4 evidence goes unseen.
           TAILOR_FACTS_JSON: ${{ secrets.TAILOR_FACTS_JSON }}
+          # Screen gates (config.py). Unset = shadow mode: the C1-German regex and the
+          # rough-score floor only record what they would skip. Set the repository
+          # variable SCREEN_GATES_ENFORCE=true once gate_shadow_report says it is safe.
+          SCREEN_GATES_ENFORCE: ${{ vars.SCREEN_GATES_ENFORCE }}
+          FULL_SCORE_MIN_ROUGH: ${{ vars.FULL_SCORE_MIN_ROUGH }}
           # Email alert for strong matches. Unset secrets simply mean no mail —
           # score_jobs.py logs the reason and carries on.
           EMAIL_ALERTS_ENABLED: ${{ vars.EMAIL_ALERTS_ENABLED }}

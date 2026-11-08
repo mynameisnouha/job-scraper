@@ -17,6 +17,7 @@ from scoring import notify
 from db import supabase_utils
 from scoring.llm_client import primary_client, screen_client
 from models import ScoreBreakdown, ScreenResult
+from scoring.gates import german_c1_match
 from sources.role_type import GRADUATE_PROGRAM, is_program
 
 # --- Setup Logging ---
@@ -311,6 +312,11 @@ def wrap_untrusted(text: str) -> str:
 SENIOR_TITLE_RE = re.compile(r"\b(?:senior|principal|head of|lead)\b|\bsr\.", re.IGNORECASE)
 SENIOR_TITLE_SCORE = 15  # what the screen itself gave these titles
 
+# Stored score for a job screened out on an explicit C1-German demand (enforce mode).
+# Not a judgement of fit: no model saw the job. Under 30 so it stays out of the
+# default queue; the row itself is kept (purge_low_scores skips german_c1).
+GERMAN_C1_SCORE = 25
+
 
 def senior_title_reason(job: Dict[str, Any]) -> Optional[str]:
     """The screen-out reason when the title alone fails rule 4, else None.
@@ -491,15 +497,25 @@ def run_screening_phase() -> list:
 
     # Batched, every screen is decided up front in one Message Batch. Unbatched,
     # each is called in the loop, so the error fallback below can stop early.
+    enforce = bool(getattr(config, "SCREEN_GATES_ENFORCE", False))
+    floor = getattr(config, "FULL_SCORE_MIN_ROUGH", 30)
+    c1_by_id = {job.get('job_id'): german_c1_match(job.get('description')) for job in jobs}
+
     batched = None
     if screen_client.batch_applies():
         batched = screen_many([job for job in jobs
-                               if job.get('job_id') and not senior_title_reason(job)])
+                               if job.get('job_id') and not senior_title_reason(job)
+                               and not (enforce and c1_by_id.get(job.get('job_id')))])
 
     for job in jobs:
         job_id = job.get('job_id')
         if not job_id:
             continue
+        # What the gates did, or in shadow mode would have done. Stored with the row
+        # (a screen-out's breakdown, or the full score via job["_screen_gates"]) so
+        # maintenance/gate_shadow_report.py can judge them against real scores.
+        gates = {"german_c1": c1_by_id.get(job_id), "rough_score": None,
+                 "below_floor": False, "enforced": enforce}
 
         title_reason = senior_title_reason(job)
         if title_reason:
@@ -514,6 +530,27 @@ def run_screening_phase() -> list:
                                                 "key_gaps": [title_reason],
                                                 "screen_only": True,
                                                 "screened_by_rule": "senior_title",
+                                            })
+            continue
+
+        if enforce and gates["german_c1"]:
+            # Out by the owner's policy, but kept: purge_low_scores never deletes
+            # german_c1 rows. Programmes too — the language demand is not seniority.
+            screened_out += 1
+            c1_reason = (f'Requires fluent German ("{gates["german_c1"]}") — '
+                         "decided by rule, no LLM call.")
+            logging.info(f"  SCREEN FAIL  ({GERMAN_C1_SCORE:3d}) {job.get('job_title')} — {c1_reason}")
+            supabase_utils.update_job_score(job_id, GERMAN_C1_SCORE, resume_score_stage="initial",
+                                            score_breakdown={
+                                                "overall_score": GERMAN_C1_SCORE,
+                                                "recommendation": "skip",
+                                                "reasoning": f"Screened out: {c1_reason}",
+                                                "one_line_verdict": c1_reason,
+                                                "key_gaps": [c1_reason],
+                                                "german_required": "C1-fluent",
+                                                "screen_only": True,
+                                                "screened_by_rule": "german_c1",
+                                                "screen_gates": gates,
                                             })
             continue
 
@@ -547,11 +584,21 @@ def run_screening_phase() -> list:
             result.passes = False
             result.reason = f"Requires C1/fluent German. {result.reason}"
 
+        gates["rough_score"] = result.rough_score
+        gates["below_floor"] = result.rough_score < floor
+        floored = result.passes and enforce and gates["below_floor"]
+        if floored:
+            # The floor is fit, not seniority, so programmes are held to it too.
+            result.passes = False
+            result.reason = (f"Rough fit {result.rough_score} is under the full-score floor "
+                             f"of {floor}. {result.reason}")
+
         if result.passes:
             if result.is_graduate_program and not job.get("program_type"):
                 # The title hid it and the screen saw it; the full scorer and the
                 # queue read the same key the sources write.
                 job["program_type"] = GRADUATE_PROGRAM
+            job["_screen_gates"] = gates  # finish_score copies it onto the breakdown
             passers.append(job)
             tag = " [programme]" if is_program(job) else ""
             logging.info(f"  SCREEN PASS  ({result.rough_score:3d}) {job.get('job_title')}{tag} — {result.reason}")
@@ -570,7 +617,10 @@ def run_screening_phase() -> list:
                 "german_required": result.german_required,
                 "jd_language": result.jd_language,
                 "screen_only": True,
+                "screen_gates": gates,
             }
+            if floored:
+                breakdown_lite["screened_by_rule"] = "rough_floor"
             if result.is_graduate_program or is_program(job):
                 breakdown_lite["program_type"] = GRADUATE_PROGRAM
             logging.info(f"  SCREEN FAIL  ({capped:3d}) {job.get('job_title')} — {result.reason}")
@@ -878,6 +928,11 @@ def finish_score(score_text: Optional[str], request: Dict[str, Any],
             )
             breakdown = ScoreBreakdown.model_validate_json(score_text)
             logging.info(f"Repair pass succeeded for {job_id}.")
+
+        # The screening phase's gate record, if this job came through it. Set here
+        # rather than at the write, so every path that persists the breakdown -
+        # including the later recommendation re-persist - carries it.
+        breakdown.screen_gates = job_details.get("_screen_gates")
 
         # --- Hard gates: requirements the candidate cannot clear today. ---
         # Enforced in code (not left entirely to the LLM's judgement) so a great skills

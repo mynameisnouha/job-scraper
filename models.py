@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
+from pydantic.json_schema import SkipJsonSchema
 from typing import List, Optional, Dict, Any
 
 class Education(BaseModel):
@@ -215,6 +216,10 @@ class ScoreBreakdown(BaseModel):
                     "hard_gates_failed, cap_applied, score_before_cap, final_score, confidence "
                     "(high/medium/low), confidence_reason (max 15 words)")
     one_line_verdict: str = Field(..., description="One sentence: the honest bottom line")
+    # Set by code from the screening phase, never by the model: SkipJsonSchema keeps
+    # it out of the schema the scorer is asked to fill. Stored with the breakdown so
+    # maintenance/gate_shadow_report.py can judge the gates against real scores.
+    screen_gates: SkipJsonSchema[Optional[Dict[str, Any]]] = None
 
 class Config:
     extra = 'allow'

@@ -681,3 +681,113 @@ class TestBatchedPhases:
         out = score_jobs.score_many("resume", jobs)
         assert sent == [["j1", "j2"]]
         assert out == {"j1": None, "j2": None}
+
+
+class TestScreenGates:
+    """The C1 regex and the rough-score floor. In shadow mode (the default) they only
+    record what they would have done; with SCREEN_GATES_ENFORCE they skip the model."""
+
+    @staticmethod
+    def _run(monkeypatch, jobs, screen=None, enforce=False):
+        from models import ScreenResult
+        written, screened = {}, []
+
+        def fake_screen(job):
+            screened.append(job["job_id"])
+            return screen or ScreenResult(passes=False, rough_score=10, reason="not a fit",
+                                          german_required="unstated", jd_language="de")
+
+        def capture(job_id, score, resume_score_stage=None, score_breakdown=None):
+            written[job_id] = dict(score_breakdown or {}, score=score)
+            return True
+
+        monkeypatch.setattr(config, "SCREEN_GATES_ENFORCE", enforce)
+        monkeypatch.setattr(config, "FULL_SCORE_MIN_ROUGH", 30)
+        monkeypatch.setattr(score_jobs.supabase_utils, "get_jobs_to_score", lambda limit: jobs)
+        monkeypatch.setattr(score_jobs, "screen_job_with_ai", fake_screen)
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score", capture)
+        passers = score_jobs.run_screening_phase()
+        return written, screened, passers
+
+    @staticmethod
+    def _pass(rough):
+        from models import ScreenResult
+        return ScreenResult(passes=True, rough_score=rough, reason="data role",
+                            german_required="unstated", jd_language="en")
+
+    C1_JOB = {"job_id": "j1", "job_title": "Data Scientist", "description": "Sehr gute Deutschkenntnisse"}
+
+    def test_shadow_c1_job_still_reaches_the_screen(self, monkeypatch):
+        written, screened, _ = self._run(monkeypatch, [dict(self.C1_JOB)])
+        assert screened == ["j1"]
+        assert "sehr gute deutsch" in written["j1"]["screen_gates"]["german_c1"].lower()
+        assert written["j1"]["screen_gates"]["enforced"] is False
+
+    def test_enforced_c1_job_skips_the_model(self, monkeypatch):
+        written, screened, passers = self._run(monkeypatch, [dict(self.C1_JOB)], enforce=True)
+        assert screened == []
+        assert passers == []
+        assert written["j1"]["score"] == score_jobs.GERMAN_C1_SCORE
+        assert written["j1"]["screened_by_rule"] == "german_c1"
+        assert written["j1"]["screen_only"] is True
+        assert written["j1"]["recommendation"] == "skip"
+
+    def test_enforced_c1_programme_is_still_out(self, monkeypatch):
+        job = dict(self.C1_JOB, program_type=score_jobs.GRADUATE_PROGRAM)
+        written, screened, _ = self._run(monkeypatch, [job], enforce=True)
+        assert screened == []
+        assert written["j1"]["screened_by_rule"] == "german_c1"
+
+    def test_shadow_low_rough_passer_still_passes(self, monkeypatch):
+        job = {"job_id": "j1", "job_title": "Data Scientist", "description": "Python"}
+        written, _, passers = self._run(monkeypatch, [job], screen=self._pass(20))
+        assert [j["job_id"] for j in passers] == ["j1"]
+        assert written == {}
+        assert passers[0]["_screen_gates"] == {"german_c1": None, "rough_score": 20,
+                                               "below_floor": True, "enforced": False}
+
+    def test_enforced_floor_writes_screen_only_row(self, monkeypatch):
+        job = {"job_id": "j1", "job_title": "Data Scientist", "description": "Python"}
+        written, _, passers = self._run(monkeypatch, [job], screen=self._pass(20), enforce=True)
+        assert passers == []
+        assert written["j1"]["score"] == 20
+        assert written["j1"]["screened_by_rule"] == "rough_floor"
+        assert written["j1"]["screen_only"] is True
+
+    def test_floor_applies_to_programmes(self, monkeypatch):
+        job = {"job_id": "j1", "job_title": "Trainee Data", "description": "Python",
+               "program_type": score_jobs.GRADUATE_PROGRAM}
+        written, _, passers = self._run(monkeypatch, [job], screen=self._pass(20), enforce=True)
+        assert passers == []
+        assert written["j1"]["screened_by_rule"] == "rough_floor"
+
+    def test_floor_boundary(self, monkeypatch):
+        job = {"job_id": "j1", "job_title": "Data Scientist", "description": "Python"}
+        written, _, passers = self._run(monkeypatch, [job], screen=self._pass(30), enforce=True)
+        assert [j["job_id"] for j in passers] == ["j1"]
+        assert passers[0]["_screen_gates"]["below_floor"] is False
+
+    def test_screen_gates_not_in_model_schema(self):
+        assert "screen_gates" not in ScoreBreakdown.model_json_schema()["properties"]
+
+    def test_finish_score_carries_the_gate_record(self):
+        gates = {"german_c1": None, "rough_score": 20, "below_floor": True, "enforced": False}
+        job = {"job_id": "j1", "job_title": "DS", "company": "A", "_screen_gates": gates}
+        request = {"prompt": "p", "system_prompt": "s"}
+        breakdown = score_jobs.finish_score(json.dumps(BASE), request, job)
+        assert breakdown.screen_gates == gates
+        assert breakdown.model_dump()["screen_gates"] == gates
+
+    def test_gates_survive_recommendation_repersist(self, monkeypatch):
+        breakdown = make_breakdown(0.01)
+        breakdown.screen_gates = {"german_c1": None, "rough_score": 20,
+                                  "below_floor": True, "enforced": False}
+        dumped = []
+        monkeypatch.setattr(score_jobs, "recent_interview_odds", lambda exclude: [])
+        monkeypatch.setattr(score_jobs, "apply_interview_odds_downgrade",
+                            lambda breakdowns, reference=None: [0])
+        monkeypatch.setattr(score_jobs.supabase_utils, "update_job_score",
+                            lambda job_id, score, resume_score_stage=None, score_breakdown=None:
+                            dumped.append(score_breakdown) or True)
+        score_jobs.finalize_batch_recommendations([("j1", breakdown)])
+        assert dumped[0]["screen_gates"]["rough_score"] == 20

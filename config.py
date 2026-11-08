@@ -94,6 +94,16 @@ LLM_SCREEN_MODEL = os.environ.get("LLM_SCREEN_MODEL") or "anthropic/claude-haiku
 # their first scrape added ~270 jobs at once and daily intake roughly doubled, so
 # 100 a run left 372 rows waiting behind fresh, newest-first intake.
 JOBS_TO_SCREEN_PER_RUN = _int_env("JOBS_TO_SCREEN_PER_RUN", 200)
+
+# Screen gates (scoring/gates.py, run_screening_phase). An explicit C1-German demand
+# is screened out in code before any model call; a screen passer whose rough_score is
+# under FULL_SCORE_MIN_ROUGH skips the full score. Of 227 applications only 5 scored
+# under 30, so the floor costs almost nothing the owner acts on. Off by default: in
+# shadow mode both gates only record what they would have done (score_breakdown
+# "screen_gates"), and maintenance/gate_shadow_report.py says whether that is safe.
+# Enforce by setting the SCREEN_GATES_ENFORCE repository variable.
+SCREEN_GATES_ENFORCE = _bool_env("SCREEN_GATES_ENFORCE", False)
+FULL_SCORE_MIN_ROUGH = _int_env("FULL_SCORE_MIN_ROUGH", 30)
 LLM_SCREEN_MAX_RPM = 30
 LLM_SCREEN_REQUEST_DELAY = 1
 
