@@ -46,6 +46,10 @@ DEFAULT_LIMIT = config._int_env("PURGE_LIMIT", 400)
 
 REASON = "below_score_floor"
 
+# Rows screened out by these rules are kept whatever they score. german_c1: fluent-
+# German jobs are out by the owner's policy but stay findable in the app.
+KEEP_RULES = {"german_c1"}
+
 
 def find_purgeable(min_score: int, limit: int) -> List[Dict[str, Any]]:
     """Untouched postings scoring below the floor, lowest first.
@@ -74,7 +78,14 @@ def find_purgeable(min_score: int, limit: int) -> List[Dict[str, Any]]:
                 raise
             logging.warning("No dismissed_at column; dismissals cannot be excluded.")
             response = query.execute()
-        return response.data or []
+        rows = response.data or []
+        # Filtered here, not in the query: a PostgREST neq on a JSON path also drops
+        # every row where the key is absent, which is nearly all of them.
+        kept = [r for r in rows
+                if ((r.get("score_breakdown") or {}).get("screened_by_rule") in KEEP_RULES)]
+        if kept:
+            logging.info(f"Keeping {len(kept)} row(s) set aside by rule {sorted(KEEP_RULES)}.")
+        return [r for r in rows if r not in kept]
     except Exception as exc:  # noqa: BLE001
         logging.error(f"Could not list purgeable jobs: {exc}")
         return []

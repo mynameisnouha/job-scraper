@@ -89,6 +89,19 @@ class TestWhatItRefusesToTouch:
         purge.find_purgeable(20, 400)
         assert fake.filters["lt:resume_score"] == 20, "20 itself survives"
 
+    def test_kept_c1_rows_are_never_purged(self, client, monkeypatch):
+        """C1-German jobs are out by the owner's policy but kept: the screen gate
+        sets them aside without a model call, and the purge must not finish them off."""
+        rows = _rows(2)
+        rows[0]["score_breakdown"] = {"screened_by_rule": "german_c1"}
+        client(rows)
+        seen = []
+        monkeypatch.setattr(purge.supabase_utils, "delete_job",
+                            lambda job, reason, note=None: seen.append(job["job_id"]) or True)
+        counts = purge.purge(min_score=50, limit=400)
+        assert seen == ["j1"]
+        assert counts["deleted"] == 1
+
     def test_a_dangerous_floor_is_refused_outright(self, client, capsys):
         """No one is at the terminal to answer a confirmation prompt in CI."""
         client(_rows())
