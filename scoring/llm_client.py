@@ -31,6 +31,9 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# Model strings with this prefix run through `claude -p` (scoring/claude_code.py).
+CLAUDE_CODE_PREFIX = "claude-code/"
+
 # Suppress litellm's verbose logging unless DEBUG is set
 litellm.suppress_debug_info = True
 if os.environ.get("LLM_DEBUG", "").lower() == "true":
@@ -233,9 +236,15 @@ class LLMClient:
             RuntimeError: If daily budget is exceeded
             Exception: If all retries are exhausted
         """
-        self._check_daily_budget()
-
         model = model_override or self.model
+        if model.startswith(CLAUDE_CODE_PREFIX):
+            # The owner's Claude subscription via `claude -p`: its own fence, budget
+            # and limit handling; the API budget and rate limiter do not apply.
+            from scoring import claude_code
+            return claude_code.complete(prompt, system_prompt,
+                                        model[len(CLAUDE_CODE_PREFIX):], response_format)
+
+        self._check_daily_budget()
         messages = []
 
         if system_prompt:
@@ -407,11 +416,20 @@ class LLMClient:
                 logger.error(f"Message batch failed, running {len(requests)} request(s) synchronously: {e}")
                 results = {}
 
+        from scoring.claude_code import ClaudeCodeLimitReached
+        limited = False
         for key, request in requests.items():
             if results.get(key) is not None:
                 continue
+            if limited:
+                results[key] = None  # left unscored for the next run or the CI fallback
+                continue
             try:
                 results[key] = self.generate_content(**request)
+            except ClaudeCodeLimitReached as e:
+                logger.warning(f"Claude Code limit: {e} — leaving the remaining requests for later.")
+                limited = True
+                results[key] = None
             except Exception as e:  # noqa: BLE001 — one failed request must not end the phase
                 logger.error(f"LLM request {key} failed: {e}")
                 results[key] = None
